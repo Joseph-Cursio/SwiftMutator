@@ -4,13 +4,10 @@ import SwiftSyntax
 protocol AnyMutationTestState: AnyObject {
     var runOptions: Run.Options { get }
     var newVersion: String { get }
-    var mutationTestingStartTime: Date { get }
     var muterConfiguration: MuterConfiguration { get }
     var mutationOperatorList: MutationOperatorList { get }
     var projectDirectoryURL: URL { get }
     var mutatedProjectDirectoryURL: URL { get }
-    /// The lock on the mutated project, held until the state goes once the run's work has ended; nil until taken.
-    var mutatedProjectLock: MutatedProjectLock? { get }
     var projectXCTestRun: XCTestRun { get }
     /// Whether the xcodebuild in use lists `-collect-test-diagnostics never` in its `-help`; false until
     /// `BuildForTesting` has asked it, and for other build systems.
@@ -20,12 +17,10 @@ protocol AnyMutationTestState: AnyObject {
     /// What the build compiles with, for discovery to tell which `#if` branches it leaves out; nil if that can't be
     /// told.
     var buildConditions: ProjectBuildConditions? { get }
-    var mutationPoints: [MutationPoint] { get }
     var mutationMapping: [SchemataMutationMapping] { get }
     var droppedMutants: [DroppedMutant] { get }
     var sourceCodeByFilePath: [FilePath: SourceFileSyntax] { get }
     var filesToMutate: [String] { get }
-    var mutationTestOutcome: MutationTestOutcome { get }
     /// The folder the run's test logs are kept in, `<project>_muter_logs/<timestamp>`, so a step can keep other
     /// files of the run beside them; "" until the handler has created it.
     var loggingDirectory: String { get }
@@ -91,17 +86,16 @@ final class MutationTestState: AnyMutationTestState {
     var mutationOperatorList: MutationOperatorList = []
     var filesToMutate: [String] = []
     var newVersion: String = ""
-    var mutationTestingStartTime: Date = .init()
     var muterConfiguration: MuterConfiguration = .init()
     var projectDirectoryURL: URL = .init(fileURLWithPath: "path")
     var mutatedProjectDirectoryURL: URL = .init(fileURLWithPath: "path")
+    /// The lock on the mutated project, held until the state goes once the run's work has ended; nil until taken.
     var mutatedProjectLock: MutatedProjectLock?
     var projectXCTestRun: XCTestRun = .init()
     var testDiagnosticsCanBeTurnedOff = false
     var projectCoverage: Coverage = .null
     var sourceFileCandidates: [FilePath] = []
     var buildConditions: ProjectBuildConditions?
-    var mutationPoints: [MutationPoint] = []
     var mutationMapping: [SchemataMutationMapping] = []
     var droppedMutants: [DroppedMutant] = []
     var sourceCodeByFilePath: [FilePath: SourceFileSyntax] = [:]
@@ -125,16 +119,16 @@ final class MutationTestState: AnyMutationTestState {
     var uncoveredSourceFiles: [FilePath] = []
     var uncoveredMutants: [UncoveredMutant]?
 
-    init() {}
+    init() {
+        // Every property starts at its default.
+    }
 
     init(from options: Run.Options) {
         runOptions = options
         mutationOperatorList = options.mutationOperatorsList
         filesToMutate = options.filesToMutate
     }
-}
 
-extension MutationTestState {
     enum Change: Equatable, Sendable {
         case newVersionAvaiable(String)
         case configurationParsed(MuterConfiguration)
@@ -146,7 +140,6 @@ extension MutationTestState {
         case projectCoverage(Coverage)
         case sourceFileCandidatesDiscovered([FilePath])
         case buildConditionsDiscovered(ProjectBuildConditions)
-        case mutationPointsDiscovered([MutationPoint])
         case mutationMappingsDiscovered([SchemataMutationMapping])
         case mutantsDropped([DroppedMutant])
         case sourceCodeParsed([FilePath: SourceFileSyntax])
@@ -171,86 +164,179 @@ extension MutationTestState {
         case uncoveredSourceFilesDiscovered([FilePath])
         case mutantsNotCovered([UncoveredMutant])
     }
-}
 
-extension MutationTestState {
     func apply(_ stateChanges: [MutationTestState.Change]) {
         for change in stateChanges {
-            switch change {
-            case let .newVersionAvaiable(newVersion):
-                self.newVersion = newVersion
-            case let .configurationParsed(muterConfiguration):
-                self.muterConfiguration = muterConfiguration
-            case let .projectDirectoryUrlDiscovered(projectDirectoryURL):
-                self.projectDirectoryURL = projectDirectoryURL
-            case let .tempDirectoryUrlCreated(mutatedProjectDirectoryURL):
-                self.mutatedProjectDirectoryURL = mutatedProjectDirectoryURL
-            case let .mutatedProjectLocked(mutatedProjectLock):
-                self.mutatedProjectLock = mutatedProjectLock
-            case let .projectXCTestRun(projectXCTestRun):
-                self.projectXCTestRun = projectXCTestRun
-            case let .testDiagnosticsOptionChecked(canBeTurnedOff):
-                testDiagnosticsCanBeTurnedOff = canBeTurnedOff
-            case let .projectCoverage(projectCoverage):
-                self.projectCoverage = projectCoverage
-            case let .sourceFileCandidatesDiscovered(sourceFileCandidates):
-                self.sourceFileCandidates = sourceFileCandidates
-            case let .buildConditionsDiscovered(buildConditions):
-                self.buildConditions = buildConditions
-            case let .mutationPointsDiscovered(mutationPoints):
-                self.mutationPoints = mutationPoints
-            case let .mutationMappingsDiscovered(mutationMapping):
-                self.mutationMapping = mutationMapping
-            case let .mutantsDropped(droppedMutants):
-                self.droppedMutants = droppedMutants
-            case let .sourceCodeParsed(sourceCodeByFilePath):
-                self.sourceCodeByFilePath = sourceCodeByFilePath
-            case let .mutationTestOutcomeGenerated(mutationTestOutcome):
-                self.mutationTestOutcome = mutationTestOutcome
-            case let .loggingDirectoryCreated(loggingDirectory):
-                self.loggingDirectory = loggingDirectory
-            case let .projectTreeFingerprinted(projectTree):
-                self.projectTree = projectTree
-            case let .resumeStateLoaded(resumeState):
-                self.resumeState = resumeState
-            case let .projectChangesWaived(paths):
-                resumeWaived = paths
-            case let .reuseChangesFound(changes):
-                reuseChanges = changes
-            case let .changesSelected(selection):
-                changeSelection = selection
-            case let .shardSelected(selection):
-                shardSelection = selection
-            case let .sampleSelected(selection):
-                sampleSelection = selection
-            case let .sampleLeftOut(keys):
-                keysLeftOutOfTheSample = keys
-            case let .candidatePathsListed(paths):
-                candidatePaths = paths
-            case let .testPlanLoaded(plan):
-                testPlan = plan
-                // So the results file, and a resume's check, describe the plan's mutants, not the command's defaults.
-                if let scope = plan.scope {
-                    mutationOperatorList = scope.operators
-                    filesToMutate = scope.filesToMutate
-                }
-            case let .mutantSelected(key):
-                selectedMutant = key
-            case let .operatorsChosen(operators):
-                mutationOperatorList = operators
-            case let .preparedSourcesKept(sources):
-                preparedSources = sources
-            case let .mutantsLeftOutOfTheBuild(mutants):
-                mutantsLeftOut = mutants
-            case let .baselineFileLoaded(file):
-                baselineFile = file
-            case let .mutantsNotSelected(mutants):
-                unselectedMutants = mutants
-            case let .uncoveredSourceFilesDiscovered(files):
-                uncoveredSourceFiles = files
-            case let .mutantsNotCovered(mutants):
-                uncoveredMutants = mutants
+            apply(change)
+        }
+    }
+
+    /// Applies one change, by the part of the state it sets.
+    private func apply(_ change: Change) {
+        switch change {
+        case .newVersionAvaiable, .configurationParsed, .projectDirectoryUrlDiscovered, .tempDirectoryUrlCreated,
+             .mutatedProjectLocked, .projectXCTestRun, .testDiagnosticsOptionChecked, .projectCoverage:
+            applyProjectChange(change)
+
+        case .sourceFileCandidatesDiscovered, .buildConditionsDiscovered, .mutationMappingsDiscovered,
+             .mutantsDropped, .sourceCodeParsed, .mutationTestOutcomeGenerated, .loggingDirectoryCreated:
+            applyDiscoveryChange(change)
+
+        case .projectTreeFingerprinted, .resumeStateLoaded, .projectChangesWaived, .reuseChangesFound,
+             .changesSelected, .shardSelected, .sampleSelected, .sampleLeftOut:
+            applySelectionChange(change)
+
+        case .candidatePathsListed, .testPlanLoaded, .mutantSelected, .operatorsChosen, .preparedSourcesKept,
+             .mutantsLeftOutOfTheBuild, .baselineFileLoaded:
+            applyPlanChange(change)
+
+        case .mutantsNotSelected, .uncoveredSourceFilesDiscovered, .mutantsNotCovered:
+            applyBaselineChange(change)
+        }
+    }
+
+    /// Applies a change to what the run knows of the project, its copy and its tests.
+    private func applyProjectChange(_ change: Change) {
+        switch change {
+        case let .newVersionAvaiable(newVersion):
+            self.newVersion = newVersion
+
+        case let .configurationParsed(muterConfiguration):
+            self.muterConfiguration = muterConfiguration
+
+        case let .projectDirectoryUrlDiscovered(projectDirectoryURL):
+            self.projectDirectoryURL = projectDirectoryURL
+
+        case let .tempDirectoryUrlCreated(mutatedProjectDirectoryURL):
+            self.mutatedProjectDirectoryURL = mutatedProjectDirectoryURL
+
+        case let .mutatedProjectLocked(mutatedProjectLock):
+            self.mutatedProjectLock = mutatedProjectLock
+
+        case let .projectXCTestRun(projectXCTestRun):
+            self.projectXCTestRun = projectXCTestRun
+
+        case let .testDiagnosticsOptionChecked(canBeTurnedOff):
+            testDiagnosticsCanBeTurnedOff = canBeTurnedOff
+
+        case let .projectCoverage(projectCoverage):
+            self.projectCoverage = projectCoverage
+
+        default:
+            break
+        }
+    }
+
+    /// Applies a change to what discovery found: the source files, the mutants, and the outcome.
+    private func applyDiscoveryChange(_ change: Change) {
+        switch change {
+        case let .sourceFileCandidatesDiscovered(sourceFileCandidates):
+            self.sourceFileCandidates = sourceFileCandidates
+
+        case let .buildConditionsDiscovered(buildConditions):
+            self.buildConditions = buildConditions
+
+        case let .mutationMappingsDiscovered(mutationMapping):
+            self.mutationMapping = mutationMapping
+
+        case let .mutantsDropped(droppedMutants):
+            self.droppedMutants = droppedMutants
+
+        case let .sourceCodeParsed(sourceCodeByFilePath):
+            self.sourceCodeByFilePath = sourceCodeByFilePath
+
+        case let .mutationTestOutcomeGenerated(mutationTestOutcome):
+            self.mutationTestOutcome = mutationTestOutcome
+
+        case let .loggingDirectoryCreated(loggingDirectory):
+            self.loggingDirectory = loggingDirectory
+
+        default:
+            break
+        }
+    }
+
+    /// Applies a change to what the run resumes, reuses or selects: the earlier run, the changes, the shard and the
+    /// sample.
+    private func applySelectionChange(_ change: Change) {
+        switch change {
+        case let .projectTreeFingerprinted(projectTree):
+            self.projectTree = projectTree
+
+        case let .resumeStateLoaded(resumeState):
+            self.resumeState = resumeState
+
+        case let .projectChangesWaived(paths):
+            resumeWaived = paths
+
+        case let .reuseChangesFound(changes):
+            reuseChanges = changes
+
+        case let .changesSelected(selection):
+            changeSelection = selection
+
+        case let .shardSelected(selection):
+            shardSelection = selection
+
+        case let .sampleSelected(selection):
+            sampleSelection = selection
+
+        case let .sampleLeftOut(keys):
+            keysLeftOutOfTheSample = keys
+
+        default:
+            break
+        }
+    }
+
+    /// Applies a change to the test plan, the operators and the mutants the run tests.
+    private func applyPlanChange(_ change: Change) {
+        switch change {
+        case let .candidatePathsListed(paths):
+            candidatePaths = paths
+
+        case let .testPlanLoaded(plan):
+            testPlan = plan
+            // So the results file, and a resume's check, describe the plan's mutants, not the command's defaults.
+            if let scope = plan.scope {
+                mutationOperatorList = scope.operators
+                filesToMutate = scope.filesToMutate
             }
+
+        case let .mutantSelected(key):
+            selectedMutant = key
+
+        case let .operatorsChosen(operators):
+            mutationOperatorList = operators
+
+        case let .preparedSourcesKept(sources):
+            preparedSources = sources
+
+        case let .mutantsLeftOutOfTheBuild(mutants):
+            mutantsLeftOut = mutants
+
+        case let .baselineFileLoaded(file):
+            baselineFile = file
+
+        default:
+            break
+        }
+    }
+
+    /// Applies a change to the mutants a `--baseline` run compares and those no test ran.
+    private func applyBaselineChange(_ change: Change) {
+        switch change {
+        case let .mutantsNotSelected(mutants):
+            unselectedMutants = mutants
+
+        case let .uncoveredSourceFilesDiscovered(files):
+            uncoveredSourceFiles = files
+
+        case let .mutantsNotCovered(mutants):
+            uncoveredMutants = mutants
+
+        default:
+            break
         }
     }
 }

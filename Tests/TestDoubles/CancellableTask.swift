@@ -10,11 +10,11 @@ final class CancellableTask<Success: Sendable>: @unchecked Sendable { // `task` 
     /// Returns only once the task has ended, however it ends, so `work`, and what it holds, is used only by the task
     /// while the caller waits.
     func run(_ work: @escaping () async throws -> Success) async -> Result<Success, Error> {
-        nonisolated(unsafe) let work = work // only the task calls it, while `run` waits
-        let task = Task { try await work() }
-        lock.withLock { self.task = task }
+        nonisolated(unsafe) let unsafeWork = work // only the task calls it, while `run` waits
+        let runningTask = Task { try await unsafeWork() }
+        lock.withLock { self.task = runningTask }
         started.signal()
-        return await task.result
+        return await runningTask.result
     }
 
     /// Waits until `run` has started the task, at most 5 seconds, so a cancellation can't come before it and be lost.

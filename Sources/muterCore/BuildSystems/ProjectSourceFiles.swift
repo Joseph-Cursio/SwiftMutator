@@ -1,5 +1,3 @@
-import Foundation
-
 /// The project's own source files among those a coverage report names, by their path in the project, as both build
 /// systems read them. Only these count toward the project's coverage: the reports also name test files, the packages
 /// the project depends on and files the build generates, by absolute path.
@@ -16,13 +14,15 @@ struct ProjectSourceFiles {
     /// test targets build, as a report names them, which the rules for paths miss when a test target isn't in a
     /// `Tests` folder.
     init(root: FilePath, buildFolders: [FilePath] = [], testFiles: [FilePath] = []) {
-        let roots = Set([root, root.canonicalPath]).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
-        self.roots = roots
+        let rootPrefixes = Set([root, root.canonicalPath]).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        self.roots = rootPrefixes
         self.buildFolders = buildFolders
-            .compactMap { Self.relativePath($0, to: roots) ?? Self.relativePath($0.canonicalPath, to: roots) }
+            .compactMap { folder in
+                Self.relativePath(folder, to: rootPrefixes) ?? Self.relativePath(folder.canonicalPath, to: rootPrefixes)
+            }
             .map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         self.testFiles = Set(testFiles.compactMap {
-            Self.relativePath($0, to: roots) ?? Self.relativePath($0.canonicalPath, to: roots)
+            Self.relativePath($0, to: rootPrefixes) ?? Self.relativePath($0.canonicalPath, to: rootPrefixes)
         })
     }
 

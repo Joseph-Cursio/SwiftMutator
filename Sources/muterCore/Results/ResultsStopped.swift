@@ -34,7 +34,7 @@ struct ResultsStopped: Codable, Equatable, Sendable {
         case interrupted
     }
 
-    private(set) var kind = "stopped"
+    private(set) var kind = "stopped" // swiftlint:disable:this unused_declaration - results file key; Codable writes it
     /// When the run started, and when it stopped.
     let startedAt: Date
     let stoppedAt: Date
@@ -83,7 +83,7 @@ struct ResultsStopped: Codable, Equatable, Sendable {
     var detailLines: [String] {
         var lines: [String] = []
         if let log {
-            lines.append("Its log is \((logDirectory as NSString).appendingPathComponent(log)).")
+            lines.append("Its log is \(logDirectory.appendingPathComponent(log)).")
         }
         if let failedTests, let failedTestCount, failedTestCount > 0 {
             let more = failedTestCount - failedTests.count
@@ -98,8 +98,10 @@ struct ResultsStopped: Codable, Equatable, Sendable {
         switch reason {
         case .failed:
             "\(stepName) failed"
+
         case .timedOut:
             "\(stepName) didn't end within \(limitSeconds.map { String(format: "%g", $0) } ?? "?") s (buildTimeout)"
+
         case .interrupted:
             "\(detail ?? "a signal") stopped it during \(stepName)"
         }

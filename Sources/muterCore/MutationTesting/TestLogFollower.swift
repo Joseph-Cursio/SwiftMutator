@@ -18,8 +18,8 @@ struct LogLineBuffer {
     mutating func append(_ bytes: Data) -> [String] {
         var bytes = bytes
         if isDroppingLine {
-            guard let lineBreak = bytes.firstIndex(of: Self.lineBreak) else { return [] }
-            bytes = bytes[bytes.index(after: lineBreak)...]
+            guard let breakIndex = bytes.firstIndex(of: Self.lineBreak) else { return [] }
+            bytes = bytes[bytes.index(after: breakIndex)...]
             isDroppingLine = false
         }
         pending.append(bytes)
@@ -34,7 +34,7 @@ struct LogLineBuffer {
         let lines = pending[..<lastLineBreak]
             .split(separator: Self.lineBreak, omittingEmptySubsequences: false)
             .map { line in
-                String(decoding: line.last == Self.carriageReturn ? line.dropLast() : line, as: UTF8.self)
+                String(lossyUTF8: line.last == Self.carriageReturn ? line.dropLast() : line)
             }
         pending = Data(pending[pending.index(after: lastLineBreak)...])
         return lines

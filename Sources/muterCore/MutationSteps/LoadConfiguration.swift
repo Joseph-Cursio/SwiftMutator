@@ -13,56 +13,7 @@ struct LoadConfiguration: MutationStep {
     ) async throws -> [MutationTestState.Change] {
         let configurationPath = configurationPath(state.runOptions)
         do {
-            let hasJSON = hasJsonInProjectAtPath(configurationPath)
-            let hasYAML = hasYamlInProjectAtPath(configurationPath)
-            // A YAML file wins over a legacy file beside it, which migrating would overwrite. A `.yml` that
-            // `--configuration` names is the one file it means, there or not.
-            let namesItsFile = state.runOptions.configurationURL?.path.pathContainsConfigExtension == true
-            let isLegacy = hasJSON && !hasYAML && !namesItsFile
-
-            guard hasYAML || isLegacy,
-                  let configurationData = loadConfigurationDataAtPath(
-                      configurationPath,
-                      legacy: isLegacy
-                  )
-            else {
-                throw MuterError.configurationParsingError(
-                    reason: "Could not find \(MuterConfiguration.fileName) at path \(configurationPath)"
-                )
-            }
-
-            // Before decoding, so a misspelled `executable` or `arguments` that it then misses gets its key named too.
-            let unknownKeys = UnknownConfigurationKey.found(in: configurationData)
-            if !unknownKeys.isEmpty {
-                let file = isLegacy
-                    ? "\(configurationPath.pathWithoutFileName)/\(MuterConfiguration.legacyFileNameWithExtension)"
-                    : configurationPath
-                events.send(.configurationKeysUnknown(unknownKeys, file: shown(file)))
-            }
-            let configuration = try MuterConfiguration(from: configurationData)
-
-            // Not while it has a key SwiftMutator doesn't know: the YAML file holds only those it does, so the key the
-            // warning names would be gone, and the next run would say nothing of it.
-            if isLegacy, unknownKeys.isEmpty {
-                try migrateToYAMLAtPath(configurationPath, configuration)
-            }
-
-            // YAML reads an unquoted `- !/Stubs/` as a tag on an empty value.
-            if configuration.excludeFileList.contains(where: \.isEmpty) {
-                throw MuterError.configurationParsingError(
-                    reason: "An `exclude` entry is empty. One that starts with ! must be quoted, as - \"!/Stubs/\"."
-                )
-            }
-
-            guard isConfigurationValid(configuration) else {
-                throw MuterError.configurationParsingError(
-                    reason: "Please provide a valid `-destination` argument for your project"
-                )
-            }
-            if let reason = Self.argumentRefused(in: configuration) {
-                throw MuterError.configurationParsingError(reason: reason)
-            }
-
+            let configuration = try readConfiguration(at: configurationPath, state: state)
             let resolved = try await withResolvedExecutable(configuration)
                 .overriding(
                     workers: state.runOptions.workers,
@@ -76,26 +27,7 @@ struct LoadConfiguration: MutationStep {
             if let reason = Self.valueOutOfRange(in: resolved) {
                 throw MuterError.configurationParsingError(reason: reason)
             }
-            // As `--report`'s are, which take their place: each saved report needs a file of its own.
-            let outputs = Self.outputs(of: state.runOptions, resolved, in: fileManager)
-            if let clash = ReportRequest.clash(among: outputs, ofARun: true) {
-                throw MuterError.configurationParsingError(reason: "\(clash): give each report a path of its own.")
-            }
-            // Saving replaces whatever is at the path, a folder and everything in it too, as `report` refuses: now,
-            // not when the run ends.
-            if let folder = outputs.first(where: { fileManager.isDirectory(atPath: $0.path) }) {
-                throw MuterError.configurationParsingError(
-                    reason: "\(folder.path) is a folder: name the file to save the report to, in \(folder.option)."
-                )
-            }
-            if let reason = resolved.propertyRerunsUnsupportedReason {
-                throw MuterError.configurationParsingError(reason: reason)
-            }
-            // Now, not when the report is made: a typo shouldn't wait for the end of a long run.
-            _ = try TriageFile.load(
-                at: TriageFile.path(in: fileManager.currentDirectoryPath),
-                using: fileManager
-            )
+            try checkWhatTheRunSaves(with: resolved, state: state)
             let operators = try state.runOptions.chosenOperators(given: resolved)
             return [
                 .projectDirectoryUrlDiscovered(URL(fileURLWithPath: fileManager.currentDirectoryPath)),
@@ -106,6 +38,90 @@ struct LoadConfiguration: MutationStep {
         } catch {
             throw MuterError.configurationParsingError(reason: "\(error)")
         }
+    }
+
+    /// The configuration at `configurationPath`, or in the legacy file beside it, which is migrated, once it is
+    /// checked: its unknown keys are said, and an empty `exclude` entry, a missing destination or a refused argument
+    /// stops the run.
+    private func readConfiguration(
+        at configurationPath: String,
+        state: AnyMutationTestState
+    ) throws -> MuterConfiguration {
+        let hasJSON = hasJsonInProjectAtPath(configurationPath)
+        let hasYAML = hasYamlInProjectAtPath(configurationPath)
+        // A YAML file wins over a legacy file beside it, which migrating would overwrite. A `.yml` that
+        // `--configuration` names is the one file it means, there or not.
+        let namesItsFile = state.runOptions.configurationURL?.path.pathContainsConfigExtension == true
+        let isLegacy = hasJSON && !hasYAML && !namesItsFile
+
+        guard hasYAML || isLegacy,
+              let configurationData = loadConfigurationDataAtPath(
+                  configurationPath,
+                  legacy: isLegacy
+              )
+        else {
+            throw MuterError.configurationParsingError(
+                reason: "Could not find \(MuterConfiguration.fileName) at path \(configurationPath)"
+            )
+        }
+
+        // Before decoding, so a misspelled `executable` or `arguments` that it then misses gets its key named too.
+        let unknownKeys = UnknownConfigurationKey.found(in: configurationData)
+        if !unknownKeys.isEmpty {
+            let file = isLegacy
+                ? "\(configurationPath.pathWithoutFileName)/\(MuterConfiguration.legacyFileNameWithExtension)"
+                : configurationPath
+            events.send(.configurationKeysUnknown(unknownKeys, file: shown(file)))
+        }
+        let configuration = try MuterConfiguration(from: configurationData)
+
+        // Not while it has a key SwiftMutator doesn't know: the YAML file holds only those it does, so the key the
+        // warning names would be gone, and the next run would say nothing of it.
+        if isLegacy, unknownKeys.isEmpty {
+            try migrateToYAMLAtPath(configurationPath, configuration)
+        }
+
+        // YAML reads an unquoted `- !/Stubs/` as a tag on an empty value.
+        if configuration.excludeFileList.contains(where: \.isEmpty) {
+            throw MuterError.configurationParsingError(
+                reason: "An `exclude` entry is empty. One that starts with ! must be quoted, as - \"!/Stubs/\"."
+            )
+        }
+
+        guard isConfigurationValid(configuration) else {
+            throw MuterError.configurationParsingError(
+                reason: "Please provide a valid `-destination` argument for your project"
+            )
+        }
+        if let reason = Self.argumentRefused(in: configuration) {
+            throw MuterError.configurationParsingError(reason: reason)
+        }
+        return configuration
+    }
+
+    /// Stops a run whose `resolved` configuration, the run's flags already in, would save two reports to one file, a
+    /// report over a folder, or ask for property reruns it can't run, or whose triage file can't be read.
+    private func checkWhatTheRunSaves(with resolved: MuterConfiguration, state: AnyMutationTestState) throws {
+        // As `--report`'s are, which take their place: each saved report needs a file of its own.
+        let outputs = Self.outputs(of: state.runOptions, resolved, in: fileManager)
+        if let clash = ReportRequest.clash(among: outputs, ofARun: true) {
+            throw MuterError.configurationParsingError(reason: "\(clash): give each report a path of its own.")
+        }
+        // Saving replaces whatever is at the path, a folder and everything in it too, as `report` refuses: now,
+        // not when the run ends.
+        if let folder = outputs.first(where: { fileManager.isDirectory(atPath: $0.path) }) {
+            throw MuterError.configurationParsingError(
+                reason: "\(folder.path) is a folder: name the file to save the report to, in \(folder.option)."
+            )
+        }
+        if let reason = resolved.propertyRerunsUnsupportedReason {
+            throw MuterError.configurationParsingError(reason: reason)
+        }
+        // Now, not when the report is made: a typo shouldn't wait for the end of a long run.
+        _ = try TriageFile.load(
+            at: TriageFile.path(in: fileManager.currentDirectoryPath),
+            using: fileManager
+        )
     }
 
     /// Why one of `configuration`'s values can't be used, the run's flags already in, or nil. Checked here rather than
@@ -203,8 +219,8 @@ struct LoadConfiguration: MutationStep {
     /// `path` as a warning names it: relative to the current folder when it is in it, as `muter.conf.yml` or
     /// `ci/muter.conf.yml`, and else in full, so a file `--configuration` chose isn't taken for the project's own.
     private func shown(_ path: String) -> String {
-        let folder = NSString(string: fileManager.currentDirectoryPath).standardizingPath + "/"
-        let standardized = NSString(string: path).standardizingPath
+        let folder = fileManager.currentDirectoryPath.standardizingPath + "/"
+        let standardized = path.standardizingPath
         return standardized.hasPrefix(folder) ? String(standardized.dropFirst(folder.count)) : standardized
     }
 
@@ -266,10 +282,6 @@ struct LoadConfiguration: MutationStep {
         try fileManager
             .removeItem(atPath: "\(path.pathWithoutFileName)/\(MuterConfiguration.legacyFileNameWithExtension)")
     }
-
-    private func legacyPath(_ path: String) -> String {
-        path
-    }
 }
 
 private extension String {
@@ -278,6 +290,6 @@ private extension String {
     }
 
     var pathWithoutFileName: String {
-        pathContainsConfigExtension ? NSString(string: self).deletingLastPathComponent : self
+        pathContainsConfigExtension ? self.deletingLastPathComponent : self
     }
 }

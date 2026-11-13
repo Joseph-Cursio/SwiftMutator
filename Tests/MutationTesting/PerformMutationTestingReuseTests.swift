@@ -5,9 +5,9 @@ import XCTest
 /// What a run that reuses an earlier run's results (`--reuse`) writes, and the outcome it reports: a results file of
 /// its own, which starts with the results it keeps, each with where it was tested, and then those it tests.
 final class PerformMutationTestingReuseTests: MuterTestCase {
-    private let state = MutationTestState()
-    private let earlierPath = "/project_muter_logs/earlier/results.jsonl"
-    private let tree = ProjectTree(
+    let state = MutationTestState()
+    let earlierPath = "/project_muter_logs/earlier/results.jsonl"
+    let tree = ProjectTree(
         listedBy: .git,
         files: [
             "Sources/Product.swift": "77e0",
@@ -19,10 +19,10 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         treeSHA256: "e5b8"
     )
     /// The test the earlier run recorded failing for Sum.swift's mutant.
-    private let sumTest = FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:3:5")
+    let sumTest = FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:3:5")
     /// What the earlier run recorded: a survivor and a kill that still hold, a build error and a timeout, which a reuse
     /// tests again, and a kill of a mutant this run no longer discovers.
-    private lazy var recorded: [any Encodable] = [
+    lazy var recorded: [any Encodable] = [
         ResultsHeader.make(
             mutantsDiscovered: 5,
             mutantsToTest: 5,
@@ -37,11 +37,11 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         ResultsEnd.make(testDurationSeconds: 100.5, recorded: 5),
     ]
 
-    private let keepingAllLogs = MuterConfiguration(
-        executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: true
+    let keepingAllLogs = MuterConfiguration(
+        executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: .enabled
     )
 
-    private lazy var sut = PerformMutationTesting(
+    lazy var sut = PerformMutationTesting(
         makeWorkerDirectories: { _, count in
             Array(repeating: URL(fileURLWithPath: "/project_mutated_worker1"), count: count)
         },
@@ -72,7 +72,7 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         let alone = MutantResult.Rerun(
             because: MutantResult.Rerun.onlySuspectTestsFailed,
             workers: 1,
-            alone: [.init(name: "sum()", file: "SumTests.swift", result: MutantResult.Rerun.TestAlone.failedAgain)]
+            alone: [.init(name: "sum()", file: "SumTests.swift", result: MutantResult.TestAlone.failedAgain)]
         )
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], suspectTestFilePercent: 1, suspectTestMinimumFiles: 1
@@ -97,7 +97,8 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         XCTAssertEqual(kept.rerun?.alone?.map(\.result), [nil])
         XCTAssertFalse(ioDelegate.testLogs.contains { $0.contains("_rerun_") }, "\(ioDelegate.testLogs)")
         guard case let .mutationTestOutcomeGenerated(outcome)? = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(KillingTestSummary(of: outcome.mutations)?.killsTestedAlone, 0)
     }
@@ -145,7 +146,8 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertLessThan(outcome.testDuration, 100)
     }
@@ -215,259 +217,5 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
             fileManager.copyPaths.map(\.source).filter { $0.hasPrefix("/project_muter_logs/earlier/") },
             ["/project_muter_logs/earlier/RelationalOperatorReplacement @ Sum.swift-7-5.log"]
         )
-    }
-
-    // `swift-mutator report` of the new file alone gives the run's own report, the reused results marked.
-    func test_theReportFromTheNewFile_equalsTheRunsOwn_withTheReusedResultsMarked() async throws {
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        let calls = Locked(0.0)
-        current.now = {
-            calls.change { count in
-                count += 1
-                return ResultsHeader.fixedStart.addingTimeInterval(count * 2.5)
-            }
-        }
-
-        let changes = try await sut.run(with: state)
-
-        guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
-        }
-        let file = Data(resultsFiles.lines.map { $0 + "\n" }.joined().utf8)
-        let path = "/project_muter_logs/now/results.jsonl"
-        let fromTheFile = try RecordedResults.read(file, path: path).mutationTestOutcome(resultsFile: path)
-        XCTAssertEqual(fromTheFile, outcome)
-        XCTAssertEqual(outcome.mutations.map { $0.reusedFrom != nil }, [true, false, true, false])
-    }
-
-    // What a waiver let through since a result was tested marks it, so the reports can say so; and what a force let
-    // through marks every result kept.
-    func test_resultsKeptDespiteAWaiverOrAForce_areMarked() async throws {
-        try reuse(recorded, changes: [.init(path: "README.md", kind: .added)], waiving: ["README.md"])
-        state.resumeWaived = ["README.md"]
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-
-        _ = try await sut.run(with: state)
-
-        var kept = try resultsFiles.records(MutantResult.self).compactMap(\.reusedFrom)
-        XCTAssertEqual(kept.map(\.despiteChanges), [true, true])
-        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).first?.waived, ["README.md"])
-
-        state.resumeState = try ResumeState.make(
-            path: earlierPath,
-            lines: recorded,
-            file: nil,
-            forced: ["toolchain.environment"]
-        )
-        state.reuseChanges = [1: ReuseChanges(from: tree, to: tree, waiving: [], readSource: { _ in nil })]
-        state.resumeWaived = []
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        _ = try await sut.run(with: state)
-        // The second run's file comes after the first's.
-        kept = try Array(resultsFiles.records(MutantResult.self).compactMap(\.reusedFrom).dropFirst(2))
-        XCTAssertEqual(kept.map(\.despiteChanges), [true, true])
-    }
-
-    // A waiver marks only the results tested before the change it let through: a session that resumed the earlier run
-    // after it tested its results under the changed file already.
-    func test_aWaiverMarksOnlyTheResultsOfSessionsTestedBeforeTheChange() async throws {
-        let changed = ProjectTree(
-            listedBy: .git,
-            files: tree.files.merging(["README.md": "ffff"]) { $1 },
-            excluded: [],
-            treeSHA256: "f00d"
-        )
-        let lines: [any Encodable] = [
-            ResultsHeader.make(project: tree, logDirectory: "/project_muter_logs/earlier"),
-            record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
-            ResultsEnd.make(reason: .interrupted, recorded: 1),
-            ResultsHeader.make(
-                formatVersion: 2,
-                session: 2,
-                project: changed,
-                logDirectory: "/project_muter_logs/later"
-            ),
-            MutantResult.make(
-                session: 2,
-                path: "Sources/Sum.swift",
-                line: 3,
-                column: 5,
-                utf8Offset: 30,
-                switchID: "Sum_RelationalOperatorReplacement_3_5_30",
-                outcome: .failed,
-                killedBy: [sumTest],
-                fileSHA256: "5a1c"
-            ),
-            ResultsEnd.make(session: 2, recorded: 1),
-        ]
-        state.resumeState = try ResumeState.make(path: earlierPath, lines: lines, file: nil)
-        state.reuseChanges = [
-            1: ReuseChanges(from: tree, to: changed, waiving: ["README.md"], readSource: { _ in nil }),
-            2: ReuseChanges(from: changed, to: changed, waiving: ["README.md"], readSource: { _ in nil }),
-        ]
-        state.resumeWaived = ["README.md"]
-        // So the kill's log is copied too.
-        state.muterConfiguration = keepingAllLogs
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .passed]
-
-        _ = try await sut.run(with: state)
-
-        let kept = try resultsFiles.records(MutantResult.self).filter { $0.reusedFrom != nil }
-        XCTAssertEqual(kept.map(\.path), ["Sources/Product.swift", "Sources/Sum.swift"])
-        XCTAssertEqual(kept.map(\.reusedFrom?.despiteChanges), [true, nil])
-        XCTAssertEqual(
-            fileManager.copyPaths.map(\.source).filter { $0.hasPrefix("/project_muter_logs/later") },
-            ["/project_muter_logs/later/RelationalOperatorReplacement @ Sum.swift-3-5.log"],
-            "each log from its own session's folder"
-        )
-    }
-
-    // With every result kept and nothing changed, there is nothing to test, and no baseline to run.
-    func test_withNothingToTest_andNothingChanged_runsNoBaseline() async throws {
-        try reuse(heldEverywhere())
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(ioDelegate.testLogs, [])
-        XCTAssertEqual(try resultsFiles.kinds(), ["header", "mutant", "mutant", "mutant", "mutant", "end"])
-    }
-
-    // After any change, even one let through, the baseline still runs: a changed test that now fails would otherwise
-    // keep every kill. Nothing else does, as nothing is left to test.
-    func test_withNothingToTest_afterAChange_runsTheBaselineOnly() async throws {
-        try reuse(heldEverywhere(), changes: [.init(path: "README.md", kind: .added)], waiving: ["README.md"])
-        state.resumeWaived = ["README.md"]
-        ioDelegate.testSuiteOutcomes = [.passed]
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(ioDelegate.testLogs, [running("baseline run")])
-        XCTAssertEqual(try resultsFiles.kinds(), ["header", "mutant", "mutant", "mutant", "mutant", "end"])
-        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).first?.mutantsToTest, 0)
-        XCTAssertTrue(fileManager.paths.contains("/project_muter_logs/now/baseline run.log"), "its log is kept")
-    }
-
-    // Without a log folder, as a state that bypasses the handler has, the baseline's output is discarded, and no log is
-    // written in the current directory, the mutated project.
-    func test_withNothingToTest_afterAChange_withNoLogFolder_keepsNoBaselineLog() async throws {
-        try reuse(heldEverywhere(), changes: [.init(path: "README.md", kind: .added)], waiving: ["README.md"])
-        state.resumeWaived = ["README.md"]
-        state.loggingDirectory = ""
-        ioDelegate.testSuiteOutcomes = [.passed]
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(ioDelegate.keptOutputs.map(\.output), ["baseline run"])
-        XCTAssertEqual(ioDelegate.keptOutputs.map(\.path), [nil])
-        XCTAssertFalse(fileManager.paths.contains { $0.hasSuffix("baseline run.log") }, "\(fileManager.paths)")
-    }
-
-    // ...and a failing baseline then stops the run, as any run's does.
-    func test_withNothingToTest_afterAChange_aFailingBaselineStopsTheRun() async throws {
-        try reuse(heldEverywhere(), changes: [.init(path: "README.md", kind: .added)], waiving: ["README.md"])
-        ioDelegate.testSuiteOutcomes = [.failed]
-
-        await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
-
-        XCTAssertEqual(resultsFiles.lines, [])
-    }
-}
-
-private extension PerformMutationTestingReuseTests {
-    /// Makes `lines` the earlier run's results file, whose only session's tree was this run's, with `changes` from it
-    /// to this run's, and `globs` waiving those they match.
-    func reuse(
-        _ lines: [any Encodable],
-        changes fileChanges: [ProjectTree.FileChange] = [],
-        waiving globs: [String] = []
-    ) throws {
-        state.resumeState = try ResumeState.make(path: earlierPath, lines: lines, file: nil)
-        var files = tree.files
-        for change in fileChanges {
-            files[change.path] = change.kind == .removed ? nil : "ffff"
-        }
-        let earlier = ProjectTree(
-            listedBy: .git,
-            files: tree.files.filter { path, _ in !fileChanges.contains { $0.path == path && $0.kind == .added } },
-            excluded: [],
-            treeSHA256: "e5b8"
-        )
-        let current = ProjectTree(listedBy: .git, files: files, excluded: [], treeSHA256: "f00d")
-        state.reuseChanges = [1: ReuseChanges(from: earlier, to: current, waiving: globs, readSource: { _ in nil })]
-    }
-
-    /// An earlier run whose every result this run keeps.
-    func heldEverywhere() -> [any Encodable] {
-        [
-            ResultsHeader.make(
-                mutantsDiscovered: 4,
-                mutantsToTest: 4,
-                project: tree,
-                logDirectory: "/project_muter_logs/earlier"
-            ),
-            record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
-            record(of: "Sources/Quotient.swift", line: 4, .passed, fileSHA256: "3c4f"),
-            record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", killedBy: [sumTest]),
-            record(of: "Sources/Total.swift", line: 8, .passed, fileSHA256: "9e21"),
-            ResultsEnd.make(recorded: 4),
-        ]
-    }
-
-    /// Calls `handler` with each event sent with `name`, from the task that sends it, until the test ends.
-    func whenSent(_ name: RunEvent.Name, _ handler: @escaping (RunEvent) -> Void) {
-        let observer = runEvents.observe(name, handler)
-        addTeardownBlock { observer.cancel() }
-    }
-
-    /// The earlier run's record of the mutant `makeSchemataMapping(file:line:)` makes.
-    func record(
-        of file: String,
-        line: Int,
-        _ outcome: TestSuiteOutcome,
-        fileSHA256: String,
-        killedBy: [FailedTestLine.FailedTest]? = nil,
-        keptLog: Bool = true,
-        rerun: MutantResult.Rerun? = nil
-    ) -> MutantResult {
-        let name = URL(fileURLWithPath: file).deletingPathExtension().lastPathComponent
-        let operatorId = MutationOperator.Id.ror
-        return MutantResult.make(
-            path: file,
-            line: line,
-            column: 5,
-            utf8Offset: line * 10,
-            mutationOperatorId: operatorId,
-            switchID: "\(name)_\(operatorId.rawValue)_\(line)_5_\(line * 10)",
-            outcome: outcome,
-            endedBy: outcome == .timeout ? .timedOut : .exited,
-            killedBy: killedBy,
-            fileSHA256: fileSHA256,
-            rerun: rerun,
-            keptLog: keptLog
-        )
-    }
-
-    /// A file in the mutated project with one mutant, at `line`, column 5.
-    func makeSchemataMapping(file: String, line: Int) throws -> SchemataMutationMapping {
-        try SchemataMutationMapping.make(
-            filePath: "/project_mutated/\(file)",
-            (
-                source: "func bar() { }",
-                schemata: [
-                    try .make(
-                        filePath: "/project_mutated/\(file)",
-                        mutationOperatorId: .ror,
-                        syntaxMutation: "",
-                        position: MutationPosition(utf8Offset: line * 10, line: line, column: 5),
-                        snapshot: .make(before: ">", after: "<", description: "changed > to <")
-                    ),
-                ]
-            )
-        )
-    }
-
-    /// Where a test run whose log is `name` writes its output: in the log folder's `running` folder.
-    func running(_ name: String) -> String {
-        "/project_muter_logs/now/running/\(name)"
     }
 }

@@ -97,12 +97,12 @@ struct ScoreDropCheck: Equatable, Sendable {
         progress: ScoreGate.Progress? = nil
     ) {
         let reason = notChecked ?? (scored == 0 || baseline.score.scored == 0 ? .nothingScored : nil)
-        let verdict: Verdict
+        let outcome: Verdict
         if let reason {
-            verdict = .notChecked(reason)
+            outcome = .notChecked(reason)
         } else {
-            let drop = Self.drop(from: baseline.score, to: (killed, scored))
-            verdict = drop.points > Self.decimal(maxScoreDrop) * drop.over ? .failed : .passed
+            let scoreDrop = Self.drop(from: baseline.score, to: (killed, scored))
+            outcome = scoreDrop.points > Self.decimal(maxScoreDrop) * scoreDrop.over ? .failed : .passed
         }
         self.init(
             baseline: baseline.path,
@@ -110,7 +110,7 @@ struct ScoreDropCheck: Equatable, Sendable {
             baselineScore: baseline.score,
             killed: killed,
             scored: scored,
-            verdict: verdict,
+            verdict: outcome,
             progress: reason == .unfinished ? progress : nil
         )
     }
@@ -146,29 +146,29 @@ struct ScoreDropCheck: Equatable, Sendable {
         return nil
     }
 
-    /// Whether the score fell no more than the limit; nil when the two aren't compared.
-    var passed: Bool? {
+    /// Whether the score fell no more than the limit; not checked when the two aren't compared.
+    var result: CheckResult {
         switch verdict {
-        case .passed: true
-        case .failed: false
-        case .notChecked: nil
+        case .passed: .passed
+        case .failed: .failed
+        case .notChecked: .notChecked
         }
     }
 
     /// The status a command exits with for this verdict: `scoreBelowThreshold` for a drop past the limit, and nil, so
     /// 0, otherwise.
     var exitStatus: ExitCode? {
-        passed == false ? .scoreBelowThreshold : nil
+        result == .failed ? .scoreBelowThreshold : nil
     }
 
     /// The run's exact score, as compared; nil when the scores aren't compared.
     var score: Double? {
-        passed == nil ? nil : exactMutationScore(killed: killed, of: scored)
+        result == .notChecked ? nil : exactMutationScore(killed: killed, of: scored)
     }
 
     /// The baseline file's exact score, as compared; nil when the scores aren't compared.
     var baselineScorePercent: Double? {
-        passed == nil ? nil : exactMutationScore(killed: baselineScore.killed, of: baselineScore.scored)
+        result == .notChecked ? nil : exactMutationScore(killed: baselineScore.killed, of: baselineScore.scored)
     }
 
     /// How many points the score fell below the file's, negative for a rise; nil when they aren't compared. Worked out
@@ -176,10 +176,10 @@ struct ScoreDropCheck: Equatable, Sendable {
     /// off: so a drop equal to the limit is the very number `--max-score-drop` was given, and `drop <= maxScoreDrop`
     /// holds exactly when the check passed.
     var drop: Double? {
-        guard passed != nil else { return nil }
-        let drop = Self.drop(from: baselineScore, to: (killed, scored))
+        guard result != .notChecked else { return nil }
+        let scoreDrop = Self.drop(from: baselineScore, to: (killed, scored))
         // Through the decimal text, which `Double` reads with correct rounding, as it read the limit.
-        return Double(NSDecimalNumber(decimal: drop.points / drop.over).stringValue)
+        return Double((scoreDrop.points / scoreDrop.over).description)
     }
 
     /// What the run, or `report`, says of the verdict, after the score's: "Mutation score 81.2% is 1.4 points below
@@ -202,12 +202,7 @@ struct ScoreDropCheck: Equatable, Sendable {
     /// the scores aren't compared. Empty when there's no line.
     var consoleLines: [String] {
         guard let line else { return [] }
-        let emoji = switch passed {
-        case .some(true): "✅"
-        case .some(false): "❌"
-        case .none: "⚠️"
-        }
-        return ["\(emoji) \(line)"]
+        return ["\(result.mark) \(line)"]
     }
 
     /// The two scores compared, and how far the run's is below or above `file`'s, or that they are the same.
@@ -215,22 +210,22 @@ struct ScoreDropCheck: Equatable, Sendable {
         let limit = Self.decimal(maxScoreDrop)
         var decimals = max(1, Self.decimals(of: maxScoreDrop))
         var shown = shownScores(decimals: decimals)
-        while passed == false, shown.recorded - shown.run <= limit, decimals < Self.mostDecimalsShown {
+        while result == .failed, shown.recorded - shown.run <= limit, decimals < Self.mostDecimalsShown {
             decimals += 1
             shown = shownScores(decimals: decimals)
         }
-        let drop = Self.drop(from: baselineScore, to: (killed, scored))
+        let scoreDrop = Self.drop(from: baselineScore, to: (killed, scored))
         let opening = "Mutation score \(Self.written(shown.run, decimals: decimals))%"
-        guard drop.points != 0 else { return "\(opening) is the same as \(file)'s." }
+        guard scoreDrop.points != 0 else { return "\(opening) is the same as \(file)'s." }
         let recorded = "\(file)'s \(Self.written(shown.recorded, decimals: decimals))%"
         let gap = shown.recorded - shown.run
         // Scores that show the same differ by less than a last decimal.
         let points = gap == 0
             ? "less than 0." + String(repeating: "0", count: decimals - 1) + "1 points"
             : "\(Self.written(gap < 0 ? -gap : gap, decimals: decimals)) points"
-        guard drop.points > 0 else { return "\(opening) is \(points) above \(recorded)." }
+        guard scoreDrop.points > 0 else { return "\(opening) is \(points) above \(recorded)." }
         let allowed = "the \(ScoreGate.shown(maxScoreDrop)) allowed"
-        return "\(opening) is \(points) below \(recorded), \(passed == true ? "within" : "more than") \(allowed)."
+        return "\(opening) is \(points) below \(recorded), \(result == .passed ? "within" : "more than") \(allowed)."
     }
 
     /// The run's score and the file's, each truncated to `decimals` decimals.
@@ -250,39 +245,60 @@ struct ScoreDropCheck: Equatable, Sendable {
     /// shows past it well before this.
     private static let mostDecimalsShown = 20
 
+    /// Why the score of the part of the project `reason` says was tested isn't compared: it isn't the whole's.
+    private func partialScoreClause(_ reason: NotChecked) -> String {
+        switch reason {
+        case .oneMutant:
+            return "one mutant's score (--mutant) isn't the project's."
+
+        case .shard:
+            return "a shard's score isn't the whole run's. Compare the merged report instead: "
+                + "swift-mutator report --baseline \(baseline) --max-score-drop \(ScoreGate.shown(maxScoreDrop)) "
+                + "<each shard's results file>"
+
+        case .sample:
+            return "a sample's score (--sample) isn't the whole project's."
+
+        case .since:
+            return "the score of the code --since chose isn't the whole project's."
+
+        case .filesToMutate:
+            return "the score of the files --files-to-mutate chose isn't the whole project's."
+
+        case .unfinished, .nothingScored, .stoppedOnAnError, .lacksResults, .discoveriesDiffer, .endedEarly:
+            preconditionFailure("\(reason) isn't a part of the project; notCheckedSentence(file:) words it")
+        }
+    }
+
     /// Why the scores aren't compared; nil for a run that ended early.
     private func notCheckedSentence(file: String) -> String? {
         guard case let .notChecked(reason) = verdict else { return nil }
         let notChecked = "The score isn't compared with \(file)'s"
         switch reason {
-        case .oneMutant:
-            return "\(notChecked): one mutant's score (--mutant) isn't the project's."
-        case .shard:
-            return "\(notChecked): a shard's score isn't the whole run's. Compare the merged report instead: "
-                + "swift-mutator report --baseline \(baseline) --max-score-drop \(ScoreGate.shown(maxScoreDrop)) "
-                + "<each shard's results file>"
-        case .sample:
-            return "\(notChecked): a sample's score (--sample) isn't the whole project's."
-        case .since:
-            return "\(notChecked): the score of the code --since chose isn't the whole project's."
-        case .filesToMutate:
-            return "\(notChecked): the score of the files --files-to-mutate chose isn't the whole project's."
+        case .oneMutant, .shard, .sample, .since, .filesToMutate:
+            return "\(notChecked): " + partialScoreClause(reason)
+
         case .unfinished:
             guard let progress else {
                 return "\(notChecked): the run didn't test every mutant it discovered."
             }
             return "\(notChecked): only \(progress.results) of \(progress.discovered) mutants have results, as the "
                 + "run didn't finish."
+
         case .nothingScored:
             return baselineScore.scored == 0
                 ? "\(notChecked): the baseline file records no mutant scored."
                 : "\(notChecked): no mutant was scored."
+
         case .stoppedOnAnError:
             return "\(notChecked): the run stopped on an error."
+
         case .lacksResults:
             return "\(notChecked): the merged report lacks results."
+
         case .discoveriesDiffer:
             return "\(notChecked): the shards' runs didn't discover the same mutants, so some may have no result."
+
         case .endedEarly:
             return nil
         }
@@ -323,7 +339,7 @@ struct ScoreDropCheck: Equatable, Sendable {
 
     /// `value`, 0 or more with at most `decimals` decimals, written with exactly that many: "81.2".
     private static func written(_ value: Decimal, decimals: Int) -> String {
-        let written = NSDecimalNumber(decimal: value).stringValue
+        let written = value.description
         let parts = written.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
         let fraction = parts.count > 1 ? String(parts[1]) : ""
         return "\(parts[0])." + fraction + String(repeating: "0", count: max(0, decimals - fraction.count))

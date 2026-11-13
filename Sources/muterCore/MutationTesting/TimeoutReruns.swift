@@ -1,22 +1,5 @@
 import Foundation
 
-/// The timeouts of a session's mutants that it tests again once the others are tested, fewer at once and under the
-/// same limit: with every worker's tests competing for the same cores, a slow test can pass a limit that it keeps to
-/// under less load, while a mutant that loops forever times out again.
-struct TimeoutReruns: Equatable {
-    /// How many timeouts are tested again.
-    let count: Int
-    /// How many of them are tested at once.
-    let workers: Int
-    /// The time limit of each run, the one their first runs had.
-    let limitSeconds: TimeInterval?
-
-    /// The longest the reruns can take: each one stopped at the limit, `workers` at once.
-    var longestSeconds: TimeInterval? {
-        limitSeconds.map { ceil(Double(count) / Double(max(workers, 1))) * $0 }
-    }
-}
-
 /// A timeout tested again: what it came to this time, its log, and how long its run took.
 struct TimeoutRerun {
     /// The outcome of this run, which the results file records after the first run's timeout, so it stands.
@@ -81,11 +64,29 @@ struct UnprovenRunTally: Equatable {
     mutating func add(_ mutation: MutationTestOutcome.Mutation) {
         switch mutation.testSuiteOutcome {
         case .failed, .runtimeError:
-            if mutation.activated == true { killed += 1 } else { killedWithoutRunning += 1 }
+            if mutation.activated == .ran { killed += 1 } else { killedWithoutRunning += 1 }
+
         case .passed: survived += 1
         case .noCoverage: notCovered += 1
         case .timeout: timedOut += 1
         case .buildError: buildErrors += 1
         }
+    }
+}
+
+/// The timeouts of a session's mutants that it tests again once the others are tested, fewer at once and under the
+/// same limit: with every worker's tests competing for the same cores, a slow test can pass a limit that it keeps to
+/// under less load, while a mutant that loops forever times out again.
+struct TimeoutReruns: Equatable {
+    /// How many timeouts are tested again.
+    let count: Int
+    /// How many of them are tested at once.
+    let workers: Int
+    /// The time limit of each run, the one their first runs had.
+    let limitSeconds: TimeInterval?
+
+    /// The longest the reruns can take: each one stopped at the limit, `workers` at once.
+    var longestSeconds: TimeInterval? {
+        limitSeconds.map { ceil(Double(count) / Double(max(workers, 1))) * $0 }
     }
 }

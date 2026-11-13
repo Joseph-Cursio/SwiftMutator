@@ -10,11 +10,12 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
     private var choices: [WorkerChoice] = []
 
     private lazy var sut = PerformMutationTesting(
-        makeWorkerDirectories: { [unowned self] _, count in
+        makeWorkerDirectories: { [weak self] _, count in
+            guard let self else { return [] }
             clonedCounts.append(count)
             return Array(repeating: workerClone, count: count)
         },
-        removeWorkerDirectories: { [unowned self] in removedClones.append($0) }
+        removeWorkerDirectories: { [weak self] in self?.removedClones.append($0) }
     )
 
     // After `setUpWithError`, as XCTest calls them, as the world is made anew in each.
@@ -31,8 +32,8 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
         state.projectDirectoryURL = URL(fileURLWithPath: "/project")
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/project_mutated")
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
-        whenSent(.workersChosen) { [unowned self] event in
-            if case let .workersChosen(choice) = event { choices.append(choice) }
+        whenSent(.workersChosen) { [weak self] event in
+            if case let .workersChosen(choice) = event { self?.choices.append(choice) }
         }
     }
 
@@ -92,7 +93,8 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
             ["runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)"]
         )
         guard case let .mutationTestOutcomeGenerated(outcome) = result.first else {
-            return XCTFail("Expected an outcome, got \(result)")
+            XCTFail("Expected an outcome, got \(result)")
+            return
         }
         XCTAssertEqual(outcome.mutations.count, 60)
         // The record is the one worker's, with one worker's time limit.
@@ -113,16 +115,16 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
     func test_aCloneThatCanNotBeCopied_dropsTheRunToOneWorker_withANotice() async throws {
         try testing(60)
         ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 60)
-        let sut = PerformMutationTesting(
+        let testing = PerformMutationTesting(
             makeWorkerDirectories: { [workerClone] _, _ in
                 throw PerformMutationTesting.WorkerDirectoryError(
                     clone: workerClone, status: 1, error: "No space left on device"
                 )
             },
-            removeWorkerDirectories: { [unowned self] in removedClones.append($0) }
+            removeWorkerDirectories: { [weak self] in self?.removedClones.append($0) }
         )
 
-        _ = try await sut.run(with: state)
+        _ = try await testing.run(with: state)
 
         XCTAssertEqual(removedClones, [], "a copy that fails removes what it made")
         XCTAssertEqual(try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first).workers, 1)
@@ -193,7 +195,6 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
 
     private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -205,7 +206,8 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
                         snapshot: .null
                     ),
                 ]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 }

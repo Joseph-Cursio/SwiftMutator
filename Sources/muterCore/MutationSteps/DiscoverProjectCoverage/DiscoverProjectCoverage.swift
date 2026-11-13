@@ -1,5 +1,18 @@
 import Foundation
 
+/// Why coverage couldn't be gathered, and where the coverage run's output is kept, if it is.
+struct CoverageFailure: Equatable {
+    let reason: String
+    let log: String?
+}
+
+/// The tests that failed in the coverage run although its coverage was gathered, and where its output is kept, if it
+/// is.
+struct TestsFailedWithCoverage: Equatable {
+    let tests: FailedTestLine.FailedTests
+    let log: String?
+}
+
 final class DiscoverProjectCoverage: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents
@@ -44,23 +57,11 @@ final class DiscoverProjectCoverage: MutationStep {
             events.send(.projectCoverageDiscoveryFinished(nil))
 
             return [.projectCoverage(coverage)]
+
         case let .failure(error):
             events.send(.projectCoverageDiscoveryFinished(CoverageFailure(reason: error.reason, log: log)))
 
             return [.projectCoverage(.null)]
         }
     }
-}
-
-/// Why coverage couldn't be gathered, and where the coverage run's output is kept, if it is.
-struct CoverageFailure: Equatable {
-    let reason: String
-    let log: String?
-}
-
-/// The tests that failed in the coverage run although its coverage was gathered, and where its output is kept, if it
-/// is.
-struct TestsFailedWithCoverage: Equatable {
-    let tests: FailedTestLine.FailedTests
-    let log: String?
 }

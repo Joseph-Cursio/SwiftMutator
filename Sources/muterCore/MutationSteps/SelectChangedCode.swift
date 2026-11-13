@@ -1,5 +1,3 @@
-import Foundation
-
 /// `--since`: asks git, in the project, which Swift files changed since the merge base of the ref and HEAD, and with
 /// `--changed-lines` which lines. Runs before a resume is checked, which compares the choice, and before the project
 /// is copied, so a ref git doesn't know, or a change with no Swift file to mutate, ends the run before then.

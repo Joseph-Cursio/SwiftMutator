@@ -48,55 +48,59 @@ struct MutantReference: Hashable, CustomStringConvertible {
     static func parse(_ text: String) throws -> Self {
         var rest = Substring(text.trimmingCharacters(in: .whitespacesAndNewlines))
 
-        var occurrence: Int?
-        if rest.hasSuffix(")"), let opening = rest.range(of: " (#", options: .backwards) {
-            let digits = rest[opening.upperBound ..< rest.index(before: rest.endIndex)]
-            guard let repeatNumber = wholeNumber(digits) else { throw usage }
-            guard repeatNumber >= 2 else {
-                throw ValidationError("give a repeat as (#2) or above; the first mutant at a place has no (#n).")
-            }
-            occurrence = repeatNumber - 1
-            rest = trimmingTrailingSpaces(rest[..<opening.lowerBound])
-        }
+        let parsedOccurrence = try takingRepeat(from: &rest)
 
-        var mutationOperatorId: MutationOperator.Id?
+        var parsedOperator: MutationOperator.Id?
         if let space = rest.lastIndex(of: " "), trimmingTrailingSpaces(rest[..<space]).last?.isASCIIDigit == true {
             let word = rest[rest.index(after: space)...]
             if !word.isEmpty, word.allSatisfy({ ("a"..."z").contains($0) || ("A"..."Z").contains($0) }) {
                 guard let id = MutationOperator.Id(rawValue: String(word)) else {
                     throw ValidationError("\(word) isn't an operator: give one of \(MutationOperator.Id.description).")
                 }
-                mutationOperatorId = id
+                parsedOperator = id
                 rest = trimmingTrailingSpaces(rest[..<space])
             }
         }
 
         var fields = rest.split(separator: ":", omittingEmptySubsequences: false)
         guard fields.count >= 2, let last = fields.popLast().flatMap(wholeNumber) else { throw usage }
-        let line: Int
-        var column: Int?
+        let parsedLine: Int
+        var parsedColumn: Int?
         if fields.count >= 2, let lineBeforeColumn = fields.last.flatMap(wholeNumber) {
             fields.removeLast()
-            line = lineBeforeColumn
-            column = last
+            parsedLine = lineBeforeColumn
+            parsedColumn = last
         } else {
-            line = last
+            parsedLine = last
         }
-        guard line >= 1, column.map({ $0 >= 1 }) ?? true else { throw usage }
+        guard parsedLine >= 1, parsedColumn.map({ $0 >= 1 }) ?? true else { throw usage }
 
-        var path = Substring(fields.joined(separator: ":"))
-        while path.hasPrefix("./") {
-            path = path.dropFirst(2)
+        var filePath = Substring(fields.joined(separator: ":"))
+        while filePath.hasPrefix("./") {
+            filePath = filePath.dropFirst(2)
         }
-        guard !path.isEmpty else { throw usage }
+        guard !filePath.isEmpty else { throw usage }
 
         return Self(
-            path: String(path),
-            line: line,
-            column: column,
-            mutationOperatorId: mutationOperatorId,
-            occurrence: occurrence
+            path: String(filePath),
+            line: parsedLine,
+            column: parsedColumn,
+            mutationOperatorId: parsedOperator,
+            occurrence: parsedOccurrence
         )
+    }
+
+    /// The repeat a trailing ` (#n)` of `rest` gives, as an occurrence, counting from 0, which it takes off `rest`; nil
+    /// when `rest` ends in none. n must be 2 or more.
+    private static func takingRepeat(from rest: inout Substring) throws -> Int? {
+        guard rest.hasSuffix(")"), let opening = rest.range(of: " (#", options: .backwards) else { return nil }
+        let digits = rest[opening.upperBound ..< rest.index(before: rest.endIndex)]
+        guard let repeatNumber = wholeNumber(digits) else { throw usage }
+        guard repeatNumber >= 2 else {
+            throw ValidationError("give a repeat as (#2) or above; the first mutant at a place has no (#n).")
+        }
+        rest = trimmingTrailingSpaces(rest[..<opening.lowerBound])
+        return repeatNumber - 1
     }
 
     /// Whether `key` is this mutant, or one of the mutants this reference leaves open: its path and line match, and so
@@ -125,8 +129,8 @@ struct MutantReference: Hashable, CustomStringConvertible {
         if let relative = Self.relative(path, toFirstOf: roots) {
             return with(path: relative)
         }
-        let resolvedPath = (ProjectTree.resolved((path as NSString).deletingLastPathComponent) as NSString)
-            .appendingPathComponent((path as NSString).lastPathComponent)
+        let resolvedPath = ProjectTree.resolved(path.deletingLastPathComponent)
+            .appendingPathComponent(path.lastPathComponent)
         let resolvedRoots = roots.map { URL(fileURLWithPath: ProjectTree.resolved($0.path)) }
         return Self.relative(resolvedPath, toFirstOf: resolvedRoots).map(with(path:)) ?? self
     }

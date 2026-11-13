@@ -23,8 +23,8 @@ final class BuildTimeoutRunTests: MuterTestCase {
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 1, buildTimeout: 600
         )
         state.mutationMapping = try (1...4).map(makeSchemataMapping(line:))
-        let observer = runEvents.observe(.workersChosen) { [unowned self] event in
-            if case let .workersChosen(choice) = event { choices.append(choice) }
+        let observer = runEvents.observe(.workersChosen) { [weak self] event in
+            if case let .workersChosen(choice) = event { self?.choices.append(choice) }
         }
         addTeardownBlock { observer.cancel() }
     }
@@ -155,7 +155,8 @@ final class BuildTimeoutRunTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         guard case let .timedTestRunStopped(seconds, log)? = stopped.first, stopped.count == 1 else {
-            return XCTFail("\(stopped)")
+            XCTFail("\(stopped)")
+            return
         }
         XCTAssertEqual(seconds, 60)
         XCTAssertEqual(log, "/logs/timed test run.log")
@@ -177,7 +178,6 @@ final class BuildTimeoutRunTests: MuterTestCase {
 
     private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -189,7 +189,8 @@ final class BuildTimeoutRunTests: MuterTestCase {
                         snapshot: .null
                     ),
                 ]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 }

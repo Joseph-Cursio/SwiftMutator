@@ -56,7 +56,7 @@ final class ThreeBundleLogTests: XCTestCase {
     func test_thePassingLog_showsNoFailedTestOrCrash() {
         let log = loadLogFile(named: passingLogName)
 
-        XCTAssertEqual(FailedTestLine.failedTests(inLog: log), FailedTests(tests: [], count: 0, firstLine: nil))
+        XCTAssertEqual(FailedTestLine.failedTests(inLog: log), FailedTests(tests: [], total: 0, firstLine: nil))
         // As a baseline, it leaves failed-test lines reliable, so mutants' runs can stop at their first one.
         XCTAssertNil(FailedTestLine.first(inLog: log))
         XCTAssertNil(CrashLine.first(inLog: log))
@@ -64,7 +64,7 @@ final class ThreeBundleLogTests: XCTestCase {
 
     func test_theFailingLog_showsTheOneTestThatFailed_asTheRealRunRecordedIt() {
         let log = loadLogFile(named: failingLogName)
-        let expected = FailedTests(tests: [failedTest], count: 1, firstLine: failedTestLine)
+        let expected = FailedTests(tests: [failedTest], total: 1, firstLine: failedTestLine)
 
         XCTAssertEqual(FailedTestLine.failedTests(inLog: log), expected)
         XCTAssertEqual(FailedTestLine.first(inLog: log), failedTestLine)
@@ -122,6 +122,6 @@ final class ThreeBundleLogTests: XCTestCase {
             XCTFail("Unable to load the log file \(path)")
             return ""
         }
-        return String(decoding: data, as: UTF8.self)
+        return String(lossyUTF8: data)
     }
 }

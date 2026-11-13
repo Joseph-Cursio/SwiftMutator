@@ -196,7 +196,7 @@ final class RunDetailsReportTests: MuterTestCase {
         XCTAssertEqual(summary.durationSeconds, 61.25)
         XCTAssertEqual(summary.report, "/out/report.html")
         XCTAssertEqual(summary.run, run)
-        let text = String(decoding: summary.json, as: UTF8.self)
+        let text = String(lossyUTF8: summary.json)
         XCTAssertTrue(text.contains(#""report" : "/out/report.html""#), text)
         let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: Any]).keys.sorted()
         XCTAssertEqual(keys, [
@@ -207,10 +207,10 @@ final class RunDetailsReportTests: MuterTestCase {
     }
 
     func test_theSummary_ofASuspectRun_givesTheScoreWithoutThem_andOfNothingTested_noScore() {
-        let suspect = RunSummary(of: .withSuspectTests, ended: .interrupted, endDetail: "SIGINT", report: nil)
+        let suspect = RunSummary(of: .withSuspectTests, ended: .interrupted, report: nil, endDetail: "SIGINT")
         XCTAssertEqual(suspect.mutationScore, 92)
         XCTAssertEqual(suspect.mutationScoreWithoutSuspectTests, 50)
-        XCTAssertTrue(suspect.scoreWithoutSuspectsIsALowerBound)
+        XCTAssertEqual(suspect.scoreWithoutSuspectsIsALowerBound, .lowerBound)
         XCTAssertEqual(suspect.endDetail, "SIGINT")
 
         let empty = RunSummary(of: MutationTestOutcome(), ended: nil, report: nil)
@@ -238,9 +238,9 @@ final class RunDetailsReportTests: MuterTestCase {
         let gate = ScoreGate(failUnder: 50, judging: outcome)
         let summary = RunSummary(of: outcome, ended: .finished, report: nil, gate: gate)
 
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? NSDictionary)
-        XCTAssertEqual(json["gate"] as? NSDictionary, ["failUnder": 50, "passed": false, "score": 100.0 / 3])
-        let text = String(decoding: summary.json, as: UTF8.self)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: AnyHashable])
+        XCTAssertEqual(json["gate"] as? [String: AnyHashable], ["failUnder": 50, "passed": false, "score": 100.0 / 3])
+        let text = String(lossyUTF8: summary.json)
         XCTAssertTrue(text.contains(#""failUnder" : 50,"#), text)
         XCTAssertEqual(try JSONDecoder().decode(RunSummary.self, from: summary.json), summary)
         let unchecked = RunSummary(
@@ -249,10 +249,10 @@ final class RunDetailsReportTests: MuterTestCase {
             report: nil,
             gate: ScoreGate(failUnder: 50, judging: outcome, unless: .endedEarly)
         )
-        let uncheckedJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: unchecked.json) as? NSDictionary)
-        XCTAssertEqual(uncheckedJSON["gate"] as? NSDictionary, ["failUnder": 50, "notChecked": "endedEarly"])
+        let uncheckedJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: unchecked.json) as? [String: AnyHashable])
+        XCTAssertEqual(uncheckedJSON["gate"] as? [String: AnyHashable], ["failUnder": 50, "notChecked": "endedEarly"])
         XCTAssertFalse(
-            String(decoding: RunSummary(of: outcome, ended: .finished, report: nil).json, as: UTF8.self)
+            String(lossyUTF8: RunSummary(of: outcome, ended: .finished, report: nil).json)
                 .contains("gate")
         )
     }

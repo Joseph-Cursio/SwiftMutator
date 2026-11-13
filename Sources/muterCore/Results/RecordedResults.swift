@@ -61,8 +61,8 @@ struct RecordedResults {
         // The last line is empty when the file ends in a line break, and an empty line is never unreadable.
         results.endsWithCutOffLine = results.unreadableLines.last == lines.count
         guard !results.sessions.isEmpty else {
-            if let stopped = results.stopped {
-                throw ResultsFileError.stoppedBeforeFirstMutant(path: path, stopped)
+            if let stoppedRecord = results.stopped {
+                throw ResultsFileError.stoppedBeforeFirstMutant(path: path, stoppedRecord)
             }
             throw ResultsFileError.notAResultsFile(path: path)
         }
@@ -76,50 +76,87 @@ struct RecordedResults {
         switch kind {
         case "header":
             return try addHeader(line, path: path, using: decoder)
+
         case "mutant":
-            guard let record = try? decoder.decode(MutantResult.self, from: line),
-                  let session = sessionIndex(record.session)
-            else { return false }
-            latest[record.key] = record
-            // A new result: a rerun of the mutant's properties is of the result it followed.
-            propertyReruns.removeValue(forKey: record.key)
-            sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+            return addMutant(line, using: decoder)
+
         case "retired":
-            guard let retired = try? decoder.decode(ResultsRetired.self, from: line),
-                  sessionIndex(retired.session) != nil
-            else { return false }
-            // In file order, so a key a later mutant line records again counts again.
-            for key in retired.keys {
-                latest.removeValue(forKey: key)
-                propertyReruns.removeValue(forKey: key)
-            }
+            return addRetired(line, using: decoder)
+
         case "control":
-            guard let record = try? decoder.decode(ControlRunResult.self, from: line),
-                  let session = sessionIndex(record.session)
-            else { return false }
-            controlRuns.append(record)
-            sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+            return addControlRun(line, using: decoder)
+
         case "propertyRerun":
-            guard let record = try? decoder.decode(PropertyRerunResult.self, from: line),
-                  let session = sessionIndex(record.session)
-            else { return false }
-            // Of a result a later line retired, so of none: read, but kept for no result.
-            if latest[record.key] != nil {
-                propertyReruns[record.key] = record
-            }
-            sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+            return addPropertyRerun(line, using: decoder)
+
         case "stopped":
             guard let record = try? decoder.decode(ResultsStopped.self, from: line) else { return false }
             stopped = record
+
         case "end":
-            guard let end = try? decoder.decode(ResultsEnd.self, from: line),
-                  let session = sessionIndex(end.session)
-            else { return false }
-            sessions[session].end = end
+            return addEnd(line, using: decoder)
+
         default:
             // A kind of record a later SwiftMutator writes.
             break
         }
+        return true
+    }
+
+    /// Adds the mutant line `line`, a new result for its key, or returns false if it doesn't read.
+    private mutating func addMutant(_ line: Data, using decoder: JSONDecoder) -> Bool {
+        guard let record = try? decoder.decode(MutantResult.self, from: line),
+              let session = sessionIndex(record.session)
+        else { return false }
+        latest[record.key] = record
+        // A new result: a rerun of the mutant's properties is of the result it followed.
+        propertyReruns.removeValue(forKey: record.key)
+        sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+        return true
+    }
+
+    /// Adds the `retired` line `line`, dropping its keys' records, or returns false if it doesn't read.
+    private mutating func addRetired(_ line: Data, using decoder: JSONDecoder) -> Bool {
+        guard let retired = try? decoder.decode(ResultsRetired.self, from: line),
+              sessionIndex(retired.session) != nil
+        else { return false }
+        // In file order, so a key a later mutant line records again counts again.
+        for key in retired.keys {
+            latest.removeValue(forKey: key)
+            propertyReruns.removeValue(forKey: key)
+        }
+        return true
+    }
+
+    /// Adds the control run's line `line`, or returns false if it doesn't read.
+    private mutating func addControlRun(_ line: Data, using decoder: JSONDecoder) -> Bool {
+        guard let record = try? decoder.decode(ControlRunResult.self, from: line),
+              let session = sessionIndex(record.session)
+        else { return false }
+        controlRuns.append(record)
+        sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+        return true
+    }
+
+    /// Adds the property rerun's line `line`, or returns false if it doesn't read.
+    private mutating func addPropertyRerun(_ line: Data, using decoder: JSONDecoder) -> Bool {
+        guard let record = try? decoder.decode(PropertyRerunResult.self, from: line),
+              let session = sessionIndex(record.session)
+        else { return false }
+        // Of a result a later line retired, so of none: read, but kept for no result.
+        if latest[record.key] != nil {
+            propertyReruns[record.key] = record
+        }
+        sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+        return true
+    }
+
+    /// Adds the end line `line`, ending its session, or returns false if it doesn't read.
+    private mutating func addEnd(_ line: Data, using decoder: JSONDecoder) -> Bool {
+        guard let end = try? decoder.decode(ResultsEnd.self, from: line),
+              let session = sessionIndex(end.session)
+        else { return false }
+        sessions[session].end = end
         return true
     }
 

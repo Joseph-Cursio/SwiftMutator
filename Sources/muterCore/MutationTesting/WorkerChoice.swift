@@ -1,5 +1,3 @@
-import Foundation
-
 /// How many workers a run tests its mutants on, against how many it was asked for (`--workers`, or else
 /// `mutationTestWorkers`), and why it uses fewer.
 struct WorkerChoice: Equatable {

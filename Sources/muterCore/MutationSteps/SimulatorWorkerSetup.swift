@@ -10,15 +10,15 @@ import Foundation
 /// run's sweep.
 struct SimulatorWorkerSetup {
     @Dependency(\.workerSimulators)
-    private var workerSimulators: WorkerSimulating
+    var workerSimulators: WorkerSimulating
     @Dependency(\.interruption)
     private var interruption: InterruptionRecord
     @Dependency(\.ioDelegate)
-    private var ioDelegate: MutationTestingIODelegate
+    var ioDelegate: MutationTestingIODelegate
     @Dependency(\.fileManager)
-    private var fileManager: FileSystemManager
+    var fileManager: FileSystemManager
     @Dependency(\.instant)
-    private var instant: Instant
+    var instant: Instant
 
     /// The fewest mutants for which one worker gets a simulator of its own unless `oneWorkerSimulator` says: its make,
     /// boot and check run cost about 90 s at worst, and each mutant's run then saves about 15 s.
@@ -124,18 +124,18 @@ struct SimulatorWorkerSetup {
         let wanted = configuration.oneWorkerSimulator
         guard configuration.buildSystem == .xcodebuild,
               (configuration.mutationTestWorkers ?? 1) <= 1,
-              wanted != false,
+              wanted != .disabled,
               state.selectedMutant == nil,
               mutantsToTest >= 2
         else {
             return .noSimulator
         }
         guard configuration.parallelWorkersUnsupportedReason == nil, configuration.firstDestination != nil else {
-            return wanted == true
+            return wanted == .enabled
                 ? .declined("a simulator of its own needs a first `-destination` that is a simulator")
                 : .noSimulator
         }
-        if wanted == true {
+        if wanted == .enabled {
             return .simulator(checkedAgainstBaseline: false)
         }
         let parallelizes = switch configuration.parallelTestingArguments {
@@ -162,8 +162,10 @@ struct SimulatorWorkerSetup {
             switch Self.oneWorkerPlan(for: mutantsToTest, state: state) {
             case .noSimulator:
                 return Simulators()
+
             case let .declined(why):
                 return Simulators(unavailable: why)
+
             case let .simulator(checked):
                 checkedAgainstBaseline = checked
             }
@@ -176,7 +178,8 @@ struct SimulatorWorkerSetup {
         }
         // Before the first is made: `prepare` records each as simctl makes it, so a stop meanwhile leaves them to this.
         // It isn't cleared when mutation testing ends, which the work outlasts only by the report.
-        interruption.afterWorkEnds { [workerSimulators] in await workerSimulators.removeAll() }
+        let simulators = workerSimulators
+        interruption.afterWorkEnds { [simulators] in await simulators.removeAll() }
         do {
             let mutatedProject = state.mutatedProjectDirectoryURL
             return try await Simulators(
@@ -184,7 +187,7 @@ struct SimulatorWorkerSetup {
                 checkedAgainstBaseline: checkedAgainstBaseline
             )
         } catch let unavailable as WorkerSimulatorsUnavailable {
-            if count == 1, unavailable.destinationUnresolved, configuration.oneWorkerSimulator == nil {
+            if count == 1, unavailable.destinationUnresolved, configuration.oneWorkerSimulator == .unset {
                 return Simulators()
             }
             return Simulators(unavailable: unavailable.reason)
@@ -207,27 +210,26 @@ struct SimulatorWorkerSetup {
         }
     }
 
-    /// The workers that test the `planned` mutants at once, once the baseline has passed, with `configuration`, the
-    /// effective one: one each on `simulators`, if there are any, else the `planned` as before. Each simulator first
-    /// runs the tests with no mutant on, all at once, from its worker's `.xctestrun`, with its worker's arguments and
-    /// no mutant's time limit, only `buildTimeout`'s, which keeps its first install and launch out of any mutant's
-    /// time limit, and shows that the
-    /// tests pass on it one at a time. A run the simulator failed to launch runs once more in its place, as a mutant's
-    /// does, and its log is kept beside the second's. A failed run keeps its log, and the run then tests one mutant at
-    /// a time; every run's log is kept, and any that prints a line that looks like a failed test or a crash makes such
-    /// lines unreliable, as the baseline's does. The workers are kept in `session` before their runs start, so their
-    /// files are removed however mutation testing ends, but the mutants run only on the workers returned, which are
-    /// none after a fallback (`Workers.xcodeWorkers`). `testOutput` names the file a run with the given log name
-    /// writes to. A stop before the workers are known throws a CancellationError, as one during the baseline does,
+    /// The workers that test the `planned` mutants at once, once the baseline has passed, with `context`'s
+    /// configuration, the effective one: one each on `simulators`, if there are any, else the `planned` as before. Each
+    /// simulator first runs the tests with no mutant on, all at once, from its worker's `.xctestrun`, with its worker's
+    /// arguments and no mutant's time limit, only `buildTimeout`'s, which keeps its first install and launch out of any
+    /// mutant's time limit, and shows that the tests pass on it one at a time. A run the simulator failed to launch
+    /// runs once more in its place, as a mutant's does, and its log is kept beside the second's. A failed run keeps its
+    /// log, and the run then tests one mutant at a time; every run's log is kept, and any that prints a line that looks
+    /// like a failed test or a crash makes such lines unreliable, as the baseline's does. The workers are kept in
+    /// `session` before their runs start, so their files are removed however mutation testing ends, but the mutants run
+    /// only on the workers returned, which are none after a fallback (`Workers.xcodeWorkers`). `context` holds the
+    /// run's state, the effective configuration and the session. `testOutput` names the file a run with the given log
+    /// name writes to. A stop before the workers are known throws a CancellationError, as one during the baseline does,
     /// rather than being why the run tests one mutant at a time.
     func workers(
         _ planned: Int,
         on simulators: Simulators,
-        configuration: MuterConfiguration,
-        state: AnyMutationTestState,
-        session: TestingSession,
+        in context: PerformMutationTesting.RunContext,
         testOutput: (String) -> String
     ) async throws -> Workers {
+        let (configuration, state, session) = (context.configuration, context.state, context.session)
         // A stop while the simulators that failed to boot were deleted, which `boot` doesn't see.
         try Task.checkCancellation()
         guard !simulators.made.isEmpty else {
@@ -243,9 +245,9 @@ struct SimulatorWorkerSetup {
                     ofWorker: worker,
                     in: state.mutatedProjectDirectoryURL
                 ),
+                testDiagnosticsOff: state.testDiagnosticsCanBeTurnedOff,
                 destination: simulator.destination,
-                parallelTestingOff: true,
-                testDiagnosticsOff: state.testDiagnosticsCanBeTurnedOff
+                parallelTestingOff: true
             )
         }
         session.xcodeWorkers = xcodeWorkers
@@ -254,28 +256,13 @@ struct SimulatorWorkerSetup {
         )
         // Stopping the run kills these runs too, which then fail, but that says nothing about the simulators.
         try Task.checkCancellation()
-        let logs = runs.map { run in
-            let logName = Self.checkRunLogName(ofWorker: run.worker)
-            if let failure = run.launchFailure {
-                fileManager.keepLog(
-                    failure.testLog, named: MutationTestLog.launchFailedFileName(for: logName), state: state
-                )
-            }
-            return fileManager.keepLog(run.testLog, writtenTo: run.output, by: ioDelegate, named: logName, state: state)
-        }
+        let logs = keepLogs(of: runs, state: state)
 
         // The lowest-numbered failure, so the same worker is named whichever run finished first.
         if let failed = runs.first(where: { $0.outcome != .passed || $0.timedOut }) {
-            await workerSimulators.removeAll()
-            // A stop while they were deleted.
-            try Task.checkCancellation()
-            let why = SimulatorTrouble.first(inLog: failed.testLog).map { ": \($0.line)" } ?? ""
-            let log = logs[failed.worker] == nil ? "" : " (its log is \(Self.checkRunLogName(ofWorker: failed.worker)))"
-            let ended = failed.timedOut
-                ? "didn't end within \(String(format: "%g", configuration.buildTimeout ?? 0)) s (buildTimeout)"
-                : "didn't pass\(why)"
-            let reason = "worker \(failed.worker)'s run with no mutant on, on its simulator, \(ended)\(log)"
-            return Workers(count: 1, unavailable: reason, configuration: configuration, xcodeWorkers: [])
+            return try await fallingBack(
+                after: failed, keptLog: logs[failed.worker] != nil, configuration: configuration
+            )
         }
         // The logs of the runs that printed a line shaped like a failed test or a crash.
         let printingLookalikes = runs.compactMap { run in
@@ -289,76 +276,5 @@ struct SimulatorWorkerSetup {
             xcodeWorkers: xcodeWorkers,
             checkRunSeconds: runs.map(\.seconds).max()
         )
-    }
-
-    /// The name of the log of xcodebuild worker `worker`'s run with no mutant on.
-    static func checkRunLogName(ofWorker worker: Int) -> String {
-        "no-mutant run worker \(worker).log"
-    }
-
-    /// A worker's run with no mutant on, the run before it, if the simulator failed to launch that one, how long both
-    /// took, and the file it wrote its output to, none if it never ran.
-    private struct CheckRun {
-        let worker: Int
-        let outcome: TestSuiteOutcome
-        let testLog: String
-        /// Whether it was stopped at `buildTimeout`.
-        let timedOut: Bool
-        let launchFailure: LaunchFailure?
-        let seconds: TimeInterval
-        let output: String?
-
-        init(_ worker: Int, _ run: TestRun, launchFailure: LaunchFailure?, seconds: TimeInterval, output: String?) {
-            self.worker = worker
-            outcome = run.outcome
-            testLog = run.testLog
-            timedOut = run.ending == .timedOut
-            self.launchFailure = launchFailure
-            self.seconds = seconds
-            self.output = output
-        }
-    }
-
-    /// Runs the tests with no mutant on, on every one of `xcodeWorkers` at once, each from its own `.xctestrun`, and
-    /// returns the runs in worker order. A worker whose `.xctestrun` can't be written fails its run. A run the
-    /// simulator failed to launch runs once more on its worker, unless the run is stopped, and the second is returned.
-    private func checkRuns(
-        on xcodeWorkers: [MuterConfiguration.XcodeWorker],
-        configuration: MuterConfiguration,
-        state: AnyMutationTestState,
-        testOutput: (String) -> String
-    ) async -> [CheckRun] {
-        let (testRun, mutatedProject) = (state.projectXCTestRun, state.mutatedProjectDirectoryURL)
-        let runs = await withTaskGroup(of: CheckRun.self) { group in
-            for (worker, xcodeWorker) in xcodeWorkers.enumerated() {
-                let configuration = configuration.forXcodeWorker(xcodeWorker)
-                let fileName = testOutput("no-mutant run worker \(worker)")
-                // A worker's run is given the values and the dependency it uses, not the setup or the state.
-                group.addTask { [ioDelegate, instant] in
-                    do {
-                        try await ioDelegate.switchOn(
-                            schemata: .null, for: testRun, at: mutatedProject, named: xcodeWorker.testRunFile
-                        )
-                    } catch {
-                        let why = error.localizedDescription
-                        let log = "SwiftMutator could not write \(xcodeWorker.testRunFile): \(why)"
-                        let run = TestRun(outcome: .buildError, testLog: log)
-                        return CheckRun(worker, run, launchFailure: nil, seconds: 0, output: nil)
-                    }
-                    let start = instant()
-                    let (run, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: configuration) {
-                        await ioDelegate.runTestsWithoutBuilding(
-                            using: configuration,
-                            timeLimit: configuration.buildTimeout,
-                            savingResultsIntoFileNamed: fileName
-                        )
-                    }
-                    let seconds = PerformMutationTesting.seconds(from: start, to: instant())
-                    return CheckRun(worker, run, launchFailure: launchFailure, seconds: seconds, output: fileName)
-                }
-            }
-            return await group.reduce(into: []) { $0.append($1) }
-        }
-        return runs.sorted { $0.worker < $1.worker }
     }
 }

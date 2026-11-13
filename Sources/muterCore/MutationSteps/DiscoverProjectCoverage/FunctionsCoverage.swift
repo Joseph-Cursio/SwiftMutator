@@ -1,6 +1,11 @@
-import Foundation
+/// The regions llvm-cov reports in a file, by function, in its order: a function's first region is its whole body.
+struct FileCoverage: Equatable {
+    let functions: [[Region]]
 
-final class FunctionsCoverage: Sendable {
+    static let empty = Self(functions: [])
+}
+
+final class FunctionsCoverage: Sendable, Equatable {
     /// Keyed by canonical path, since llvm-cov may spell a file's path differently from SwiftMutator.
     private let coverage: [String: FileCoverage]
 
@@ -43,9 +48,8 @@ final class FunctionsCoverage: Sendable {
         let count = { (index: Int) in body(index)?.executionCount ?? 0 }
         // llvm-cov names every function, but a test's record may have no name.
         let sharingABody = Dictionary(
-            grouping: functions.indices.filter { functions[$0].name != nil && body($0) != nil },
-            by: { body($0).map { [$0.lineStart, $0.columnStart, $0.lineEnd, $0.columnEnd] } }
-        )
+            grouping: functions.indices.filter { functions[$0].name != nil && body($0) != nil }
+        ) { body($0).map { [$0.lineStart, $0.columnStart, $0.lineEnd, $0.columnEnd] } }
         var regions = functions.map(\.regions)
         var dropped = Set<Int>()
         for records in sharingABody.values {
@@ -87,20 +91,10 @@ final class FunctionsCoverage: Sendable {
     func regionsForFile(_ filePath: FilePath) -> [Region] {
         coverage(ofFile: filePath).functions.joined().include { $0.executionCount == 0 }
     }
-}
-extension FunctionsCoverage: Equatable {
+
     static func == (lhs: FunctionsCoverage, rhs: FunctionsCoverage) -> Bool {
         lhs.coverage == rhs.coverage
     }
-}
 
-extension FunctionsCoverage: Nullable {
     static let null: FunctionsCoverage = .init()
-}
-
-/// The regions llvm-cov reports in a file, by function, in its order: a function's first region is its whole body.
-struct FileCoverage: Equatable {
-    let functions: [[Region]]
-
-    static let empty = Self(functions: [])
 }

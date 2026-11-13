@@ -21,7 +21,6 @@ final class SwapTernaryOperatorTests: MuterTestCase {
 
         let actualMappings = visitor.schemataMappings
         let expectedMappings = try SchemataMutationMapping.make(
-            filePath: sampleCode.path,
             (
                 source: "\n    return a ? \"true\" : \"false\"",
                 schemata: [
@@ -61,7 +60,8 @@ final class SwapTernaryOperatorTests: MuterTestCase {
                         )
                     ),
                 ]
-            )
+            ),
+            filePath: sampleCode.path
         )
 
         XCTAssertEqual(actualMappings, expectedMappings)
@@ -189,392 +189,8 @@ final class SwapTernaryOperatorTests: MuterTestCase {
         XCTAssertEqual(mutations, [#"let face = "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂" return flag ? "none" : face"#])
     }
 
-    // The swap is three bytes longer than the ternary, but the reparse was told that the text after
-    // it had not moved. A statement that now started where another used to start was taken to be
-    // that other one: here `ab` was dropped and `ef` appeared twice. `:2` is unspaced so that the
-    // swap, which spaces it, grows by the length of each statement after it.
-    func test_keepsTheStatementsAfterATernaryThatGrows() throws {
-        let mutations = try swappedMutations(of: """
-        func pick(_ flag: Bool, _ ab: Int, _ cd: Int, _ ef: Int) {
-            let value = flag ? 1 :2;ab;cd;ef
-        }
-        """)
-
-        XCTAssertEqual(mutations, ["let value = flag ? 2 : 1 ;ab;cd;ef"])
-    }
-
-    // A comment after the ternary can be all that separates it from the next statement. The swap
-    // put one space in place of the last term's trailing trivia, so the comment was lost and
-    // `record(flag)` joined the ternary's statement, which does not compile.
-    func test_keepsTheCommentAfterATernary() throws {
-        let mutations = try swappedMutationTexts(of: """
-        func pick(_ flag: Bool) {
-            _ = flag ? 1 : 2 /* one
-            two */ record(flag)
-        }
-        """)
-
-        XCTAssertEqual(mutations.map(collapsingWhitespace), ["_ = flag ? 2 : 1 /* one two */ record(flag)"])
-        for mutation in mutations {
-            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
-        }
-    }
-
-    // The same with an else-branch of several terms: the trivia to keep is the last term's.
-    func test_keepsTheCommentAfterATernaryWithSeveralElseTerms() throws {
-        let mutations = try swappedMutationTexts(of: """
-        func pick(_ flag: Bool, _ a: Int, _ b: Int) {
-            _ = flag ? 1 : a + b /* one
-            two */ record(flag)
-        }
-        """)
-
-        XCTAssertEqual(mutations.map(collapsingWhitespace), ["_ = flag ? a + b : 1 /* one two */ record(flag)"])
-        for mutation in mutations {
-            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
-        }
-    }
-
-    // An else-branch can touch the token after it, as in `(a < b)else`. Moved there, a then-branch
-    // that ends in a name joined that token into one: `delse`.
-    func test_keepsTheSwappedTernaryApartFromTheTokenAfterIt() throws {
-        let mutations = try swappedMutationTexts(of: """
-        func pick(_ c: Bool, _ d: Bool, _ a: Int, _ b: Int) -> Int {
-            guard c ? d : (a < b)else { return 0 }
-            return 1
-        }
-        """)
-
-        XCTAssertEqual(mutations.map(collapsingWhitespace), ["guard c ? (a < b) : d else { return 0 } return 1"])
-        for mutation in mutations {
-            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
-        }
-    }
-
-    // A `//` comment after the condition ends at the line break, which is the leading trivia of the
-    // `?` that starts the next line. The swap put one space in place of it, so the swapped ternary
-    // became part of the comment, leaving `return flag`.
-    func test_keepsTheLineBreakBeforeATernarysQuestionMark() throws {
-        let mutations = try swappedMutationTexts(of: """
-        func pick(_ flag: Bool) -> Int {
-            return flag // decides
-                ? 1
-                : 2
-        }
-        """)
-
-        XCTAssertEqual(mutations.map(codeTokens), ["return flag ? 2 : 1"])
-    }
-
-    // At the end of a `guard` condition, a `{` followed by `else` opens the guard's body rather than
-    // a trailing closure. The swap moved the then-branch's closure there, so the mutant did not
-    // parse, and the reparse dropped `else { return 0 }` and `return 1`. The `!` makes the branch a
-    // prefix expression rather than a call, so this pins the rule to the last token being a `}`.
-    func test_parenthesizesAThenBranchThatEndsInAClosure() throws {
-        let mutations = try swappedMutationTexts(of: """
-        func pick(_ c: Bool, _ d: Bool, _ xs: [Int]) -> Int {
-            guard c ? !xs.contains { $0 > 1 } : d else { return 0 }
-            return 1
-        }
-        """)
-
-        XCTAssertEqual(
-            mutations.map(collapsingWhitespace),
-            ["guard c ? d : (!xs.contains { $0 > 1 }) else { return 0 } return 1"]
-        )
-        for mutation in mutations {
-            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
-        }
-    }
-
-    // A postfix `#if` block can end the else-branch, and only a comment may follow a `#endif` on its
-    // line. Swapped before the `:`, the `#endif` had the `:` on its line.
-    func test_startsTheColonOnANewLineAfterAnElseBranchEndingInEndif() throws {
-        let mutations = try swappedMutationTexts(of: """
-        func pick(_ c: Bool, _ a: Int, _ b: Int) -> Int {
-            return c ? a : b
-                #if DEBUG
-                .advanced(by: 1)
-                #endif
-        }
-        """)
-
-        XCTAssertEqual(mutations.map(collapsingWhitespace), ["return c ? b #if DEBUG .advanced(by: 1) #endif : a"])
-        for mutation in mutations {
-            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
-        }
-    }
-
-    // The same with the then-branch, which the swap moves to the end, before whatever follows the
-    // ternary: here a comment and then `else`. The comment stays, and the line break follows it.
-    func test_endsTheLineAfterAThenBranchEndingInEndif() throws {
-        let mutations = try swappedMutationTexts(of: """
-        func pick(_ c: Bool, _ d: Bool, _ xs: [Int]) -> Int {
-            guard c ? xs.isEmpty
-                #if DEBUG
-                .description.isEmpty
-                #endif
-                : d /* kept */ else { return 0 }
-            return 1
-        }
-        """)
-
-        XCTAssertEqual(
-            mutations.map(collapsingWhitespace),
-            ["guard c ? d : xs.isEmpty #if DEBUG .description.isEmpty #endif /* kept */ else { return 0 } return 1"]
-        )
-        for mutation in mutations {
-            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
-        }
-    }
-
-    // Inside a multi-line string's interpolation, every line must be indented at least as far as the
-    // closing `"""`. The line break after a `#endif` takes the `#endif`'s indentation, so the `)` or
-    // `:` that it moves to a new line still is.
-    func test_indentsTheLineAfterAnEndifLikeTheEndif() throws {
-        let mutations = try swappedMutationTexts(of: #"""
-        func pick(_ c: Bool, _ a: Int, _ b: Int) -> String {
-            return """
-                \(c ? a
-                    #if DEBUG
-                    .advanced(by: 1)
-                    #endif
-                    : b)
-                \(c ? a : b
-                    #if DEBUG
-                    .advanced(by: 2)
-                    #endif
-                )
-                """
-        }
-        """#)
-
-        XCTAssertEqual(mutations.count, 2)
-        for mutation in mutations {
-            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
-        }
-    }
-
-    // The first link's swap moves the rest of the chain whole, so only a link's own swap tests `b ? 2 : 3`.
-    func test_eachLinkOfAChain_getsItsOwnMutant() throws {
-        let mutations = try swappedMutations(of: """
-        func pick(_ a: Bool, _ b: Bool, _ c: Bool) -> Int {
-            return a ? 1 : b ? 2 : c ? 3 : 4
-        }
-        """)
-
-        XCTAssertEqual(Set(mutations), [
-            "return a ? b ? 2 : c ? 3 : 4 : 1",
-            "return a ? 1 : b ? c ? 3 : 4 : 2",
-            "return a ? 1 : b ? 2 : c ? 4 : 3",
-        ])
-    }
-
-    func test_aLaterLink_namesItsOwnCode_andHasAPlaceOfItsOwn() throws {
-        let schemata = try swappedSchemata(of: """
-        func pick(_ a: Bool, _ b: Bool) -> Int {
-            return a ? 1 : b ? 2 : 3
-        }
-        """)
-
-        XCTAssertEqual(Set(schemata.map(\.snapshot.before)), ["a ? 1 : b ? 2 : 3", "b ? 2 : 3"])
-        XCTAssertEqual(
-            Set(schemata.map { collapsingWhitespace($0.snapshot.after) }),
-            ["a ? b ? 2 : 3 : 1", "b ? 3 : 2"]
-        )
-        XCTAssertEqual(Set(schemata.map(\.position.utf8Offset)).count, 2)
-    }
-
-    func test_aLaterLink_isPlacedAtItsQuestionMark_onItsOwnLine() throws {
-        let schemata = try swappedSchemata(of: """
-        func pick(_ a: Bool, _ b: Bool) -> Int {
-            return a ? 1
-                : b ? 2
-                : 3
-        }
-        """)
-
-        let laterLink = try XCTUnwrap(schemata.first { $0.snapshot.before == "b ? 2\n        : 3".inlined })
-        XCTAssertEqual(laterLink.position.line, 3)
-        XCTAssertEqual(laterLink.position.column, 13)
-    }
-
-    // What's before an assignment is no part of the link after it.
-    func test_aLinkAfterAnAssignment_startsAfterIt_andTheLinkBeforeItIsLeftAlone() throws {
-        let schemata = try swappedSchemata(of: """
-        func pick(_ p: Bool, _ s: Bool) {
-            p ? q : r = s ? t : u
-        }
-        """)
-
-        XCTAssertEqual(schemata.map(\.snapshot.before), ["s ? t : u"])
-        XCTAssertEqual(schemata.map { collapsingWhitespace($0.snapshot.after) }, ["s ? u : t"])
-    }
-
-    func test_aListWithACast_isStillLeftAlone_atEveryLink() throws {
-        let mutations = try swappedMutations(of: """
-        func pick(_ a: Bool, _ b: Bool) -> Int? {
-            return a ? 1 : b ? 2 : 3 as Int?
-        }
-        """)
-
-        XCTAssertEqual(mutations, [])
-    }
-
-    // A later link is in a branch of the one before it. Its mutant could only survive if that branch never ran.
-    func test_aLaterLinkInABranchThatNeverRan_getsNoMutant() throws {
-        let source = try sourceCode("""
-        func pick(_ a: Bool, _ b: Bool) -> Int {
-            return a
-                ? 1
-                : b ? 2 : 3
-        }
-        """)
-        let visitor = SwapTernaryOperator.Visitor(
-            sourceCodeInfo: .init(path: "/path/to/file", code: source),
-            coverage: .llvmCov([[[1, 40, 5, 2, 1], [3, 11, 3, 12, 1], [4, 11, 4, 20, 0]]])
-        )
-
-        visitor.walk(source)
-
-        XCTAssertEqual(visitor.schemataMappings.mutationSchemata.map(\.snapshot.before), ["a ? 1 : b ? 2 : 3"])
-    }
-
-    func test_aDisableCommentBeforeALaterLink_leavesThatLinkAlone() throws {
-        let schemata = try swappedSchemata(of: """
-        func pick(_ a: Bool, _ b: Bool) -> Int {
-            return a ? 1
-                // muter:disable
-                : b ? 2 : 3
-        }
-        """)
-
-        XCTAssertEqual(schemata.count, 1)
-        XCTAssertTrue(schemata[0].snapshot.before.hasPrefix("a ? 1"))
-    }
-
-    // The comment is right before this link's `?`, so it's read only if the visit reads it before adding the mutant.
-    func test_aDisableCommentRightBeforeALaterLinksQuestionMark_leavesThatLinkAlone() throws {
-        let schemata = try swappedSchemata(of: """
-        func pick(_ a: Bool, _ b: Bool) -> Int {
-            return a ? 1 : b
-                // muter:disable
-                ? 2 : 3
-        }
-        """)
-
-        XCTAssertEqual(schemata.count, 1)
-        XCTAssertTrue(schemata[0].snapshot.before.hasPrefix("a ? 1"))
-    }
-
-    // An assignment at the end of the list would take the whole ternary as its left side.
-    func test_aThenBranchThatAssigns_isParenthesizedAtEveryLink() throws {
-        let mutations = try swappedMutations(of: """
-        func pick(_ a: Bool, _ b: Bool) {
-            a ? x = 1 : b ? n += 1 : run()
-        }
-        """)
-
-        XCTAssertEqual(Set(mutations), [
-            "a ? b ? n += 1 : run() : (x = 1)",
-            "a ? x = 1 : b ? run() : (n += 1)",
-        ])
-    }
-
-    // Comparisons that end in `=`, unlike an assignment, are part of the branch.
-    func test_comparisonsThatEndInAnEqualsSign_areNoAssignments() throws {
-        let schemata = try swappedSchemata(of: """
-        func pick(_ a: Bool, _ n: Int) -> Int {
-            return a ? 0 : 1...5 ~= n ? 1 : 2
-        }
-        """)
-
-        XCTAssertEqual(Set(schemata.map(\.snapshot.before)), ["a ? 0 : 1...5 ~= n ? 1 : 2", "1...5 ~= n ? 1 : 2"])
-    }
-
-    // `--changed-lines` reads this: an edit to any line of the chain may change what a link does.
-    func test_aLaterLink_spansTheWholeChainsLines() throws {
-        let schemata = try swappedSchemata(of: """
-        func pick(_ a: Bool, _ b: Bool) -> Int {
-            return a ? 1
-                : b ? 2
-                : 3
-        }
-        """)
-
-        XCTAssertEqual(schemata.map(\.lines), [2...4, 2...4])
-    }
-
-    // Since a value can hold a switch, a chain outside a function gets a mutant for each link there too.
-    func test_eachLinkOfAChainInAStoredProperty_getsItsOwnMutant() throws {
-        let schemata = try swappedSchemata(of: """
-        struct S {
-            let value = a ? 1 : b ? 2 : 3
-        }
-        """)
-
-        XCTAssertEqual(
-            Set(schemata.map { collapsingWhitespace($0.snapshot.after) }),
-            ["a ? b ? 2 : 3 : 1", "b ? 3 : 2"]
-        )
-    }
-
-    func test_identicalBranches_getNoMutant() throws {
-        let mutations = try swappedMutations(of: """
-        func pick(_ c: Bool, _ x: Int) -> Int {
-            return c ? x : x
-        }
-        """)
-
-        XCTAssertEqual(mutations, [])
-    }
-
-    // The tokens are what's compared: the spacing of the two branches, or a comment in them, is no difference.
-    func test_identicalBranches_areFoundWhateverTheirSpacing() throws {
-        let mutations = try swappedMutations(of: """
-        func pick(_ c: Bool, _ x: Int) -> Int {
-            let first = c ? x + 1 : x  +  1
-            let second = c
-                ? f(x) /* one */
-                : f(
-                    x
-                )
-            return first + second
-        }
-        """)
-
-        XCTAssertEqual(mutations, [])
-    }
-
-    func test_identicalBranchesAtALaterLink_leaveTheOtherLinksTheirMutants() throws {
-        let schemata = try swappedSchemata(of: """
-        func pick(_ a: Bool, _ b: Bool) -> Int {
-            return a ? 1 : b ? 2 : 2
-        }
-        """)
-
-        XCTAssertEqual(schemata.map(\.snapshot.before), ["a ? 1 : b ? 2 : 2"])
-    }
-
-    // The compiler doesn't take the two spellings of `é` for one name, though `String`'s `==` does.
-    func test_branchesThatDifferInTheirBytes_getAMutant() throws {
-        let mutations = try swappedMutations(of: "func pick(_ c: Bool) -> Int {\n    return c ? \u{e9} : e\u{301}\n}")
-
-        XCTAssertEqual(mutations.count, 1)
-    }
-
-    func test_branchesThatDifferInTheirTokens_getAMutant() throws {
-        let mutations = try swappedMutations(of: """
-        func pick(_ c: Bool, _ x: Int) -> Int {
-            return c ? x : x + 1
-        }
-        """)
-
-        XCTAssertEqual(mutations, ["return c ? x + 1 : x"])
-    }
-
     /// Each mutant's schema, in the order they were found.
-    private func swappedSchemata(of text: String) throws -> [MutationSchema] {
+    func swappedSchemata(of text: String) throws -> [MutationSchema] {
         let source = try sourceCode(text)
         let visitor = SwapTernaryOperator.Visitor(sourceCodeInfo: .init(path: "/path/to/file", code: source))
         visitor.walk(source)
@@ -583,12 +199,12 @@ final class SwapTernaryOperatorTests: MuterTestCase {
     }
 
     /// Each mutation's text with runs of whitespace collapsed, so the assertions read like source.
-    private func swappedMutations(of text: String) throws -> [String] {
+    func swappedMutations(of text: String) throws -> [String] {
         try swappedMutationTexts(of: text).map(collapsingWhitespace)
     }
 
     /// Each mutation's text as it is compiled.
-    private func swappedMutationTexts(of text: String) throws -> [String] {
+    func swappedMutationTexts(of text: String) throws -> [String] {
         let source = try sourceCode(text)
         let visitor = SwapTernaryOperator.Visitor(sourceCodeInfo: .init(path: "/path/to/file", code: source))
         visitor.walk(source)
@@ -596,12 +212,12 @@ final class SwapTernaryOperatorTests: MuterTestCase {
         return visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description)
     }
 
-    private func collapsingWhitespace(_ text: String) -> String {
+    func collapsingWhitespace(_ text: String) -> String {
         text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
     /// The tokens a compiler sees, without comments or whitespace.
-    private func codeTokens(_ text: String) -> String {
+    func codeTokens(_ text: String) -> String {
         Parser.parse(source: text)
             .tokens(viewMode: .sourceAccurate)
             .map(\.text)

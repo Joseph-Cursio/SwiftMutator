@@ -1,5 +1,3 @@
-import Foundation
-
 enum ReportFormat: String, CaseIterable {
     case plain
     case json
@@ -17,16 +15,22 @@ enum ReportFormat: String, CaseIterable {
         switch self {
         case .plain:
             return PlainTextReporter()
+
         case .json:
             return JsonReporter()
+
         case .html:
             return HTMLReporter()
+
         case .xcode:
             return XcodeReporter()
+
         case .markdown:
             return MarkdownReporter()
+
         case .stryker:
             return StrykerReporter()
+
         case .sarif:
             return SarifReporter()
         }

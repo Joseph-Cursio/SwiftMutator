@@ -1,5 +1,4 @@
 @testable import muterCore
-import SwiftSyntax
 import TestingExtensions
 import XCTest
 
@@ -86,7 +85,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.configurations.map(\.directTestRun), [nil])
         XCTAssertEqual(sent().count, 1)
         XCTAssertTrue(sent().first?.contains("ran 9 Swift Testing tests, where `swift test` ran 12") ?? false)
-        XCTAssertNil(try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first).testBundlesRunDirectly)
+        XCTAssertFalse(try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first).testBundlesRunDirectly)
     }
 
     func test_aRunThatFails_leavesSwiftTest() async throws {
@@ -306,7 +305,6 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
 
     private func makeSchemataMapping(line: Int = 1) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -318,7 +316,8 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
                         snapshot: .null
                     ),
                 ]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 }

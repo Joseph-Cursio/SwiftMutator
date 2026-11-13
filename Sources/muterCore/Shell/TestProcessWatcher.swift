@@ -13,8 +13,8 @@ struct RecordedProcess: Hashable {
 
     /// The record of the process `id`, or nil if no such process runs.
     init?(_ id: Int32) {
-        guard let started = MutatedProjectLock.startTime(of: id) else { return nil }
-        self.init(id: id, started: started)
+        guard let startTime = MutatedProjectLock.startTime(of: id) else { return nil }
+        self.init(id: id, started: startTime)
     }
 
     /// Stops and kills the process and every process it started, as `MuterProcess.terminateTree()` does, if it still
@@ -118,7 +118,9 @@ final class TestProcessWatcher: @unchecked Sendable { // `descriptor` is behind 
         lock.withLock {
             guard descriptor >= 0 else { return }
             let bytes = Array(message.utf8)
-            while write(descriptor, bytes, bytes.count) < 0, errno == EINTR {}
+            while write(descriptor, bytes, bytes.count) < 0, errno == EINTR {
+                // Tries again when a signal interrupted the write.
+            }
         }
     }
 
@@ -134,12 +136,12 @@ final class TestProcessWatcher: @unchecked Sendable { // `descriptor` is behind 
             guard count > 0 else { break }
             pending += buffer[..<count]
             while let end = pending.firstIndex(of: UInt8(ascii: "\n")) {
-                apply(String(decoding: pending[..<end], as: UTF8.self), to: &running)
+                apply(String(lossyUTF8: pending[..<end]), to: &running)
                 pending.removeSubrange(...end)
             }
         }
-        for process in running.values {
-            process.terminateIfRunning()
+        for runningProcess in running.values {
+            runningProcess.terminateIfRunning()
         }
     }
 
@@ -150,9 +152,11 @@ final class TestProcessWatcher: @unchecked Sendable { // `descriptor` is behind 
         case ("+", 2):
             guard let id = Int32(fields[0]), let started = UInt64(fields[1]) else { return }
             running[id] = RecordedProcess(id: id, started: started)
+
         case ("-", 1):
             guard let id = Int32(fields[0]) else { return }
             running[id] = nil
+
         default:
             return
         }

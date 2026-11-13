@@ -5,52 +5,13 @@ import XCTest
 
 /// The verdict on a run's survivors against a baseline file's: what it says, and the status it exits with.
 final class NewSurvivorsCheckTests: XCTestCase {
-    private func key(_ line: Int, path: String = "Sources/X.swift") -> MutantKey {
-        MutantKey(path: path, mutationOperatorId: .relationalBoundary, line: line, column: 17, occurrence: 0)
-    }
-
-    private func baseline(_ survivors: [MutantKey], version: String = "0.1.0") -> BaselineFile {
-        BaselineFile(
-            path: "muter.baseline.yml",
-            swiftMutator: version,
-            score: .init(killed: 0, scored: 0),
-            scope: BaselineScope(operators: [], skipCoverage: false, configuration: .init()),
-            survivors: survivors.map { BaselineSurvivor(mutant: $0, outcome: .survived, before: "<", after: "<=") }
-        )
-    }
-
-    private func outcome(_ mutants: [(MutantKey, TestSuiteOutcome)], mutant: String? = nil) -> MutationTestOutcome {
-        MutationTestOutcome(
-            mutations: mutants.map { key, outcome in
-                .make(testSuiteOutcome: outcome, snapshot: .make(before: "<", after: "<="), key: key)
-            },
-            mutant: mutant
-        )
-    }
-
-    private func check(
-        _ survivors: [MutantKey],
-        against mutants: [(MutantKey, TestSuiteOutcome)],
-        allowing allowed: Int = 0,
-        version: String = "0.1.0",
-        mutant: String? = nil,
-        unless notChecked: NewSurvivorsCheck.NotChecked? = nil
-    ) -> NewSurvivorsCheck {
-        NewSurvivorsCheck(
-            baseline: baseline(survivors),
-            maxNewSurvivors: allowed,
-            judging: outcome(mutants, mutant: mutant),
-            version: version,
-            unless: notChecked
-        ) { _ in nil }
-    }
 
     func test_noNewSurvivor_passes_sayingWhatStillSurvives_andWhatWasFixed() {
         let verdict = check([key(1), key(2), key(3, path: "Sources/Gone.swift")], against: [
             (key(1), .passed), (key(2), .failed),
         ])
 
-        XCTAssertTrue(verdict.passed)
+        XCTAssertEqual(verdict.result, .passed)
         XCTAssertNil(verdict.exitStatus)
         XCTAssertEqual(
             verdict.lines,
@@ -65,7 +26,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
     func test_newSurvivors_beyondTheLimit_fail_andAreListed() {
         let verdict = check([key(1)], against: [(key(1), .passed), (key(5), .timeout), (key(9), .noCoverage)])
 
-        XCTAssertFalse(verdict.passed)
+        XCTAssertEqual(verdict.result, .failed)
         XCTAssertEqual(verdict.exitStatus, .scoreBelowThreshold)
         XCTAssertEqual(verdict.exitStatus?.rawValue, 2)
         XCTAssertEqual(verdict.lines, [
@@ -100,7 +61,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
             version: "0.1.0"
         ) { _ in nil }
 
-        XCTAssertFalse(verdict.passed)
+        XCTAssertEqual(verdict.result, .failed)
         XCTAssertEqual(verdict.lines, [
             "1 new survivor against the baseline file muter.baseline.yml, more than the 0 allowed: 2 still survive, "
                 + "1 fixed. 3 were matched without their line, as their files changed since they were tested, or "
@@ -117,8 +78,11 @@ final class NewSurvivorsCheckTests: XCTestCase {
     func test_anIdenticalSurvivor_pairsBeforeAKillAtTheEntrysKey() {
         let verdict = check([key(1)], against: [(key(1), .failed), (key(5), .passed)])
 
-        XCTAssertTrue(verdict.passed)
-        guard case let .checked(comparison) = verdict.verdict else { return XCTFail("\(verdict)") }
+        XCTAssertEqual(verdict.result, .passed)
+        guard case let .checked(comparison) = verdict.verdict else {
+            XCTFail("\(verdict)")
+            return
+        }
         XCTAssertEqual(comparison.stillSurvive, 1)
         XCTAssertEqual(comparison.fixed, 0)
         XCTAssertEqual(comparison.newSurvivors, [])
@@ -127,7 +91,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
     func test_newSurvivors_withinTheLimit_pass_andAreListed() {
         let verdict = check([], against: [(key(5), .passed)], allowing: 1)
 
-        XCTAssertTrue(verdict.passed)
+        XCTAssertEqual(verdict.result, .passed)
         XCTAssertEqual(verdict.lines, [
             "1 new survivor against the baseline file muter.baseline.yml, within the 1 allowed: 0 still survive, 0 "
                 + "fixed.",
@@ -145,7 +109,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
     func test_aOneMutantRun_isntChecked() {
         let verdict = check([], against: [(key(5), .passed)], mutant: "Sources/X.swift:5:17 RelationalBoundary")
 
-        XCTAssertNil(verdict.passed)
+        XCTAssertEqual(verdict.result, .notChecked)
         XCTAssertNil(verdict.exitStatus)
         XCTAssertEqual(
             verdict.line,
@@ -180,7 +144,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
             judging: sampled,
             version: "0.1.0"
         ) { _ in nil }
-        XCTAssertFalse(fromAFile.passed)
+        XCTAssertEqual(fromAFile.result, .failed)
 
         sampled.unselectedMutants = []
         XCTAssertFalse(sampled.leavesOutUnknownMutants)
@@ -190,7 +154,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
             judging: sampled,
             version: "0.1.0"
         ) { _ in nil }
-        XCTAssertTrue(fromTheRun.passed)
+        XCTAssertEqual(fromTheRun.result, .passed)
     }
 
     // As `--fail-under` says it, of `report` of a run that didn't finish.
@@ -284,8 +248,8 @@ final class NewSurvivorsCheckTests: XCTestCase {
         let verdict = check([key(1)], against: [(key(1), .failed), (key(5, path: "Sources/Y.swift"), .passed)])
         let summary = RunSummary(of: .make([.passed]), ended: .finished, report: nil, newSurvivors: verdict)
 
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? NSDictionary)
-        XCTAssertEqual(json["newSurvivors"] as? NSDictionary, [
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: AnyHashable])
+        XCTAssertEqual(json["newSurvivors"] as? [String: AnyHashable], [
             "baseline": "muter.baseline.yml",
             "maxNewSurvivors": 0,
             "passed": false,
@@ -303,12 +267,12 @@ final class NewSurvivorsCheckTests: XCTestCase {
             report: nil,
             newSurvivors: check([], against: [], unless: .endedEarly)
         )
-        let notChecked = try XCTUnwrap(JSONSerialization.jsonObject(with: unchecked.json) as? NSDictionary)
-        XCTAssertEqual((notChecked["newSurvivors"] as? NSDictionary)?["notChecked"] as? String, "endedEarly")
-        XCTAssertNil((notChecked["newSurvivors"] as? NSDictionary)?["passed"])
+        let notChecked = try XCTUnwrap(JSONSerialization.jsonObject(with: unchecked.json) as? [String: AnyHashable])
+        XCTAssertEqual((notChecked["newSurvivors"] as? [String: AnyHashable])?["notChecked"] as? String, "endedEarly")
+        XCTAssertNil((notChecked["newSurvivors"] as? [String: AnyHashable])?["passed"])
         let without = try XCTUnwrap(
             JSONSerialization.jsonObject(with: RunSummary(of: .make([.passed]), ended: .finished, report: nil).json)
-                as? NSDictionary
+                as? [String: AnyHashable]
         )
         XCTAssertNil(without["newSurvivors"])
     }

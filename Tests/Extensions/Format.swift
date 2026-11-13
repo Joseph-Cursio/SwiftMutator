@@ -1,19 +1,11 @@
 import SwiftFormat
 
-/// `code` as swift-format lays it out, so a snapshot of generated code reads like code.
+/// Formats Swift source with swift-format's default configuration, or returns "" if it can't be formatted.
 public func formatCode(_ code: String) -> String {
     let formatter = SwiftFormatter(configuration: Configuration())
-    var stream = OutputStream()
+    var stream = FormatterOutputStream()
 
     try? formatter.format(source: code, assumingFileURL: nil, selection: .infinite, to: &stream)
 
     return stream.output
-}
-
-private class OutputStream: TextOutputStream {
-    private(set) var output: String = ""
-
-    func write(_ string: String) {
-        output += string
-    }
 }

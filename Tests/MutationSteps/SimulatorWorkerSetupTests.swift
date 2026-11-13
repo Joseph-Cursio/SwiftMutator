@@ -1,6 +1,50 @@
 @testable import muterCore
 import XCTest
 
+/// The `oneWorkerSimulator:` key as a configuration gives it: left out, or set to true or false.
+private enum OneWorkerSimulatorKey: CustomStringConvertible {
+    case unset
+    case setToTrue
+    case setToFalse
+
+    var description: String {
+        switch self {
+        case .unset: "nil"
+        case .setToTrue: "true"
+        case .setToFalse: "false"
+        }
+    }
+
+    /// The key as `MuterConfiguration` holds it.
+    var configured: ConfigurationSwitch {
+        switch self {
+        case .unset: .unset
+        case .setToTrue: .enabled
+        case .setToFalse: .disabled
+        }
+    }
+}
+
+/// A run's settings for `SimulatorWorkerSetup.oneWorkerPlan(for:state:)`, each at the default that gets a
+/// simulator checked against the baseline unless a case says otherwise, and the plan expected for them.
+private struct PlanCase: CustomStringConvertible {
+    let expected: SimulatorWorkerSetup.OneWorkerPlan
+    var key = OneWorkerSimulatorKey.unset
+    var executable = "/usr/bin/xcodebuild"
+    var workers: Int?
+    var destination: String? = "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5"
+    var arguments: [String] = []
+    var selected = false
+    var mutants = 6
+    var parallelizes = true
+
+    var description: String {
+        "key \(key), \(executable), workers \(workers.map(String.init) ?? "nil"), "
+            + "destination \(destination ?? "none"), arguments \(arguments), selected \(selected), mutants \(mutants), "
+            + "parallelizes \(parallelizes)"
+    }
+}
+
 /// Whether one xcodebuild worker gets a simulator of its own, before the baseline and after it.
 final class SimulatorWorkerSetupTests: XCTestCase {
     func test_oneWorkerPlan_onAuto_isASimulatorOnlyWhenItShouldBeFaster() {
@@ -41,28 +85,32 @@ final class SimulatorWorkerSetupTests: XCTestCase {
     func test_oneWorkerPlan_withTheKey_isASimulatorWheneverItCanBe_orNever() {
         let needsASimulator = "a simulator of its own needs a first `-destination` that is a simulator"
         let cases: [PlanCase] = [
-            PlanCase(expected: .simulator(checkedAgainstBaseline: false), key: true),
-            PlanCase(expected: .simulator(checkedAgainstBaseline: false), key: true, mutants: 2),
-            PlanCase(expected: .simulator(checkedAgainstBaseline: false), key: true, parallelizes: false),
+            PlanCase(expected: .simulator(checkedAgainstBaseline: false), key: .setToTrue),
+            PlanCase(expected: .simulator(checkedAgainstBaseline: false), key: .setToTrue, mutants: 2),
+            PlanCase(expected: .simulator(checkedAgainstBaseline: false), key: .setToTrue, parallelizes: false),
             PlanCase(
                 expected: .simulator(checkedAgainstBaseline: false),
-                key: true,
+                key: .setToTrue,
                 arguments: ["-parallel-testing-enabled", "YES"]
             ),
             PlanCase(
                 expected: .simulator(checkedAgainstBaseline: false),
-                key: true,
+                key: .setToTrue,
                 arguments: ["-parallel-testing-enabled", "NO"]
             ),
-            PlanCase(expected: .declined(needsASimulator), key: true, destination: "platform=macOS"),
-            PlanCase(expected: .declined(needsASimulator), key: true, destination: "generic/platform=iOS Simulator"),
-            PlanCase(expected: .declined(needsASimulator), key: true, destination: nil),
-            PlanCase(expected: .noSimulator, key: true, mutants: 1),
-            PlanCase(expected: .noSimulator, key: true, selected: true),
-            PlanCase(expected: .noSimulator, key: true, executable: "/usr/bin/swift"),
-            PlanCase(expected: .noSimulator, key: true, workers: 3),
-            PlanCase(expected: .noSimulator, key: false),
-            PlanCase(expected: .noSimulator, key: false, destination: "platform=macOS"),
+            PlanCase(expected: .declined(needsASimulator), key: .setToTrue, destination: "platform=macOS"),
+            PlanCase(
+                expected: .declined(needsASimulator),
+                key: .setToTrue,
+                destination: "generic/platform=iOS Simulator"
+            ),
+            PlanCase(expected: .declined(needsASimulator), key: .setToTrue, destination: nil),
+            PlanCase(expected: .noSimulator, key: .setToTrue, mutants: 1),
+            PlanCase(expected: .noSimulator, key: .setToTrue, selected: true),
+            PlanCase(expected: .noSimulator, key: .setToTrue, executable: "/usr/bin/swift"),
+            PlanCase(expected: .noSimulator, key: .setToTrue, workers: 3),
+            PlanCase(expected: .noSimulator, key: .setToFalse),
+            PlanCase(expected: .noSimulator, key: .setToFalse, destination: "platform=macOS"),
         ]
 
         assertPlans(cases)
@@ -91,7 +139,7 @@ final class SimulatorWorkerSetupTests: XCTestCase {
                 executable: testCase.executable,
                 arguments: (testCase.destination.map { ["-destination", $0] } ?? []) + testCase.arguments + ["test"],
                 mutationTestWorkers: testCase.workers,
-                oneWorkerSimulator: testCase.key
+                oneWorkerSimulator: testCase.key.configured
             )
             state.apply([.projectXCTestRun(testCase.parallelizes ? .parallelizing : muterCore.XCTestRun())])
             if testCase.selected {
@@ -106,25 +154,5 @@ final class SimulatorWorkerSetupTests: XCTestCase {
                 line: line
             )
         }
-    }
-}
-
-/// A run's settings for `SimulatorWorkerSetup.oneWorkerPlan(for:state:)`, each at the default that gets a
-/// simulator checked against the baseline unless a case says otherwise, and the plan expected for them.
-private struct PlanCase: CustomStringConvertible {
-    let expected: SimulatorWorkerSetup.OneWorkerPlan
-    var key: Bool?
-    var executable = "/usr/bin/xcodebuild"
-    var workers: Int?
-    var destination: String? = "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5"
-    var arguments: [String] = []
-    var selected = false
-    var mutants = 6
-    var parallelizes = true
-
-    var description: String {
-        "key \(key.map(String.init) ?? "nil"), \(executable), workers \(workers.map(String.init) ?? "nil"), "
-            + "destination \(destination ?? "none"), arguments \(arguments), selected \(selected), mutants \(mutants), "
-            + "parallelizes \(parallelizes)"
     }
 }

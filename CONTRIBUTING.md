@@ -63,8 +63,12 @@ Linux: the package builds with Swift 6.4 (`swift:6.4-noble`), but some unit test
 ```
 swift build          # debug build
 make test            # the unit tests: swift test --filter 'muterTests'
-swiftlint lint --strict
+swiftlint lint
+../SwiftLintConfig/scripts/swiftlint-analyze.sh   # the analyzer rules
 ```
+
+SwiftLint's rules come from the shared configuration in `../SwiftLintConfig`, which must be
+checked out next to this repository; `.swiftlint.yml` lists only this package's paths.
 
 `make test` runs only the `muterTests` target. A plain `swift test` also runs the acceptance and
 regression targets. Their tests read samples that the scripts below generate, and they skip
@@ -142,8 +146,8 @@ and every push to `main`:
   newest toolchain. GitHub still calls the `xcode-27` image a preview. Each job restores `.build`
   as the last push to `main` left it, for the same toolchain and `Package.resolved`, so the
   dependencies aren't built again. Only pushes to `main` save it.
-- **SwiftLint**, in SwiftLint's own 0.65.1 container. `.swiftlint.yml` sets `strict: true`, so a
-  warning fails it.
+- **SwiftLint**, in SwiftLint's own 0.65.1 container, with the rules `.swiftlint.yml` takes from
+  `../SwiftLintConfig`.
 - **Unit tests on Linux**, Swift 6.4, only on pushes to `main` and by hand, and never blocking
   ([#130](https://github.com/Joseph-Cursio/SwiftMutator/issues/130)).
 

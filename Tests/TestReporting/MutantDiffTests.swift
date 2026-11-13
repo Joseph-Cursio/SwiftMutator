@@ -1,12 +1,11 @@
 @testable import muterCore
-import SwiftParser
 import XCTest
 
 final class MutantDiffTests: XCTestCase {
     // An operator's mutant is at its start, so the `>` of `->` on the same line isn't taken for it.
     func test_anOperatorsChange_isTheOneAtItsColumn() throws {
         let source = "func isPositive(_ value: Int) -> Bool { value > 0 }\n"
-        let schema = try XCTUnwrap(schemata(ROROperator.Visitor.init, in: source).first)
+        let schema = try XCTUnwrap(schemata(MutationOperator.Id.ror.visitor, in: source).first)
 
         XCTAssertEqual(diff(of: schema, in: source), [
             "-1: func isPositive(_ value: Int) -> Bool { value > 0 }",
@@ -22,7 +21,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schemata = schemata(ReplaceBooleanValueOperator.Visitor.init, in: source)
+        let schemata = schemata(MutationOperator.Id.replaceBooleanValue.visitor, in: source)
 
         XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
             ["-2:     return queue.isEmpty", "+2:     return true"],
@@ -38,7 +37,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schemata = schemata(ReplaceBooleanValueOperator.Visitor.init, in: source)
+        let schemata = schemata(MutationOperator.Id.replaceBooleanValue.visitor, in: source)
 
         XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
             ["-2:     return(a < b)", "+2:     return true"],
@@ -57,7 +56,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schemata = schemata(ReplaceReturnValueOperator.Visitor.init, in: source)
+        let schemata = schemata(MutationOperator.Id.replaceReturnValue.visitor, in: source)
 
         XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
             ["-2:     return(x)", "+2:     return 0"],
@@ -76,7 +75,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schema = try XCTUnwrap(schemata(ReplaceReturnValueOperator.Visitor.init, in: source).first)
+        let schema = try XCTUnwrap(schemata(MutationOperator.Id.replaceReturnValue.visitor, in: source).first)
 
         XCTAssertEqual(schema.snapshot.before, "a + b")
         XCTAssertNil(diff(of: schema, in: source))
@@ -95,7 +94,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schemata = schemata(ROROperator.Visitor.init, in: source)
+        let schemata = schemata(MutationOperator.Id.ror.visitor, in: source)
 
         XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
             ["-2:     if a == b { return a.count <= b }", "+2:     if true { return a.count <= b }"],
@@ -115,7 +114,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schema = try XCTUnwrap(schemata(SwapTernaryOperator.Visitor.init, in: source).first)
+        let schema = try XCTUnwrap(schemata(MutationOperator.Id.swapTernary.visitor, in: source).first)
 
         XCTAssertEqual(diff(of: schema, in: source), [
             "-2:     return flag ? 1 : 2",
@@ -132,7 +131,7 @@ final class MutantDiffTests: XCTestCase {
 
         """
         let schema = try XCTUnwrap(
-            schemata(SwapTernaryOperator.Visitor.init, in: source).first { $0.snapshot.before == "b ? 2 : 3" }
+            schemata(MutationOperator.Id.swapTernary.visitor, in: source).first { $0.snapshot.before == "b ? 2 : 3" }
         )
 
         XCTAssertEqual(diff(of: schema, in: source), [
@@ -154,78 +153,10 @@ final class MutantDiffTests: XCTestCase {
 
         """
         let schema = try XCTUnwrap(
-            schemata(SwapTernaryOperator.Visitor.init, in: source).first { $0.position.line == 4 }
+            schemata(MutationOperator.Id.swapTernary.visitor, in: source).first { $0.position.line == 4 }
         )
 
         XCTAssertNil(diff(of: schema, in: source))
-    }
-
-    // The snapshot gives a node that spans lines on one line, which no line of the file holds.
-    func test_aMultiLineNode_fallsBackToTheSnapshot() throws {
-        let source = """
-        func pick(_ flag: Bool) -> Int {
-            return flag
-                ? 1
-                : 2
-        }
-
-        """
-        let schema = try XCTUnwrap(schemata(SwapTernaryOperator.Visitor.init, in: source).first)
-
-        XCTAssertNil(MutantDiff.lines(
-            original: source,
-            snapshot: schema.snapshot,
-            mutationOperatorId: schema.mutationOperatorId,
-            line: schema.position.line,
-            column: schema.position.column
-        ))
-        XCTAssertEqual(MutantDiff.fallback(snapshot: schema.snapshot, mutationOperatorId: .swapTernary), [
-            "- flag ? 1 : 2",
-            "+ flag ? 2 :  1",
-        ])
-    }
-
-    // A file that no longer holds the mutant's code where it was found, as one changed since a test plan was made.
-    func test_textThatDoesntMatch_fallsBack() {
-        let snapshot = MutationOperator.Snapshot(before: "flag ? 1 : 2", after: "flag ? 2 : 1", description: "")
-
-        XCTAssertNil(MutantDiff.lines(
-            original: "func pick() -> Int {\n    return 3\n}\n",
-            snapshot: snapshot,
-            mutationOperatorId: .swapTernary,
-            line: 2,
-            column: 17
-        ))
-        XCTAssertNil(MutantDiff.lines(
-            original: "let one = 1\n",
-            snapshot: snapshot,
-            mutationOperatorId: .swapTernary,
-            line: 7,
-            column: 1
-        ))
-    }
-
-    // Away from the mutant's column, a line that holds the change twice can't say which one is the mutant's.
-    func test_aLineThatHoldsTheChangeTwice_awayFromTheColumn_fallsBack() {
-        let snapshot = MutationOperator.Snapshot(before: "==", after: "!=", description: "changed == to !=")
-
-        XCTAssertNil(MutantDiff.lines(
-            original: "let both = a == 1 && b == 2\n",
-            snapshot: snapshot,
-            mutationOperatorId: .ror,
-            line: 1,
-            column: 40
-        ))
-        XCTAssertEqual(
-            MutantDiff.lines(
-                original: "let both = a == 1 && b == 2\n",
-                snapshot: snapshot,
-                mutationOperatorId: .ror,
-                line: 1,
-                column: 24
-            ),
-            ["-1: let both = a == 1 && b == 2", "+1: let both = a == 1 && b != 2"]
-        )
     }
 
     // The nearest line above, up to 5, as for a mutant at the end of code that a comment follows on its own lines.
@@ -323,23 +254,6 @@ final class MutantDiffTests: XCTestCase {
                 column: 18
             ),
             ["-2: let b = x ? 1 : 2", "+2: let b = x ? 2 : 1"]
-        )
-    }
-
-    private func schemata(_ visitor: VisitorInitializer, in source: String) -> [MutationSchema] {
-        let code = Parser.parse(source: source)
-        let walker = visitor(nil, SourceCodeInfo(path: "/project/Sources/File.swift", code: code), .empty)
-        walker.walk(code)
-        return walker.schemataMappings.mutationSchemata
-    }
-
-    private func diff(of schema: MutationSchema, in source: String) -> [String]? {
-        MutantDiff.lines(
-            original: source,
-            snapshot: schema.snapshot,
-            mutationOperatorId: schema.mutationOperatorId,
-            line: schema.position.line,
-            column: schema.position.column
         )
     }
 }

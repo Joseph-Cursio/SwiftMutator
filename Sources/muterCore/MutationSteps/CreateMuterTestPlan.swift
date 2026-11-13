@@ -16,15 +16,15 @@ struct CreateMuterTestPlan: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         let testPlan = MuterTestPlan(
             mutatedProjectURL: state.mutatedProjectDirectoryURL,
             projectCoverage: state.projectCoverage,
             scope: TestPlanScope(operators: state.mutationOperatorList, filesToMutate: state.filesToMutate),
+            mappings: state.mutationMapping,
             sources: state.projectTree,
             mutatedFiles: mutatedFiles(in: state),
             linkedFiles: linkedFiles(in: state),
-            mappings: state.mutationMapping,
             mutantsNotCovered: state.uncoveredMutants
         )
 

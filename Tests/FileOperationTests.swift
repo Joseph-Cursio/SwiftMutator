@@ -6,7 +6,7 @@ final class FileOperationTests: XCTestCase {
         let fileManagerSpy = FileManagerSpy()
         let timestamp = DateComponents(
             calendar: .init(identifier: .gregorian),
-            year: 2019,
+            year: 2_019,
             month: 5,
             day: 10,
             hour: 2,
@@ -17,9 +17,8 @@ final class FileOperationTests: XCTestCase {
         let loggingDirectory = try createLoggingDirectory(
             forProjectAt: "~/some/path",
             fileManager: fileManagerSpy,
-            locale: Locale(identifier: "en_US"),
-            timestamp: { date }
-        )
+            locale: Locale(identifier: "en_US")
+        ) { date }
 
         XCTAssertEqual(loggingDirectory, "~/some/path_muter_logs/May 10, 2019 at 2:42 AM")
         XCTAssertEqual(fileManagerSpy.methodCalls, [
@@ -42,9 +41,8 @@ final class FileOperationTests: XCTestCase {
         let create = {
             try createLoggingDirectory(
                 forProjectAt: project,
-                locale: Locale(identifier: "en_US"),
-                timestamp: { minute }
-            )
+                locale: Locale(identifier: "en_US")
+            ) { minute }
         }
 
         let first = try create()
@@ -52,7 +50,7 @@ final class FileOperationTests: XCTestCase {
         let second = try create()
         let third = try create()
 
-        let name = (first as NSString).lastPathComponent
+        let name = first.lastPathComponent
         XCTAssertEqual(first, "\(project)_muter_logs/\(name)")
         XCTAssertEqual(second, "\(first) (2)")
         XCTAssertEqual(third, "\(first) (3)")
@@ -74,9 +72,8 @@ final class FileOperationTests: XCTestCase {
         let create = {
             try createLoggingDirectory(
                 forProjectAt: project,
-                locale: Locale(identifier: "en_US"),
-                timestamp: { minute }
-            )
+                locale: Locale(identifier: "en_US")
+            ) { minute }
         }
         let first = try create()
         try FileManager.default.removeItem(atPath: first)
@@ -96,11 +93,10 @@ final class FileOperationTests: XCTestCase {
         let loggingDirectory = try createLoggingDirectory(
             forProjectAt: "/Users/me/projects/App",
             fileManager: fileManagerSpy,
-            locale: Locale(identifier: "en_US"),
-            timestamp: { Date(timeIntervalSince1970: 0) }
-        )
+            locale: Locale(identifier: "en_US")
+        ) { Date(timeIntervalSince1970: 0) }
 
-        let name = (loggingDirectory as NSString).lastPathComponent
+        let name = loggingDirectory.lastPathComponent
         XCTAssertEqual(loggingDirectory, "/Users/me/projects/App_muter_logs/\(name)")
         XCTAssertFalse(name.hasSuffix(")"), name)
         XCTAssertEqual(fileManagerSpy.paths, ["/Users/me/projects/App_muter_logs", loggingDirectory, loggingDirectory])
@@ -117,9 +113,8 @@ final class FileOperationTests: XCTestCase {
             try createLoggingDirectory(
                 forProjectAt: "/Users/me/projects/App",
                 fileManager: fileManagerSpy,
-                locale: Locale(identifier: "en_US"),
-                timestamp: { Date(timeIntervalSince1970: 0) }
-            )
+                locale: Locale(identifier: "en_US")
+            ) { Date(timeIntervalSince1970: 0) }
         ) { error in
             XCTAssertTrue("\(error)".contains("could not create its log folder"), "\(error)")
         }
@@ -164,8 +159,8 @@ final class FileOperationTests: XCTestCase {
         try Data("kept".utf8).write(to: URL(fileURLWithPath: kept + "/baseline run.log"))
 
         let disk = FileManager.default
-        XCTAssertTrue(removeFolderIfEmpty(atPath: marked, ignoring: [RunMarker.fileName], fileManager: disk))
-        XCTAssertFalse(removeFolderIfEmpty(atPath: kept, ignoring: [RunMarker.fileName], fileManager: disk))
+        XCTAssertTrue(removeFolderIfEmpty(atPath: marked, fileManager: disk, ignoring: [RunMarker.fileName]))
+        XCTAssertFalse(removeFolderIfEmpty(atPath: kept, fileManager: disk, ignoring: [RunMarker.fileName]))
 
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root), ["kept"])
         XCTAssertEqual(
@@ -191,9 +186,8 @@ final class FileOperationTests: XCTestCase {
         let loggingDirectory = try createLoggingDirectory(
             forProjectAt: "/Users/me/projects/App/",
             fileManager: fileManagerSpy,
-            locale: Locale(identifier: "en_US"),
-            timestamp: { Date(timeIntervalSince1970: 0) }
-        )
+            locale: Locale(identifier: "en_US")
+        ) { Date(timeIntervalSince1970: 0) }
 
         XCTAssertTrue(loggingDirectory.hasPrefix("/Users/me/projects/App_muter_logs/"), loggingDirectory)
         XCTAssertFalse(loggingDirectory.hasPrefix("/Users/me/projects/App/"), loggingDirectory)

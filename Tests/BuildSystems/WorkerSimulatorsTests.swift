@@ -4,13 +4,13 @@ import XCTest
 /// `WorkerSimulators` with a stand-in for `xcrun simctl`, which answers `list devices --json` with the fixture
 /// `SimulatorDestinationTests` reads, or a list a test gives, and records every command. No simulator is touched.
 final class WorkerSimulatorsTests: MuterTestCase {
-    private let iPhone17Pro = "693E96A4-A11F-4223-B131-CFC50C9A17B8" // Shutdown, iOS 26.5
-    private let bootedTwin = "461B8A08-7CE1-43BD-8F86-1812452225FB" // Booted, an iPhone 17 on iOS 26.5
-    private let mutatedProject = URL(fileURLWithPath: "/tmp/App_mutated")
+    let iPhone17Pro = "693E96A4-A11F-4223-B131-CFC50C9A17B8" // Shutdown, iOS 26.5
+    let bootedTwin = "461B8A08-7CE1-43BD-8F86-1812452225FB" // Booted, an iPhone 17 on iOS 26.5
+    let mutatedProject = URL(fileURLWithPath: "/tmp/App_mutated")
     /// The first 8 hex digits of the SHA-256 of `/tmp/App_mutated`.
-    private let projectHash = "fd200ba3"
-    private let owner = RecordedProcess(id: 4_242, started: 1_700_000_000_123_456)
-    private var simctl = SimctlStandIn(list: nil)
+    let projectHash = "fd200ba3"
+    let owner = RecordedProcess(id: 4_242, started: 1_700_000_000_123_456)
+    var simctl = SimctlStandIn(list: nil)
 
     override func setUp() {
         super.setUp()
@@ -125,8 +125,10 @@ final class WorkerSimulatorsTests: MuterTestCase {
                         + "(domain=com.apple.CoreSimulator.SimError, code=405):\n"
                         + "Unable to clone device in current state: Booted\n"
                 )
+
             case "clone":
                 .init(output: "CCCCCCCC-0000-0000-0000-00000000000\(arguments[2].suffix(1))\n")
+
             default:
                 nil
             }
@@ -208,248 +210,44 @@ final class WorkerSimulatorsTests: MuterTestCase {
 
         simctl.answering { $0.first == "bootstatus" ? .init(status: 1) : nil }
         let made = [WorkerSimulator(udid: "SIM-0", name: "w0", destination: "id=SIM-0")]
-        let notBooted = await failure(of: { try await self.makeSimulators().boot(made) })
+        let notBooted = await failure { try await self.makeSimulators().boot(made) }
         XCTAssertEqual(notBooted?.destinationUnresolved, false)
-    }
-
-    // MARK: - Booting them
-
-    func test_boot_waitsForEverySimulatorAtOnce_withATimeLimit() async throws {
-        let made = (0..<3).map { WorkerSimulator(udid: "SIM-\($0)", name: "w\($0)", destination: "id=SIM-\($0)") }
-        simctl.holdingBootsUntil(3)
-
-        try await makeSimulators().boot(made)
-
-        XCTAssertEqual(
-            Set(simctl.commands),
-            [["bootstatus", "SIM-0", "-b"], ["bootstatus", "SIM-1", "-b"], ["bootstatus", "SIM-2", "-b"]]
-        )
-        XCTAssertEqual(simctl.timeLimits, [300, 300, 300])
-        XCTAssertEqual(simctl.mostBootsAtOnce, 3)
-    }
-
-    func test_aSimulatorThatDoesntBoot_failsTheBoot() async {
-        let made = (0..<2).map { WorkerSimulator(udid: "SIM-\($0)", name: "w\($0)", destination: "id=SIM-\($0)") }
-        simctl.answering { arguments in
-            guard arguments == ["bootstatus", "SIM-1", "-b"] else { return nil }
-            return .init(status: SIGKILL, endedBySignal: true, timedOut: true)
-        }
-
-        let error = await reason(of: { try await self.makeSimulators().boot(made) })
-
-        XCTAssertEqual(error, "`xcrun simctl bootstatus SIM-1 -b` didn't finish within 300 seconds")
-    }
-
-    // A failed baseline cancels the boot, which would otherwise hold up the run's end until the simulators booted.
-    func test_aBootThatIsCancelled_killsSimctl() async {
-        let made = [WorkerSimulator(udid: "SIM-0", name: "w0", destination: "id=SIM-0")]
-        simctl.holdingBootsUntilKilled()
-        let simulators = makeSimulators()
-
-        let boot = Task { try await simulators.boot(made) }
-        let deadline = Date().addingTimeInterval(5)
-        while simctl.commands.isEmpty, Date() < deadline {
-            try? await Task.sleep(nanoseconds: 1_000_000)
-        }
-        boot.cancel()
-        let result = await boot.result
-
-        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(simctl.treesKilled, 1)
-    }
-
-    func test_aBootInACancelledTask_startsNoSimctl() async {
-        let made = [WorkerSimulator(udid: "SIM-0", name: "w0", destination: "id=SIM-0")]
-        let simulators = makeSimulators()
-
-        let boot = Task {
-            withUnsafeCurrentTask { $0?.cancel() }
-            try await simulators.boot(made)
-        }
-        let result = await boot.result
-
-        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(simctl.commands, [])
-    }
-
-    // MARK: - Removing them
-
-    func test_removeAll_deletesEachSimulatorMadeOnce_andKeepsGoingPastAFailure() async throws {
-        simctl.answering { arguments in
-            switch arguments.first {
-            case "clone": .init(output: "DDDDDDDD-0000-0000-0000-00000000000\(arguments[2].suffix(1))\n")
-            case "delete" where arguments.last?.hasSuffix("0") == true: .init(status: 1, errors: "busy")
-            default: nil
-            }
-        }
-        let simulators = makeSimulators()
-        let made = try await simulators.prepare(2, like: "id=\(iPhone17Pro)", for: mutatedProject)
-        let commandsBefore = simctl.commands.count
-
-        await simulators.removeAll()
-
-        let deletes = Array(simctl.commands.dropFirst(commandsBefore))
-        XCTAssertEqual(Set(deletes), Set(made.map { ["delete", $0.udid] }))
-        XCTAssertEqual(deletes.count, 2, "each once, the failed one included")
-        XCTAssertEqual(simulators.recorded, [made[0].udid], "the one that failed, for a later call")
-
-        // A later call tries the failed one once more, and only it, however often it fails.
-        await simulators.removeAll()
-
-        XCTAssertEqual(Array(simctl.commands.dropFirst(commandsBefore + 2)), [["delete", made[0].udid]])
-        XCTAssertEqual(simulators.recorded, [made[0].udid])
-    }
-
-    // A stop while the work runs kills this process's children every 0.25 s, a delete under way among them. The
-    // `afterWorkEnds` hook's `removeAll()`, once the work has ended, must still find the simulator to delete.
-    func test_aSimulatorWhoseDeleteIsKilled_isDeletedByTheNextRemoveAll() async throws {
-        simctl.answering { arguments in
-            switch arguments.first {
-            case "clone": .init(output: "DDDDDDDD-0000-0000-0000-00000000000\(arguments[2].suffix(1))\n")
-            case "delete": .init(status: SIGKILL, endedBySignal: true)
-            default: nil
-            }
-        }
-        let simulators = makeSimulators()
-        let made = try await simulators.prepare(2, like: "id=\(iPhone17Pro)", for: mutatedProject)
-        await simulators.removeAll()
-        XCTAssertEqual(simulators.recorded, made.map(\.udid))
-        simctl.answering { _ in nil }
-        let commandsBefore = simctl.commands.count
-
-        await simulators.removeAll()
-
-        XCTAssertEqual(Set(simctl.commands.dropFirst(commandsBefore)), Set(made.map { ["delete", $0.udid] }))
-        XCTAssertEqual(simulators.recorded, [])
-    }
-
-    func test_aFailureToMakeOne_keepsThoseWhoseDeleteIsKilled_forRemoveAll() async throws {
-        simctl.answering { arguments in
-            switch arguments.first {
-            case "clone" where arguments[2].hasSuffix("w2"): .init(status: 1, errors: "no room")
-            case "clone": .init(output: "CCCCCCCC-0000-0000-0000-00000000000\(arguments[2].suffix(1))\n")
-            case "delete" where arguments.last?.hasSuffix("1") == true: .init(status: SIGKILL, endedBySignal: true)
-            default: nil
-            }
-        }
-        let simulators = makeSimulators()
-
-        _ = await failingToPrepare(3, like: "id=\(iPhone17Pro)", with: simulators)
-
-        XCTAssertEqual(simulators.recorded, ["CCCCCCCC-0000-0000-0000-000000000001"])
-    }
-
-    func test_removeAll_withNothingMade_startsNoProcess() async {
-        await makeSimulators().removeAll()
-
-        XCTAssertEqual(simctl.commands, [])
-    }
-
-    // MARK: - Sweeping what ended runs left
-
-    func test_theSweep_deletesThisProjectsSimulators_whateverTheirOwner_andOthersOnlyWhenTheirOwnerHasEnded() async {
-        let live = RecordedProcess(id: 77, started: 5)
-        let dead = RecordedProcess(id: 78, started: 6)
-        let otherProject = "cf60c83c" // /tmp/Other_mutated
-        simctl = SimctlStandIn(list: list(of: [
-            ("swiftmutator-\(projectHash)-\(live.id)-\(live.started)-w0", "11111111-0000-0000-0000-000000000000"),
-            ("swiftmutator-\(projectHash)-\(dead.id)-\(dead.started)-w1", "22222222-0000-0000-0000-000000000000"),
-            ("swiftmutator-\(otherProject)-\(live.id)-\(live.started)-w0", "33333333-0000-0000-0000-000000000000"),
-            ("swiftmutator-\(otherProject)-\(dead.id)-\(dead.started)-w0", "44444444-0000-0000-0000-000000000000"),
-            ("swiftmutator-probe-twin", "55555555-0000-0000-0000-000000000000"),
-            ("XMR-78-0123abcd-0", "66666666-0000-0000-0000-000000000000"),
-            ("iPhone 17 Pro", "77777777-0000-0000-0000-000000000000"),
-        ]))
-
-        await makeSimulators(running: [live]).sweep(mutatedProject)
-
-        XCTAssertEqual(simctl.commands.first, ["list", "devices", "--json"])
-        XCTAssertEqual(Set(simctl.commands.dropFirst()), [
-            ["delete", "11111111-0000-0000-0000-000000000000"],
-            ["delete", "22222222-0000-0000-0000-000000000000"],
-            ["delete", "44444444-0000-0000-0000-000000000000"],
-        ])
-        XCTAssertEqual(simctl.commands.count, 4)
-    }
-
-    // A simulator this run made and couldn't delete yet is still its own, whose `removeAll()` deletes it.
-    func test_theSweep_skipsTheSimulatorsThisRunStillRecords() async throws {
-        let dead = RecordedProcess(id: 78, started: 6)
-        let mine = "EEEEEEEE-0000-0000-0000-000000000000"
-        let theirs = "FFFFFFFF-0000-0000-0000-000000000000"
-        let base = "88888888-0000-0000-0000-000000000000"
-        simctl = SimctlStandIn(list: list(of: [
-            ("iPhone 17", base),
-            ("swiftmutator-\(projectHash)-\(owner.id)-\(owner.started)-w0", mine),
-            ("swiftmutator-\(projectHash)-\(dead.id)-\(dead.started)-w0", theirs),
-        ]))
-        simctl.answering { arguments in
-            switch arguments.first {
-            case "clone": .init(output: "\(mine)\n")
-            case "delete" where arguments.last == mine: .init(status: 1, errors: "busy")
-            default: nil
-            }
-        }
-        let simulators = makeSimulators()
-        _ = try await simulators.prepare(1, like: "id=\(base)", for: mutatedProject)
-        await simulators.removeAll()
-        let commandsBefore = simctl.commands.count
-
-        await simulators.sweep(mutatedProject)
-
-        XCTAssertEqual(
-            Array(simctl.commands.dropFirst(commandsBefore)),
-            [["list", "devices", "--json"], ["delete", theirs]]
-        )
-    }
-
-    func test_theSweep_ofTheFixture_deletesNothing() async {
-        await makeSimulators().sweep(mutatedProject)
-
-        XCTAssertEqual(simctl.commands, [["list", "devices", "--json"]])
-    }
-
-    func test_theSweep_withNoList_deletesNothing() async {
-        simctl = SimctlStandIn(list: nil)
-
-        await makeSimulators().sweep(mutatedProject)
-
-        XCTAssertEqual(simctl.commands, [["list", "devices", "--json"]])
     }
 
     // MARK: - Helpers
 
-    private var fixture: Data? {
+    var fixture: Data? {
         FileManager.default.contents(atPath: "\(fixturesDirectory)/Simctl/devices.json")
     }
 
     /// Simulators made by `owner`, with only `running`, and `owner`, still running.
-    private func makeSimulators(running: Set<RecordedProcess> = []) -> WorkerSimulators {
-        let running = running.union([owner])
-        current.process = { [simctl] in simctl }
-        return WorkerSimulators(owner: owner, isRunning: { running.contains($0) })
+    func makeSimulators(running: Set<RecordedProcess> = []) -> WorkerSimulators {
+        let stillRunning = running.union([owner])
+        let standIn = simctl
+        current.process = { standIn }
+        return WorkerSimulators(owner: owner) { stillRunning.contains($0) }
     }
 
     /// The reason `prepare` gave for not making `count` simulators like `destination`, or nil if it made them.
-    private func failingToPrepare(
+    func failingToPrepare(
         _ count: Int,
         like destination: String,
         with simulators: WorkerSimulators? = nil
     ) async -> String? {
-        let simulators = simulators ?? makeSimulators()
-        let mutatedProject = mutatedProject
-        return await reason(of: { try await simulators.prepare(count, like: destination, for: mutatedProject) })
+        let preparing = simulators ?? makeSimulators()
+        let project = mutatedProject
+        return await reason { try await preparing.prepare(count, like: destination, for: project) }
     }
 
     /// Why `prepare` didn't make `count` simulators like `destination`, or nil if it made them.
-    private func unavailable(preparing count: Int, like destination: String) async -> WorkerSimulatorsUnavailable? {
+    func unavailable(preparing count: Int, like destination: String) async -> WorkerSimulatorsUnavailable? {
         let simulators = makeSimulators()
-        let mutatedProject = mutatedProject
-        return await failure(of: { try await simulators.prepare(count, like: destination, for: mutatedProject) })
+        let project = mutatedProject
+        return await failure { try await simulators.prepare(count, like: destination, for: project) }
     }
 
     /// Why `work` didn't make or boot simulators, or nil if it did.
-    private func failure(of work: () async throws -> some Any) async -> WorkerSimulatorsUnavailable? {
+    func failure(of work: () async throws -> some Any) async -> WorkerSimulatorsUnavailable? {
         do {
             _ = try await work()
             return nil
@@ -459,7 +257,7 @@ final class WorkerSimulatorsTests: MuterTestCase {
     }
 
     /// The reason `work` gave for not making or booting simulators, or nil if it gave none.
-    private func reason(of work: () async throws -> some Any) async -> String? {
+    func reason(of work: () async throws -> some Any) async -> String? {
         do {
             _ = try await work()
             return nil
@@ -469,7 +267,7 @@ final class WorkerSimulatorsTests: MuterTestCase {
     }
 
     /// simctl's JSON list of shut-down iPhone 17s on iOS 26.5 with these names and UDIDs.
-    private func list(of devices: [(name: String, udid: String)]) -> Data {
+    func list(of devices: [(name: String, udid: String)]) -> Data {
         let entries = devices.map { device in
             """
             {"udid": "\(device.udid)", "name": "\(device.name)", "state": "Shutdown", "isAvailable": true,
@@ -479,132 +277,5 @@ final class WorkerSimulatorsTests: MuterTestCase {
         return Data("""
         {"devices": {"com.apple.CoreSimulator.SimRuntime.iOS-26-5": [\(entries.joined(separator: ","))]}}
         """.utf8)
-    }
-}
-
-/// `xcrun simctl`: `list devices --json` prints `list`, and every other command succeeds with no output unless
-/// `answering` says otherwise. Commands may run at once, from any thread.
-private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every `var` it changes is behind `lock`
-    struct Answer {
-        var status: Int32 = 0
-        var endedBySignal = false
-        var output = ""
-        var errors = ""
-        var timedOut = false
-    }
-
-    private let lock = NSLock()
-    private let list: Data?
-    private var answer: @Sendable ([String]) -> Answer? = { _ in nil }
-    private var started: [(arguments: [String], timeLimit: TimeInterval?)] = []
-    private var bootsToHoldFor = 0
-    private var bootsHeldUntilKilled = false
-    private var killed = 0
-    private var bootsUnderWay = 0
-    private var mostBoots = 0
-
-    init(list: Data?) {
-        self.list = list
-    }
-
-    /// Each command run, after `xcrun simctl`, in the order they started.
-    var commands: [[String]] { lock.withLock { started.map(\.arguments) } }
-    var timeLimits: [TimeInterval?] { lock.withLock { started.map(\.timeLimit) } }
-    /// The most `bootstatus` commands that ran at once.
-    var mostBootsAtOnce: Int { lock.withLock { mostBoots } }
-    /// How many times a command was killed, with every process it started.
-    var treesKilled: Int { lock.withLock { killed } }
-
-    /// Gives `answer`'s answer to a command, where it gives one.
-    func answering(_ answer: @escaping @Sendable ([String]) -> Answer?) {
-        lock.withLock { self.answer = answer }
-    }
-
-    /// Has each `bootstatus` wait until `count` are under way, for at most 5 seconds, so that boots run one after
-    /// another show as one at a time.
-    func holdingBootsUntil(_ count: Int) {
-        lock.withLock { bootsToHoldFor = count }
-    }
-
-    /// Has each `bootstatus` wait until a command is killed, for at most 5 seconds, and then end by SIGKILL.
-    func holdingBootsUntilKilled() {
-        lock.withLock { bootsHeldUntilKilled = true }
-    }
-
-    func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) async -> CommandResult? {
-        guard url == "/usr/bin/xcrun", args.first == "simctl" else {
-            return nil
-        }
-        let arguments = Array(args.dropFirst())
-        let answering = lock.withLock {
-            started.append((arguments, timeLimit))
-            return self.answer
-        }
-        let answer = answering(arguments)
-        if arguments.first == "bootstatus", lock.withLock({ bootsHeldUntilKilled }) {
-            let deadline = Date().addingTimeInterval(5)
-            while lock.withLock({ killed }) == 0, Date() < deadline {
-                try? await Task.sleep(nanoseconds: 1_000_000)
-            }
-            return CommandResult(status: SIGKILL, endedBySignal: true, output: "", errors: "")
-        }
-        if arguments.first == "bootstatus" {
-            await holdBoot()
-        }
-        if arguments == ["list", "devices", "--json"], answer == nil {
-            guard let list else {
-                return CommandResult(status: 1, endedBySignal: false, output: "", errors: "simctl failed")
-            }
-            return CommandResult(
-                status: 0,
-                endedBySignal: false,
-                output: String(decoding: list, as: UTF8.self),
-                errors: ""
-            )
-        }
-        let given = answer ?? Answer()
-        return CommandResult(
-            status: given.status,
-            endedBySignal: given.endedBySignal,
-            output: given.output,
-            errors: given.errors,
-            timedOut: given.timedOut
-        )
-    }
-
-    private func holdBoot() async {
-        let holdFor = lock.withLock {
-            bootsUnderWay += 1
-            mostBoots = max(mostBoots, bootsUnderWay)
-            return bootsToHoldFor
-        }
-        let deadline = Date().addingTimeInterval(5)
-        while lock.withLock({ mostBoots }) < holdFor, Date() < deadline {
-            try? await Task.sleep(nanoseconds: 1_000_000)
-        }
-        lock.withLock { bootsUnderWay -= 1 }
-    }
-
-    var processIdentifier: Int32 { 0 }
-    var terminationStatus: Int32 { 0 }
-    var terminationReason: Foundation.Process.TerminationReason { .exit }
-    var terminationHandler: (@Sendable (Foundation.Process) -> Void)?
-    var environment: [String: String]?
-    var arguments: [String]?
-    var executableURL: URL?
-    var currentDirectoryURL: URL?
-    var standardOutput: Any?
-    var standardError: Any?
-
-    func runProcess(url _: String, arguments _: [String]) async -> Data? { nil }
-
-    func run() throws {}
-
-    func terminate() {}
-
-    func interrupt() {}
-
-    func terminateTree() {
-        lock.withLock { killed += 1 }
     }
 }

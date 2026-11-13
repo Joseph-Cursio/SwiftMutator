@@ -5,14 +5,13 @@ import XCTest
 /// signal: a test never signals the test runner. The acceptance tests send real ones to a SwiftMutator they start.
 final class DispatchSignalObserverTests: XCTestCase {
     private let queue = DispatchQueue(label: "DispatchSignalObserverTests")
-    private var observer: DispatchSignalObserver!
+    private let observer = DispatchSignalObserver()
     private var earlier = sigaction()
 
     override func setUp() {
         super.setUp()
         sigaction(SIGUSR2, nil, &earlier)
         Foundation.signal(SIGUSR2, SIG_DFL)
-        observer = DispatchSignalObserver()
     }
 
     override func tearDown() {

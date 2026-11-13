@@ -1,9 +1,8 @@
 import Difference
-@testable import muterCore
 import SnapshotTesting
 import XCTest
 
-/// XCTest's `XCTAssertEqual`, whose failure shows how the two values differ, field by field.
+/// Asserts that two values are equal, and on failure lists the differences between them.
 public func XCTAssertEqual<T: Equatable>(
     _ expected: @autoclosure () throws -> T,
     _ received: @autoclosure () throws -> T,
@@ -11,12 +10,12 @@ public func XCTAssertEqual<T: Equatable>(
     line: UInt = #line
 ) {
     do {
-        let expected = try expected()
-        let received = try received()
-        // swiftlint:disable:next xct_specific_matcher - the diff says how they differ, without both values in full
-        XCTAssertTrue(
-            expected == received,
-            "Found difference for \n" + diff(expected, received).joined(separator: ", "),
+        let expectedValue = try expected()
+        let receivedValue = try received()
+        XCTAssertEqual(
+            expectedValue,
+            receivedValue,
+            "Found difference for \n" + diff(expectedValue, receivedValue).joined(separator: ", "),
             file: file,
             line: line
         )
@@ -25,35 +24,39 @@ public func XCTAssertEqual<T: Equatable>(
     }
 }
 
-/// XCTest's `XCTAssertTrue` for an optional: nil fails.
+/// Asserts that an optional Boolean expression is true, failing when it is nil.
 public func XCTAssertTrue(
+    // swiftlint:disable:next discouraged_optional_boolean - the overload exists to fail on a nil Bool
     _ expression: @autoclosure () throws -> Bool?,
     _ message: @autoclosure () -> String = "",
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
     guard let actual = try? expression() else {
-        return XCTFail("Expected boolean, got nil")
+        XCTFail("Expected boolean, got nil")
+        return
     }
 
     XCTAssertTrue(actual, message(), file: file, line: line)
 }
 
-/// XCTest's `XCTAssertFalse` for an optional: nil fails.
+/// Asserts that an optional Boolean expression is false, failing when it is nil.
 public func XCTAssertFalse(
+    // swiftlint:disable:next discouraged_optional_boolean - the overload exists to fail on a nil Bool
     _ expression: @autoclosure () throws -> Bool?,
     _ message: @autoclosure () -> String = "",
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
     guard let actual = try? expression() else {
-        return XCTFail("Expected boolean, got nil")
+        XCTFail("Expected boolean, got nil")
+        return
     }
 
     XCTAssertFalse(actual, message(), file: file, line: line)
 }
 
-/// Asserts that `lhs` isn't nil and is exactly of type `rhs`.
+/// Asserts that a value is not nil and is exactly of the given type.
 public func XCTAssertTypeEqual(
     _ lhs: Any?,
     _ rhs: (some Any).Type,
@@ -61,7 +64,8 @@ public func XCTAssertTypeEqual(
     line: UInt = #line
 ) {
     guard let lhs else {
-        return XCTFail("First argument should not be nil", file: file, line: line)
+        XCTFail("First argument should not be nil", file: file, line: line)
+        return
     }
 
     if type(of: lhs) != rhs {
@@ -69,9 +73,8 @@ public func XCTAssertTypeEqual(
     }
 }
 
-/// Asserts that `matching` is the same, line for line, as the snapshot recorded for the test. Capitalized like the
-/// XCTAssert functions it sits among.
-public func AssertSnapshot( // swiftlint:disable:this identifier_name
+/// Asserts that a string matches its recorded line-by-line snapshot.
+public func AssertSnapshot( // swiftlint:disable:this identifier_name - capitalized like the XCTAssert functions
     _ matching: String,
     file: StaticString = #filePath,
     line: UInt = #line,
@@ -86,8 +89,8 @@ public func AssertSnapshot( // swiftlint:disable:this identifier_name
     )
 }
 
-/// XCTest's `XCTAssertThrowsError` for an expression that is awaited, and capitalized like it.
-public func AssertThrowsError( // swiftlint:disable:this identifier_name
+/// Asserts that an async expression throws, and passes the error to `errorHandler`.
+public func AssertThrowsError( // swiftlint:disable:this identifier_name - capitalized like XCTAssertThrowsError
     _ expression: @autoclosure () async throws -> some Any,
     _ message: @autoclosure () -> String = "",
     file: StaticString = #filePath,
@@ -105,22 +108,3 @@ public func AssertThrowsError( // swiftlint:disable:this identifier_name
         }
     }
 }
-
-#if os(Linux)
-public extension XCTestCase {
-    /// XCTest's `fulfillment(of:timeout:enforceOrder:)`, which XCTest on Linux lacks.
-    func fulfillment(of expectations: [XCTestExpectation], timeout: TimeInterval, enforceOrder: Bool = false) async {
-        // The test awaits the thread below and does nothing meanwhile, so the two never use the test case at once.
-        nonisolated(unsafe) let testCase = self
-        await withCheckedContinuation { continuation in
-            // This function operates by blocking a background thread instead of one owned by libdispatch or by the
-            // Swift runtime (as used by Swift concurrency.) To ensure we use a thread owned by neither subsystem, use
-            // Foundation's Thread.detachNewThread(_:).
-            Thread.detachNewThread {
-                testCase.wait(for: expectations, timeout: timeout, enforceOrder: enforceOrder)
-                continuation.resume()
-            }
-        }
-    }
-}
-#endif

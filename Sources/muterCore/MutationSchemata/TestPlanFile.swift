@@ -17,9 +17,9 @@ enum TestPlanCoding {
     static let newestFormatVersion = formatVersion
 
     static var encoder: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return encoder
+        let planEncoder = JSONEncoder()
+        planEncoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return planEncoder
     }
 
     /// The plan's text, as `CreateMuterTestPlan` writes it into `projectRoot`: in `formatVersion`, whichever format
@@ -39,7 +39,7 @@ enum TestPlanCoding {
             mappings: plan.mappings.map { $0.relative(to: plan.mutatedProjectURL) },
             mutantsNotCovered: plan.mutantsNotCovered
         )
-        return try String(decoding: encoder.encode(file), as: UTF8.self) + "\n"
+        return try String(lossyUTF8: encoder.encode(file)) + "\n"
     }
 
     /// The plan at `path`, whose bytes are `data`, with its paths resolved: a format-1 or later copy's under
@@ -51,12 +51,12 @@ enum TestPlanCoding {
             let file = try JSONDecoder().decode(LegacyTestPlanFile.self, from: data)
             let copy = resolvedCopy(file.mutatedProjectPath, under: projectRoot)
             return MuterTestPlan(
-                formatVersion: 0,
-                swiftMutatorVersion: nil,
                 mutatedProjectURL: copy,
                 projectCoverage: file.projectCoverage < 0 ? .null : Coverage(percent: file.projectCoverage),
                 scope: nil,
-                mappings: file.mappings.map { $0.resolved(under: copy) }
+                mappings: file.mappings.map { $0.resolved(under: copy) },
+                formatVersion: 0,
+                swiftMutatorVersion: nil
             )
         }
         guard found <= newestFormatVersion else {
@@ -65,8 +65,6 @@ enum TestPlanCoding {
         let file = try JSONDecoder().decode(TestPlanFile.self, from: data)
         let copy = resolvedCopy(file.mutatedProject, under: projectRoot)
         return MuterTestPlan(
-            formatVersion: file.formatVersion,
-            swiftMutatorVersion: file.swiftMutatorVersion,
             mutatedProjectURL: copy,
             projectCoverage: file.projectCoverage.map { Coverage(percent: $0) } ?? .null,
             // A mutant by an operator this SwiftMutator doesn't know would have stopped the plan being read, so such
@@ -75,10 +73,12 @@ enum TestPlanCoding {
                 operators: file.operators.compactMap(MutationOperator.Id.init(rawValue:)),
                 filesToMutate: file.filesToMutate
             ),
+            mappings: file.mappings.map { $0.resolved(under: copy) },
+            formatVersion: file.formatVersion,
+            swiftMutatorVersion: file.swiftMutatorVersion,
             sources: file.sources,
             mutatedFiles: file.mutatedFiles,
             linkedFiles: file.linkedFiles,
-            mappings: file.mappings.map { $0.resolved(under: copy) },
             mutantsNotCovered: file.mutantsNotCovered
         )
     }
@@ -95,6 +95,14 @@ enum TestPlanCoding {
     private struct FormatVersion: Decodable {
         let formatVersion: Int?
     }
+}
+
+/// A test plan as SwiftMutators from before `TestPlanFile` wrote it, which is format 0: with no `formatVersion`,
+/// absolute paths, and a coverage of -1 when it wasn't gathered.
+struct LegacyTestPlanFile: Codable, Equatable {
+    let mutatedProjectPath: String
+    let projectCoverage: Int
+    let mappings: [SchemataMutationMapping]
 }
 
 /// A test plan as it is written, in format 1 or 2, which have the same keys. Its paths are relative, so the project and
@@ -129,12 +137,4 @@ struct TestPlanFile: Codable, Equatable {
     /// key (`MuterTestPlan.mutantsNotCovered`); empty when there are none. A new key, so the format is the same: a
     /// plan from before it leaves it out, and its run records none, so it writes no baseline file.
     var mutantsNotCovered: [UncoveredMutant]?
-}
-
-/// A test plan as SwiftMutators from before `TestPlanFile` wrote it, which is format 0: with no `formatVersion`,
-/// absolute paths, and a coverage of -1 when it wasn't gathered.
-struct LegacyTestPlanFile: Codable, Equatable {
-    let mutatedProjectPath: String
-    let projectCoverage: Int
-    let mappings: [SchemataMutationMapping]
 }

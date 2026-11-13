@@ -38,8 +38,8 @@ struct WorkerTemporaryFolder: Equatable {
         #if os(macOS)
         var cache = [CChar](repeating: 0, count: Int(PATH_MAX))
         if confstr(_CS_DARWIN_USER_CACHE_DIR, &cache, cache.count) > 0 {
-            let path = cache.prefix { $0 != 0 }.map(UInt8.init(bitPattern:))
-            places.append(URL(fileURLWithPath: String(decoding: path, as: UTF8.self)))
+            let cachePath = cache.prefix { $0 != 0 }.map(UInt8.init(bitPattern:))
+            places.append(URL(fileURLWithPath: String(lossyUTF8: cachePath)))
         }
         #endif
         for place in places {

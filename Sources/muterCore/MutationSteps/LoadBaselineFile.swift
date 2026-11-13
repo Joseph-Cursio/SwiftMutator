@@ -1,5 +1,3 @@
-import Foundation
-
 /// Loads `--baseline`'s file as the run starts, so a typo, a missing file or one of another scope doesn't wait for a
 /// long run to end: refused (`BaselineRefused`, exit 8) before anything is copied. Its scope is compared with the run's
 /// once the run's operators are chosen: the configuration's, or `--operators`', for `run`, and the plan's for a run of
@@ -9,7 +7,7 @@ struct LoadBaselineFile: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         guard let path = state.runOptions.baseline else { return [] }
         let file = try BaselineFile.load(at: path, using: fileManager)
         if state.runOptions.mutant == nil {

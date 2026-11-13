@@ -76,13 +76,13 @@ struct WorkerSimulatorName: Equatable, Sendable {
               parts[3].hasPrefix("w"),
               let id = Self.number(parts[1]).flatMap(Int32.init),
               let started = Self.number(parts[2]).flatMap(UInt64.init),
-              let worker = Self.number(parts[3].dropFirst()).flatMap(Int.init)
+              let workerNumber = Self.number(parts[3].dropFirst()).flatMap(Int.init)
         else {
             return nil
         }
         projectHash = String(parts[0])
         owner = RecordedProcess(id: id, started: started)
-        self.worker = worker
+        self.worker = workerNumber
     }
 
     var text: String {
@@ -207,11 +207,9 @@ final class WorkerSimulators: WorkerSimulating, @unchecked Sendable { // `made` 
     func removeAll() async {
         await remove(recorded)
     }
-}
 
-private extension WorkerSimulators {
     /// The available simulator `destination` names, which the workers' simulators are made like.
-    func baseDevice(namedBy destination: String) async throws -> SimctlDevice {
+    private func baseDevice(namedBy destination: String) async throws -> SimctlDevice {
         guard let wanted = SimulatorDestination(destination: destination) else {
             throw WorkerSimulatorsUnavailable(
                 reason: "`-destination \(destination)` names no simulator", destinationUnresolved: true
@@ -230,7 +228,7 @@ private extension WorkerSimulators {
     }
 
     /// simctl's list of simulators, or nil if it gave none that can be read.
-    func list() async -> SimctlDeviceList? {
+    private func list() async -> SimctlDeviceList? {
         // Standard output alone: simctl can warn on standard error.
         guard let result = await simctl(["list", "devices", "--json"], timeLimit: Self.simctlTimeLimit),
               result.succeeded
@@ -243,14 +241,14 @@ private extension WorkerSimulators {
     /// Deletes `udids`, which `prepare` made, and forgets each once its delete has succeeded. Until then the sweep
     /// skips it, and `removeAll()` tries it again: a stop kills the deletes under way while the work runs, but not
     /// those once it has ended.
-    func remove(_ udids: [String]) async {
+    private func remove(_ udids: [String]) async {
         let deleted = Set(await delete(udids))
         lock.withLock { made.removeAll { deleted.contains($0) } }
     }
 
     /// Deletes `udids` all at once, booted or not, and returns those whose delete succeeded.
     @discardableResult
-    func delete(_ udids: [String]) async -> [String] {
+    private func delete(_ udids: [String]) async -> [String] {
         await withTaskGroup(of: String?.self) { group in
             for udid in udids {
                 group.addTask { [self] in
@@ -270,7 +268,7 @@ private extension WorkerSimulators {
     /// calling task kills it, as waiting for a command ignores cancellation, and a task cancelled already starts
     /// none: a boot that a failed baseline cancels would otherwise hold up the run's end for as long as the boot takes.
     /// Never a delete, which a stop's own kill reaches, and which a cancelled boot's cleanup still needs.
-    func simctl(
+    private func simctl(
         _ arguments: [String],
         timeLimit: TimeInterval,
         killedIfCancelled: Bool = false
@@ -290,7 +288,7 @@ private extension WorkerSimulators {
     }
 
     /// Why `xcrun simctl <arguments>` didn't do its job, as `result` shows: the last line of what it wrote.
-    static func failure(of arguments: [String], _ result: CommandResult?) -> String {
+    private static func failure(of arguments: [String], _ result: CommandResult?) -> String {
         let command = "`xcrun simctl \(arguments.joined(separator: " "))`"
         guard let result else {
             return "\(command) couldn't be started"

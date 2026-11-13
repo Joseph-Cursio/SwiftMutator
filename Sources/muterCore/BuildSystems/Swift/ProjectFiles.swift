@@ -17,12 +17,12 @@ struct ProjectFiles: Equatable, Sendable {
     static func read(in project: URL) -> Self? {
         #if os(macOS)
         guard let enumerator = FileManager.default.enumerator(atPath: project.path) else { return nil }
-        var entries: [String: Entry] = [:]
-        entries[""] = entry(atPath: project.path)
+        var readEntries: [String: Entry] = [:]
+        readEntries[""] = entry(atPath: project.path)
         while let name = enumerator.nextObject() as? String {
-            entries[name] = entry(atPath: project.path + "/" + name)
+            readEntries[name] = entry(atPath: project.path + "/" + name)
         }
-        return Self(entries: entries)
+        return Self(entries: readEntries)
         #else
         return nil
         #endif

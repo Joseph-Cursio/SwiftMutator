@@ -123,7 +123,7 @@ final class SwiftCoverage: BuildSystemCoverage {
         if let unfinished = unfinishedTestProcess(inLog: log) {
             return .failure(.testProcessUnfinished(unfinished, failedTests: failedTests))
         }
-        guard failedTests.count > 0 else {
+        guard failedTests.total > 0 else {
             return .failure(.runFailed(status: testRun.status, error: firstError(in: log)))
         }
 
@@ -201,6 +201,7 @@ final class SwiftCoverage: BuildSystemCoverage {
                 let name = String(bundle.dropLast(".xctest".count))
                 return (name, "\(bundle)/Contents/MacOS/\(name)")
             }
+
         case .linux:
             let inFolder = Set(files)
             return files.compactMap { file in
@@ -232,19 +233,19 @@ final class SwiftCoverage: BuildSystemCoverage {
         }
 
         return Dictionary(
-            package.targets.filter { $0.type == "test" }.map { ($0.name, $0.sources ?? []) },
-            uniquingKeysWith: { first, _ in first }
-        )
+            package.targets.filter { $0.type == "test" }.map { ($0.name, $0.sources ?? []) }
+        ) { first, _ in first }
     }
 
     private struct PackageDescription: Decodable {
-        let targets: [Target]
+        let targets: [PackageDescriptionTarget]
+    }
 
-        struct Target: Decodable {
-            let name: String
-            let type: String
-            let sources: [String]?
-        }
+    /// A target in a `PackageDescription`.
+    private struct PackageDescriptionTarget: Decodable {
+        let name: String
+        let type: String
+        let sources: [String]?
     }
 
     /// How to run the LLVM tool `name`, such as `llvm-cov`: the executable, and the arguments before the tool's own.
@@ -256,6 +257,7 @@ final class SwiftCoverage: BuildSystemCoverage {
         switch platform {
         case .darwin:
             return ("/usr/bin/xcrun", [name])
+
         case .linux:
             let inToolchain = URL(fileURLWithPath: testCommand.canonicalPath)
                 .deletingLastPathComponent()

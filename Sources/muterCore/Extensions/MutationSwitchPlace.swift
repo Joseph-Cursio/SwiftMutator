@@ -1,0 +1,181 @@
+import SwiftSyntax
+
+/// The code a mutant's switch holds a copy of in each branch.
+enum MutationSwitchPlace {
+    /// A statement list, the place for all but the code below.
+    case statements(CodeBlockItemListSyntax)
+    /// One statement of a list at a file's top level that holds a declaration.
+    case statement(CodeBlockItemSyntax)
+    /// A stored property's or a global's initial value, or a default argument.
+    case initialValue(ExprSyntax)
+
+    var code: any SyntaxProtocol {
+        switch self {
+        case let .statements(list): list
+        case let .statement(statement): statement
+        case let .initialValue(value): value
+        }
+    }
+}
+
+extension SyntaxProtocol {
+
+    var codeBlockItemListSyntax: CodeBlockItemListSyntax {
+        // A source file's statements are a list, so every node in a file is in one.
+        guard var list = ancestorOrSelf(mapping: { $0.as(CodeBlockItemListSyntax.self) }) else {
+            preconditionFailure("\(self) is in no statement list")
+        }
+        while true {
+            // `#if` is not a scope: a declaration in a clause is visible after `#endif`. Switching the
+            // clause's own statements would put it inside the switch's `if` block, out of reach of the code
+            // after `#endif`, so such a clause's mutants are switched in the list around the `#if`.
+            if list.parent?.is(IfConfigClauseSyntax.self) == true,
+               list.containsDeclaration,
+               let enclosing = list.enclosingListOfIfConfig {
+                list = enclosing
+                continue
+            }
+            // A macro expands its arguments, closures included, from their syntax: `#Predicate { $0.id == id }`
+            // turns its closure's statements into an expression tree, and with them a switch's `if` and its
+            // `ProcessInfo` lookup, which doesn't compile. So a list inside a macro's arguments is never switched:
+            // the list around the outermost macro is, and each of its branches holds the macro, with or without
+            // the mutant.
+            if let enclosing = list.enclosingListOutsideMacros {
+                list = enclosing
+                continue
+            }
+            // A closure holding an `if` no longer has one expression, so its result is no longer worked out together
+            // with the code around it. In `let base = parent.map { path(of: $0, depth: depth + 1) } ?? root`, that
+            // settles `??` on a `String` before reading the closure, whose `String?` then doesn't fit. Around the
+            // whole statement, the closure stays as it was.
+            if let enclosing = list.enclosingListOutsideACoalescedClosure {
+                list = enclosing
+                continue
+            }
+            return list
+        }
+    }
+
+    /// Where the switch of a mutant of this code goes, or nil when it has nowhere to go.
+    ///
+    /// That is the nearest statement list, but for a list at a file's top level that holds a declaration: wrapping it
+    /// in an `if` moves its imports and types into a local scope, which doesn't compile. A stored property's initial
+    /// value and a default argument have no statement list of their own, so walking up from them reaches such a list,
+    /// and so does a statement in a `main.swift` with an `import`. The switch then goes around the value, or the
+    /// statement, alone. What is left has no such place: a macro alone at a file's or a type's top level, an
+    /// attribute's arguments, a `guard let` or `guard case` at the top level, and the two values
+    /// `InitializerClauseSyntax.canHoldASwitch` refuses.
+    var mutationSwitchPlace: MutationSwitchPlace? {
+        let list = codeBlockItemListSyntax
+        guard list.isFileScope, list.containsDeclaration else {
+            return .statements(list)
+        }
+        // A macro expands its arguments from their syntax, so the switch has to go around the outermost one, and
+        // around a closure that `codeBlockItemListSyntax` moved it out of.
+        var outermost = Syntax(self)
+        var ancestor: Syntax? = outermost
+        while let current = ancestor {
+            if current.is(MacroExpansionExprSyntax.self) || current.is(MacroExpansionDeclSyntax.self)
+                || current.as(ClosureExprSyntax.self)?.statements.enclosingListOutsideACoalescedClosure != nil {
+                outermost = current
+            }
+            ancestor = current.parent
+        }
+        ancestor = outermost
+        while let current = ancestor {
+            if let clause = current.as(InitializerClauseSyntax.self), clause.isADeclarationsValue {
+                return clause.canHoldASwitch ? .initialValue(clause.value) : nil
+            }
+            if let statement = current.as(CodeBlockItemSyntax.self) {
+                return statement.declaresNothingAfterIt ? .statement(statement) : nil
+            }
+            ancestor = current.parent
+        }
+        return nil
+    }
+}
+
+private extension CodeBlockItemListSyntax {
+    /// The statement list around the outermost freestanding macro this list is in, or `nil` when it is in none.
+    var enclosingListOutsideMacros: CodeBlockItemListSyntax? {
+        var outermostMacro: Syntax?
+        var ancestor = parent
+        while let current = ancestor {
+            if current.is(MacroExpansionExprSyntax.self) || current.is(MacroExpansionDeclSyntax.self) {
+                outermostMacro = current
+            }
+            ancestor = current.parent
+        }
+        return outermostMacro?.parent?.ancestorOrSelf { $0.as(CodeBlockItemListSyntax.self) }
+    }
+
+    /// The statement list around the code when this list is the one statement of a closure on the left of a `??`, or
+    /// of a closure that is itself that statement.
+    var enclosingListOutsideACoalescedClosure: CodeBlockItemListSyntax? {
+        guard count == 1, let closure = parent?.as(ClosureExprSyntax.self) else { return nil }
+        var node = Syntax(closure)
+        while let current = node.parent {
+            if let outer = current.as(CodeBlockItemListSyntax.self) {
+                return outer.enclosingListOutsideACoalescedClosure
+            }
+            if let elements = current.as(ExprListSyntax.self) {
+                return elements.isCoalescing(node) ? current.ancestorOrSelf { $0.as(Self.self) } : nil
+            }
+            node = current
+        }
+        return nil
+    }
+
+    var containsDeclaration: Bool {
+        contains { Syntax($0.item).asProtocol(DeclSyntaxProtocol.self) != nil }
+    }
+
+    /// The statement list holding the `#if` this clause belongs to, or `nil` when the `#if` sits in
+    /// a type's member list, where clauses hold members rather than statements.
+    var enclosingListOfIfConfig: CodeBlockItemListSyntax? {
+        var ancestor = parent?.parent
+        while let current = ancestor {
+            if current.is(MemberBlockItemListSyntax.self) {
+                return nil
+            }
+            if let enclosing = current.as(CodeBlockItemListSyntax.self) {
+                return enclosing
+            }
+            ancestor = current.parent
+        }
+        return nil
+    }
+}
+
+private extension ExprListSyntax {
+    /// Whether `element` is followed by a `??`.
+    func isCoalescing(_ element: Syntax) -> Bool {
+        guard let index = firstIndex(where: { Syntax($0).id == element.id }) else { return false }
+        let next = self.index(after: index)
+        return next < endIndex && self[next].as(BinaryOperatorExprSyntax.self)?.operator.text == "??"
+    }
+}
+
+extension CodeBlockItemSyntax {
+    /// Whether the `if` of a switch can go around this statement, as it declares nothing the code after it could use.
+    /// A `guard let` or `guard case` might, and a macro alone, such as `#Preview`, can declare anything; a macro inside
+    /// a statement yields a value.
+    var declaresNothingAfterIt: Bool {
+        switch item {
+        case .decl:
+            return false
+
+        case let .expr(expression):
+            return !expression.is(MacroExpansionExprSyntax.self)
+
+        case let .stmt(statement):
+            guard let guardStatement = statement.as(GuardStmtSyntax.self) else { return true }
+            return guardStatement.conditions.allSatisfy { element in
+                switch element.condition {
+                case .optionalBinding, .matchingPattern: false
+                default: true
+                }
+            }
+        }
+    }
+}

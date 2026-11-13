@@ -3,15 +3,20 @@ import XCTest
 
 /// Those with a time limit run real processes, and kill every one they start however a test ends.
 final class CommandResultTests: XCTestCase {
-    private var directory: URL!
+    private let directory = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
     private let launched = Locked<[Foundation.Process]>([])
 
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        directory = try URL(fileURLWithPath: makeTemporaryDirectory())
-        // Added after the folder's own teardown block, so it runs before that one.
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        // Runs before tearDownWithError removes the folder.
         addTeardownBlock { [launched] in Self.killEveryLaunchedProcess(launched.value) }
+    }
+
+    override func tearDownWithError() throws {
+        try FileManager.default.removeItem(at: directory)
+        try super.tearDownWithError()
     }
 
     // Through the protocol, as the coverage step runs it, so `Foundation.Process`'s own is the one run.

@@ -17,12 +17,16 @@ enum MuterDirective: String, CaseIterable {
         switch piece {
         case let .lineComment(comment):
             text = comment.dropFirst(2)
+
         case let .docLineComment(comment):
             text = comment.dropFirst(3)
+
         case let .blockComment(comment):
             text = comment.dropFirst(2).dropLast(2)
+
         case let .docBlockComment(comment):
             text = comment.dropFirst(3).dropLast(2)
+
         default:
             return nil
         }
@@ -44,27 +48,32 @@ struct MuterDirectives {
     private let ranges: [Range<AbsolutePosition>]
 
     init(in root: Syntax, converter: SourceLocationConverter) {
-        var effects: [Effect] = []
-        var ranges: [Range<AbsolutePosition>] = []
+        var foundEffects: [Effect] = []
+        var foundRanges: [Range<AbsolutePosition>] = []
         for token in root.tokens(viewMode: .sourceAccurate) {
             for (isLeading, trivia, start) in [
                 (true, token.leadingTrivia, token.position),
                 (false, token.trailingTrivia, token.endPositionBeforeTrailingTrivia),
             ] {
-                if let disables = Self.lastSwitch(in: trivia) {
+                if let lastSwitch = Self.lastSwitch(in: trivia) {
+                    let disables = lastSwitch == .disable
                     let position = Self.switchPosition(disables, isLeading, token)
-                    effects.append(Effect(position: position, disables: disables))
+                    foundEffects.append(Effect(position: position, disables: disables))
                 }
                 var position = start
                 for piece in trivia {
                     let end = position.advanced(by: piece.sourceLength.utf8Length)
                     switch MuterDirective(piece) {
                     case .disableNextLine:
-                        ranges.append(Self.line(after: end, converter: converter))
+                        foundRanges.append(Self.line(after: end, converter: converter))
+
                     case .disableDeclaration:
                         let first = isLeading ? token : Self.firstToken(onTheLineOf: token, converter: converter)
                         let node = Self.declaration(startingWith: first)
-                        ranges.append(node.positionAfterSkippingLeadingTrivia ..< node.endPositionBeforeTrailingTrivia)
+                        foundRanges.append(
+                            node.positionAfterSkippingLeadingTrivia ..< node.endPositionBeforeTrailingTrivia
+                        )
+
                     default:
                         break
                     }
@@ -72,8 +81,8 @@ struct MuterDirectives {
                 }
             }
         }
-        self.effects = effects.sorted { $0.position < $1.position }
-        self.ranges = ranges
+        self.effects = foundEffects.sorted { $0.position < $1.position }
+        self.ranges = foundRanges
     }
 
     /// Whether what starts at `position` is left out by a `disable` that is still on there.
@@ -86,12 +95,12 @@ struct MuterDirectives {
         ranges.contains { $0.contains(position) }
     }
 
-    /// Whether the last `disable` or `enable` in `trivia` is a `disable`; nil if it holds neither.
-    private static func lastSwitch(in trivia: Trivia) -> Bool? {
+    /// The last `disable` or `enable` in `trivia`; nil if it holds neither.
+    private static func lastSwitch(in trivia: Trivia) -> MuterDirective? {
         for piece in trivia.reversed() {
             switch MuterDirective(piece) {
-            case .disable: return true
-            case .enable: return false
+            case .disable: return .disable
+            case .enable: return .enable
             default: continue
             }
         }
@@ -175,9 +184,9 @@ struct MuterDirectives {
     /// The innermost declaration that holds `token`. A `#if` among a declaration's attributes is one too, so the
     /// declaration whose attributes hold it is taken instead.
     private static func declaration(holding token: TokenSyntax) -> DeclSyntax? {
-        var found = token.parent?.ancestorOrSelf(mapping: { $0.as(DeclSyntax.self) })
+        var found = token.parent?.ancestorOrSelf { $0.as(DeclSyntax.self) }
         while let ifConfig = found?.as(IfConfigDeclSyntax.self), ifConfig.parent?.is(AttributeListSyntax.self) == true {
-            found = ifConfig.parent?.ancestorOrSelf(mapping: { $0.as(DeclSyntax.self) })
+            found = ifConfig.parent?.ancestorOrSelf { $0.as(DeclSyntax.self) }
         }
         return found
     }

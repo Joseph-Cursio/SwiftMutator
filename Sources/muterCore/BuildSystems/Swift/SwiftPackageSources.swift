@@ -25,15 +25,20 @@ enum SwiftPackageSources {
             switch self {
             case let .notSwift(command):
                 return "the test command, \(command), isn't swift"
+
             case let .packageOutsideProject(path):
                 return "the package the test command names, \(path), isn't in the project"
+
             case let .couldNotRun(command):
                 return "\(command) couldn't be started"
+
             case let .describeFailed(path, error):
                 let failed = "`swift package describe` failed for \(path)"
                 return error.isEmpty ? failed : "\(failed): \(error)"
+
             case let .unreadableDescription(path):
                 return "what `swift package describe` printed for \(path) couldn't be read"
+
             case let .noPackage(path):
                 return "there's no Package.swift in \(path)"
             }
@@ -55,15 +60,15 @@ enum SwiftPackageSources {
     struct Package: Equatable {
         /// The path `swift package` was given for it: `root`, or a folder in it.
         let path: FilePath
-        let targets: [Target]
+        let targets: [PackageTarget]
+    }
 
-        /// A target of a type under test.
-        struct Target: Equatable {
-            /// nil only if describe didn't name it; a target's name is what ties it to its manifest's settings.
-            let name: String?
-            /// The Swift files it compiles, relative to the project at `root`.
-            let files: [FilePath]
-        }
+    /// A target of a type under test, in a `Package`.
+    struct PackageTarget: Equatable {
+        /// nil only if describe didn't name it; a target's name is what ties it to its manifest's settings.
+        let name: String?
+        /// The Swift files it compiles, relative to the project at `root`.
+        let files: [FilePath]
     }
 
     /// The Swift files, relative to the project at `root`, that the tested package compiles, and those of the local
@@ -91,7 +96,7 @@ enum SwiftPackageSources {
         process: ProcessFactory
     ) async -> Result<[Package], Failure> {
         let swift = configuration.testCommandExecutable
-        guard (swift as NSString).lastPathComponent == "swift" else {
+        guard swift.lastPathComponent == "swift" else {
             return .failure(.notSwift(swift))
         }
         // describe resolves the links in a package's own path, but not those in its local dependencies' paths, so
@@ -119,6 +124,7 @@ enum SwiftPackageSources {
             switch await describe(path, with: swift, options: options, process: process) {
             case let .success(packageDescription):
                 description = packageDescription
+
             case let .failure(failure):
                 return .failure(failure)
             }
@@ -133,7 +139,7 @@ enum SwiftPackageSources {
                             canonicalRoot: canonicalRoot
                         )
                     }
-                    return Package.Target(name: target.name, files: files)
+                    return PackageTarget(name: target.name, files: files)
                 }
             packages.append(Package(path: path, targets: targets))
             // The package at `root`, too, when the tested one is in a folder of the project and depends on it.
@@ -149,23 +155,25 @@ enum SwiftPackageSources {
     private struct Description: Decodable {
         /// The package's absolute path, with its links resolved.
         let path: String
-        let dependencies: [Dependency]
-        let targets: [Target]
+        let dependencies: [DescriptionDependency]
+        let targets: [DescriptionTarget]
+    }
 
-        struct Dependency: Decodable {
-            /// A local package's absolute path; nil for a package from a repository or a registry.
-            let path: String?
-        }
+    /// A package `swift package describe` says a `Description`'s package depends on.
+    private struct DescriptionDependency: Decodable {
+        /// A local package's absolute path; nil for a package from a repository or a registry.
+        let path: String?
+    }
 
-        struct Target: Decodable {
-            /// Always there in what SwiftPM prints.
-            let name: String?
-            let type: String
-            /// Relative to the package. A binary target has no sources.
-            let path: String?
-            /// Relative to `path`.
-            let sources: [String]?
-        }
+    /// A target in a `Description`.
+    private struct DescriptionTarget: Decodable {
+        /// Always there in what SwiftPM prints.
+        let name: String?
+        let type: String
+        /// Relative to the package. A binary target has no sources.
+        let path: String?
+        /// Relative to `path`.
+        let sources: [String]?
     }
 
     private static func describe(
@@ -241,7 +249,7 @@ enum SwiftPackageSources {
         in root: FilePath,
         canonicalRoot: FilePath
     ) -> FilePath? {
-        let absolute = (root + "/" + source) as NSString
+        let absolute = root + "/" + source
         return relativePath(
             absolute.deletingLastPathComponent.canonicalPath + "/" + absolute.lastPathComponent,
             to: canonicalRoot

@@ -1,11 +1,6 @@
 @testable import muterCore
-import SnapshotTesting
 import TestingExtensions
 import XCTest
-
-private enum AcceptanceTestsError: Error {
-    case reason(String)
-}
 
 final class AcceptanceTests: XCTestCase {
     private let messages = (
@@ -26,7 +21,7 @@ final class AcceptanceTests: XCTestCase {
     /// These tests read what `runAcceptanceTests.sh` wrote into `samples/`. That script recreates the folder
     /// before it writes anything, so a missing folder means it hasn't been run, not that it failed: skip, so
     /// a plain `swift test` can pass. A run that failed partway leaves the folder, and these tests then fail.
-    override func setUpWithError() throws {
+    private func skipWithoutSamples() throws {
         try XCTSkipUnless(
             FileManager.default.fileExists(atPath: "\(rootTestDirectory)/samples"),
             "No samples: run `make acceptance-test` to generate them and run these tests"
@@ -34,6 +29,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_runCommand() throws {
+        try skipWithoutSamples()
         let output = try muterOutput
         let logFiles = try muterLogFiles
 
@@ -89,18 +85,21 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_runWithTestPlanCommand() throws {
+        try skipWithoutSamples()
         let output = try mutersOutputWithTestPlan
 
         XCTAssertTrue(output.contains("SwiftMutator mutation test plan loaded"))
     }
 
     func test_withCoverage() throws {
+        try skipWithoutSamples()
         let output = try muterWithCoverageOutput
 
         XCTAssertTrue(output.contains("Code Coverage of your project:"))
     }
 
     func test_xcodeFormat() throws {
+        try skipWithoutSamples()
         let output = try muterXcodeOutput
 
         XCTAssertEqual(try numberOfXcodeFormattedMessages(in: output), 2)
@@ -109,6 +108,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_filesToMutate() throws {
+        try skipWithoutSamples()
         let output = try muterFilesToMutateOutput
 
         // `a == b`'s two constants, which ReplaceBooleanValue leaves the value to.
@@ -116,6 +116,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_muterDoesntDiscoverAnyMutationOperators() throws {
+        try skipWithoutSamples()
         let output = try muterEmptyStateOutput
 
         XCTAssertTrue(output.contains("SwiftMutator wasn't able to discover any code it could mutation test."))
@@ -128,6 +129,7 @@ final class AcceptanceTests: XCTestCase {
     // the log: a project that doesn't build stops the run too, as this one did, unnoticed, once Xcode dropped its
     // deployment target.
     func test_failingBaseline() throws {
+        try skipWithoutSamples()
         let output = try muterAbortedTestingOutput
 
         XCTAssertTrue(
@@ -142,6 +144,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_initCommandOniOSProject() throws {
+        try skipWithoutSamples()
         let decodedConfiguration = try MuterConfiguration(from: createdIOSConfiguration)
         XCTAssertEqual(decodedConfiguration.testCommandExecutable, "/usr/bin/xcodebuild")
         XCTAssertTrue(decodedConfiguration.testCommandArguments.contains("-destination"))
@@ -152,6 +155,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_initCommandOnMacOSProject() throws {
+        try skipWithoutSamples()
         let decodedConfiguration = try MuterConfiguration(from: createdMacOSConfiguration)
         XCTAssertEqual(decodedConfiguration.testCommandExecutable, "/usr/bin/xcodebuild")
         XCTAssertTrue(decodedConfiguration.testCommandArguments.contains("-destination"))
@@ -162,6 +166,7 @@ final class AcceptanceTests: XCTestCase {
 
     // The plan names its copy relative to the project, so the two can move together.
     func test_mutationTestPlan() throws {
+        try skipWithoutSamples()
         let decodedTestPlan = try JSONDecoder().decode(TestPlanFile.self, from: createdTestPlan)
         XCTAssertEqual(decodedTestPlan.formatVersion, TestPlanCoding.formatVersion)
         XCTAssertEqual(decodedTestPlan.mutatedProject, "../ExampleApp_mutated.noindex")
@@ -171,6 +176,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_mutationTestTimeout() throws {
+        try skipWithoutSamples()
         let output = try muterWithTimeoutOutput
         let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         let columns = { (line: String) in line.split(separator: " ").joined(separator: " ") }
@@ -199,222 +205,32 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_all_operatos() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterOperatorAllOutput)
     }
 
     func test_helpCommand() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterHelpOutput)
     }
 
     func test_helpCommandInit() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterInitHelpOutput)
     }
 
     func test_helpCommandRun() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterRunHelpOutput)
     }
 
     func test_helpCommandOperator() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterOperatorHelpOutput)
     }
 
     func test_helpCommandReport() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterReportHelpOutput)
-    }
-}
-
-extension AcceptanceTests {
-    var rootTestDirectory: String {
-        String(
-            URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .withoutScheme()
-        )
-    }
-
-    var muterOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_output.txt")
-        }
-    }
-
-    var mutersOutputWithTestPlan: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_output_with_test_plan.txt")
-        }
-    }
-
-    var muterXcodeOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_xcode_output.txt")
-        }
-    }
-
-    var muterFilesToMutateOutput: String {
-        get throws {
-            try contentsOfFileAsString(
-                "\(rootTestDirectory)/samples/muters_files_to_mutate_output.txt"
-            )
-        }
-    }
-
-    var muterWithCoverageOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_with_coverage_output.txt")
-        }
-    }
-    
-    var muterWithTimeoutOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_timeout_output.txt")
-        }
-    }
-
-    var muterEmptyStateOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_empty_state_output.txt")
-        }
-    }
-
-    var muterAbortedTestingOutput: String {
-        get throws {
-            try contentsOfFileAsString(
-                "\(rootTestDirectory)/samples/muters_aborted_testing_output.txt"
-            )
-        }
-    }
-
-    var muterHelpOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_help_output.txt")
-        }
-    }
-
-    var muterInitHelpOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_init_help_output.txt")
-        }
-    }
-
-    var muterRunHelpOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_run_help_output.txt")
-        }
-    }
-
-    var muterOperatorHelpOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_operator_help_output.txt")
-        }
-    }
-
-    var muterReportHelpOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_report_help_output.txt")
-        }
-    }
-
-    var muterOperatorAllOutput: String {
-        get throws {
-            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_operator_all_output.txt")
-        }
-    }
-
-    var muterLogFiles: [String] {
-        get throws {
-            try contentsOfDirectory(muterLogsRootPath)
-                .map { muterLogsRootPath + "/" + $0 }
-                .flatMap(contentsOfDirectory)
-        }
-    }
-
-    var createdIOSConfiguration: Data {
-        get throws {
-            try contentsOfFileAsData("\(rootTestDirectory)/samples/created_iOS_config.yml")
-        }
-    }
-
-    var createdMacOSConfiguration: Data {
-        get throws {
-            try contentsOfFileAsData("\(rootTestDirectory)/samples/created_macOS_config.yml")
-        }
-    }
-
-    var createdTestPlan: Data {
-        get throws {
-            try contentsOfFileAsData("\(rootTestDirectory)/samples/created_muter-mappings.json")
-        }
-    }
-
-    var muterLogsRootPath: String { "\(rootTestDirectory)/samples/muter_logs/" }
-}
-
-extension AcceptanceTests {
-    func contentsOfLogFile(named fileName: String) throws -> String {
-        try contentsOfDirectory(muterLogsRootPath)
-            .first
-            .map { muterLogsRootPath + $0 + "/" + fileName }
-            .map(contentsOfFileAsString)!
-    }
-
-    func contentsOfDirectory(_ path: String) throws -> [String] {
-        try FileManager
-            .default
-            .contentsOfDirectory(atPath: path)
-            .exclude { $0.starts(with: ".") } // this filters out hidden files/folders
-    }
-
-    func contentsOfFileAsString(_ path: String) throws -> String {
-        guard let data = FileManager.default.contents(atPath: path),
-              let output = String(data: data, encoding: .utf8)
-        else {
-            throw AcceptanceTestsError.reason("File not found at \(path)")
-        }
-
-        return output
-    }
-
-    func contentsOfFileAsData(_ path: String) throws -> Data {
-        guard let data = FileManager.default.contents(atPath: path) else {
-            throw AcceptanceTestsError.reason("Unable to find a valid output file from a prior run of SwiftMutator at \(path)")
-        }
-        return data
-    }
-}
-
-extension AcceptanceTests {
-    func numberOfDiscoveredFileLists(in output: String) throws -> Int {
-        try applyRegex("[a-zA-Z]+.swift \\([0-9]+ mutants\\)", to: output)
-    }
-
-    func numberOfXcodeFormattedMessages(in output: String) throws -> Int {
-        try applyRegex(
-            "[\\/[:alnum:]\\/]+[a-zA-Z]+.swift\\:[0-9]+:[0-9]+\\: warning: [a-zA-Z ]+: [a-zA-Z[:punct:] ]+/?",
-            to: output
-        )
-    }
-
-    func numberOfProgressUpdates(in output: String) throws -> Int {
-        try applyRegex(
-            "^\\[[0-9]{2}:[0-9]{2}:[0-9]{2}\\] [0-9]+ of [0-9]+ \\([0-9]+%\\)",
-            to: output
-        )
-    }
-
-    func numberOfDurationEstimates(in output: String) throws -> Int {
-        try applyRegex(
-            " [0-9]+ (min|h) left",
-            to: output
-        )
-    }
-
-    func applyRegex(_ regex: String, to output: String) throws -> Int {
-        let filePathRegex = try NSRegularExpression(pattern: regex, options: .anchorsMatchLines)
-        let entireString = NSRange(location: 0, length: output.count)
-        return filePathRegex.numberOfMatches(
-            in: output,
-            options: .withoutAnchoringBounds,
-            range: entireString
-        )
     }
 }

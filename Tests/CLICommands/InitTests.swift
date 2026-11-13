@@ -80,8 +80,9 @@ final class InitTests: MuterTestCase {
     func test_whenTheFileCantBeWritten_itSaysSo_andThrows() async throws {
         try XCTSkipIf(geteuid() == 0, "root writes to a folder whatever its permissions, as in a CI container")
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: directory)
-        addTeardownBlock { [directory] in
-            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory)
+        let readOnlyFolder = directory
+        addTeardownBlock {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: readOnlyFolder)
         }
 
         do {

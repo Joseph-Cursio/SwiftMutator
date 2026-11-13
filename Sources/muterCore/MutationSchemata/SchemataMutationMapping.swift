@@ -3,64 +3,16 @@ import SwiftSyntax
 
 typealias MutationSchemata = [MutationSchema]
 
-/// A key that identifies a code block by its STABLE source position (the UTF-8 byte offset of its
-/// first token) plus its text, rather than by SwiftSyntax node identity.
-///
-/// The mapping used to be keyed by `CodeBlockItemListSyntax` directly, but `Syntax` hashes on
-/// `SyntaxIdentifier` — i.e. node IDENTITY, tied to a specific parse tree. `ApplySchemata` re-parses
-/// each source file (on-demand re-parsing avoids memory exhaustion on large codebases), producing
-/// fresh node identities, so the rewriter's lookup never matched what discovery inserted — schemata
-/// were silently never applied and every mutant was reported as "survived" (0% score). Two parses of
-/// the same bytes yield the same offset + text, so this key is stable across re-parsing.
-///
-/// A body's one statement has the same offset and text as the body, so the key says which of them it is of, or the
-/// rewriter would switch both.
-struct CodeBlockKey: Hashable {
-    enum Kind: Hashable {
-        case statements
-        case statement
-        case initialValue
-    }
-
-    let offset: Int
-    let text: String
-    let kind: Kind
-
-    init(_ node: CodeBlockItemListSyntax) {
-        self.init(of: node, kind: .statements)
-    }
-
-    init(_ place: MutationSwitchPlace) {
-        switch place {
-        case let .statements(list): self.init(list)
-        case let .statement(statement): self.init(of: statement, kind: .statement)
-        case let .initialValue(value): self.init(of: value, kind: .initialValue)
-        }
-    }
-
-    init(offset: Int, text: String) {
-        self.offset = offset
-        self.text = text
-        kind = .statements
-    }
-
-    private init(of node: some SyntaxProtocol, kind: Kind) {
-        offset = node.positionAfterSkippingLeadingTrivia.utf8Offset
-        text = node.description
-        self.kind = kind
-    }
-}
-
 /// A file's mutants, by the code block each one rewrites. A value rather than a class, so that discovery's tasks can
 /// each build their file's and hand it back, and nothing after discovery can change one that another step holds.
-struct SchemataMutationMapping: Sendable {
+struct SchemataMutationMapping: Sendable, Codable, Equatable, CustomStringConvertible, CustomDebugStringConvertible {
     let filePath: String
-    fileprivate var mappings: [CodeBlockKey: MutationSchemata]
+    private var mappings: [CodeBlockKey: MutationSchemata]
     // Preserves the code-block text for each key so `codeBlocks` / `description` keep reporting source.
-    fileprivate var codeBlockText: [CodeBlockKey: String]
+    private var codeBlockText: [CodeBlockKey: String]
     /// The statement lists whose switch goes in a closure called on the spot, as `CompileRecovery` found a result
     /// builder that can't take an `if` (`switchInAClosureCalledOnTheSpot(theListOf:)`).
-    fileprivate var calledOnTheSpot: Set<CodeBlockKey> = []
+    private var calledOnTheSpot: Set<CodeBlockKey> = []
 
     var count: Int {
         mappings.count
@@ -100,8 +52,8 @@ struct SchemataMutationMapping: Sendable {
         )
     }
 
-    fileprivate init(
-        filePath: String = "",
+    private init(
+        filePath: String,
         mappings: [CodeBlockKey: MutationSchemata],
         codeBlockText: [CodeBlockKey: String] = [:],
         calledOnTheSpot: Set<CodeBlockKey> = []
@@ -119,15 +71,6 @@ struct SchemataMutationMapping: Sendable {
         let key = CodeBlockKey(codeBlockSyntax)
         codeBlockText[key] = codeBlockSyntax.description
         mappings[key, default: []].append(schemata)
-    }
-
-    mutating func add(
-        _ codeBlockSyntax: CodeBlockItemListSyntax,
-        _ schemata: MutationSchemata
-    ) {
-        let key = CodeBlockKey(codeBlockSyntax)
-        codeBlockText[key] = codeBlockSyntax.description
-        mappings[key, default: []].append(contentsOf: schemata)
     }
 
     mutating func add(
@@ -242,7 +185,7 @@ struct SchemataMutationMapping: Sendable {
     }
 
     // Key-based add for merging two mappings without reconstructing a syntax node from text.
-    fileprivate mutating func add(
+    private mutating func add(
         _ key: CodeBlockKey,
         text: String,
         _ schemata: MutationSchemata
@@ -250,53 +193,7 @@ struct SchemataMutationMapping: Sendable {
         codeBlockText[key] = text
         mappings[key, default: []].append(contentsOf: schemata)
     }
-}
 
-extension SchemataMutationMapping: Codable {
-    enum CodingKeys: String, CodingKey {
-        case filePath
-        case mappings
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        let schematas = try container.decode([MutationSchema].self, forKey: .mappings)
-        let filePath = try container.decode(String.self, forKey: .filePath)
-
-        // Re-key each decoded schema by its own stable source offset rather than collapsing them all
-        // under one empty-block key (which previously merged every schema into a single mapping entry).
-        var mappings: [CodeBlockKey: MutationSchemata] = [:]
-        for schema in schematas {
-            let key = CodeBlockKey(offset: schema.position.utf8Offset, text: schema.snapshot.before)
-            mappings[key, default: []].append(schema)
-        }
-
-        self.init(
-            filePath: filePath,
-            mappings: mappings
-        )
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-
-        try container.encode(filePath, forKey: .filePath)
-        try container.encode(mutationSchemata, forKey: .mappings)
-    }
-}
-
-extension SchemataMutationMapping: Equatable {
-    static func == (
-        lhs: SchemataMutationMapping,
-        rhs: SchemataMutationMapping
-    ) -> Bool {
-        lhs.codeBlocks == rhs.codeBlocks &&
-            lhs.mutationSchemata == rhs.mutationSchemata
-    }
-}
-
-extension SchemataMutationMapping {
     static func + (
         lhs: Self,
         rhs: Self
@@ -314,6 +211,68 @@ extension SchemataMutationMapping {
         result.calledOnTheSpot = lhs.calledOnTheSpot.union(rhs.calledOnTheSpot)
 
         return result
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case filePath
+        case mappings
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        let schematas = try container.decode([MutationSchema].self, forKey: .mappings)
+        let decodedPath = try container.decode(String.self, forKey: .filePath)
+
+        // Re-key each decoded schema by its own stable source offset rather than collapsing them all
+        // under one empty-block key (which previously merged every schema into a single mapping entry).
+        var byKey: [CodeBlockKey: MutationSchemata] = [:]
+        for schema in schematas {
+            let key = CodeBlockKey(offset: schema.position.utf8Offset, text: schema.snapshot.before)
+            byKey[key, default: []].append(schema)
+        }
+
+        self.init(
+            filePath: decodedPath,
+            mappings: byKey
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(filePath, forKey: .filePath)
+        try container.encode(mutationSchemata, forKey: .mappings)
+    }
+
+    static func == (
+        lhs: Self,
+        rhs: Self
+    ) -> Bool {
+        lhs.codeBlocks == rhs.codeBlocks &&
+            lhs.mutationSchemata == rhs.mutationSchemata
+    }
+
+    // Pretty print for testing assertions description
+    var debugDescription: String { description }
+
+    var description: String {
+        let listing = mappings.sorted { $0.key < $1.key }.reduce(into: "") { accum, entry in
+            let (key, schemata) = entry
+            let source = (codeBlockText[key] ?? key.text)
+                .replacingOccurrences(of: "\n", with: "\\n")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+            accum +=
+                """
+                source: "\(source)",
+                schemata: \(schemata)
+                """
+        }
+        return """
+        SchemataMutationMapping(
+            \(listing)
+        )
+        """
     }
 }
 
@@ -335,163 +294,5 @@ extension [SchemataMutationMapping] {
         }
 
         return result.values.sorted { $0.filePath < $1.filePath }
-    }
-}
-
-// Pretty print for testing assertions description
-extension SchemataMutationMapping: CustomStringConvertible, CustomDebugStringConvertible {
-    var debugDescription: String { description }
-
-    var description: String {
-        let description = mappings.sorted { $0.key < $1.key }.reduce(into: "") { accum, entry in
-            let (key, schemata) = entry
-            let source = (codeBlockText[key] ?? key.text)
-                .replacingOccurrences(of: "\n", with: "\\n")
-                .replacingOccurrences(of: "\"", with: "\\\"")
-            accum +=
-                """
-                source: "\(source)",
-                schemata: \(schemata)
-                """
-        }
-        return """
-        SchemataMutationMapping(
-            \(description)
-        )
-        """
-    }
-}
-
-extension CodeBlockKey: Comparable {
-    static func < (lhs: CodeBlockKey, rhs: CodeBlockKey) -> Bool {
-        lhs.text < rhs.text
-    }
-}
-
-/// Every statement list in a file, in source order.
-private final class CodeBlockListCollector: SyntaxVisitor {
-    private var lists: [CodeBlockItemListSyntax] = []
-
-    static func lists(in source: SourceFileSyntax) -> [CodeBlockItemListSyntax] {
-        let collector = CodeBlockListCollector(viewMode: .sourceAccurate)
-        collector.walk(source)
-        return collector.lists
-    }
-
-    override func visit(_ node: CodeBlockItemListSyntax) -> SyntaxVisitorContinueKind {
-        lists.append(node)
-        return .visitChildren
-    }
-}
-
-private extension CodeBlockItemListSyntax {
-    /// The stored property's or global's value this list is in, when it's in a closure passed to what looks like a
-    /// type's initializer, `VStack { … }`, and the value's type isn't named, or is `some …`.
-    var valueWhoseTypeCanDependOnIt: ExprSyntax? {
-        var isInATypesClosure = false
-        var ancestor = parent
-        while let current = ancestor {
-            if let closure = current.as(ClosureExprSyntax.self), closure.isPassedToAType {
-                isInATypesClosure = true
-            }
-            if let clause = current.as(InitializerClauseSyntax.self), clause.isADeclarationsValue {
-                guard isInATypesClosure, let binding = clause.parent?.as(PatternBindingSyntax.self) else { return nil }
-                let type = binding.typeAnnotation?.type
-                return type == nil || type?.isOpaque == true ? clause.value : nil
-            }
-            ancestor = current.parent
-        }
-        return nil
-    }
-
-    func isNested(inside outer: CodeBlockItemListSyntax) -> Bool {
-        var ancestor = parent
-        while let current = ancestor {
-            if current.id == outer.id {
-                return true
-            }
-            ancestor = current.parent
-        }
-        return false
-    }
-
-    /// The statements of a getter or function whose result type is `some …` and that is not a
-    /// result builder: neither marked `@…Builder` nor a `body`, which `View` makes a builder.
-    var isOpaqueNonBuilderBody: Bool {
-        guard let parent else {
-            return false
-        }
-        // `var x: some View { … }`: the getter's statements sit directly in the accessor block.
-        if let accessorBlock = parent.as(AccessorBlockSyntax.self) {
-            return accessorBlock.parent?.as(PatternBindingSyntax.self)?.isOpaqueNonBuilder ?? false
-        }
-        guard let block = parent.as(CodeBlockSyntax.self) else {
-            return false
-        }
-        if let function = block.parent?.as(FunctionDeclSyntax.self) {
-            return function.signature.returnClause?.type.isOpaque == true
-                && !function.attributes.containsResultBuilder
-        }
-        // `var x: some View { get { … } }`
-        if let accessor = block.parent?.as(AccessorDeclSyntax.self) {
-            var ancestor = accessor.parent
-            while let current = ancestor {
-                if let binding = current.as(PatternBindingSyntax.self) {
-                    return binding.isOpaqueNonBuilder
-                }
-                ancestor = current.parent
-            }
-        }
-        return false
-    }
-}
-
-private extension ClosureExprSyntax {
-    /// Whether this closure is an argument of a call to a capitalized name, as a type's initializer is.
-    var isPassedToAType: Bool {
-        var ancestor = parent
-        while let current = ancestor {
-            if let call = current.as(FunctionCallExprSyntax.self) {
-                let name = call.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text
-                    ?? call.calledExpression.as(MemberAccessExprSyntax.self)?.declName.baseName.text
-                    ?? call.calledExpression.as(GenericSpecializationExprSyntax.self)?.expression.trimmedDescription
-                return name?.first?.isUppercase == true
-            }
-            guard current.is(LabeledExprSyntax.self) || current.is(LabeledExprListSyntax.self)
-                || current.is(MultipleTrailingClosureElementSyntax.self)
-                || current.is(MultipleTrailingClosureElementListSyntax.self)
-            else { return false }
-            ancestor = current.parent
-        }
-        return false
-    }
-}
-
-private extension PatternBindingSyntax {
-    var isOpaqueNonBuilder: Bool {
-        guard typeAnnotation?.type.isOpaque == true else {
-            return false
-        }
-        if pattern.as(IdentifierPatternSyntax.self)?.identifier.text == "body" {
-            return false
-        }
-        let declaration = parent?.parent?.as(VariableDeclSyntax.self)
-        return !(declaration?.attributes.containsResultBuilder ?? false)
-    }
-}
-
-extension TypeSyntax {
-    /// Whether the type is `some …`.
-    var isOpaque: Bool {
-        self.as(SomeOrAnyTypeSyntax.self)?.someOrAnySpecifier.tokenKind == .keyword(.some)
-    }
-}
-
-extension AttributeListSyntax {
-    /// Whether one of the attributes is a result builder, by a name that ends in `Builder`, as `@ViewBuilder` does.
-    var containsResultBuilder: Bool {
-        contains { element in
-            element.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-        }
     }
 }

@@ -1,6 +1,5 @@
 import Foundation
 import SwiftParser
-import SwiftSyntax
 
 // MARK: - Source Code
 
@@ -42,8 +41,8 @@ func createLoggingDirectory(
 
     // String path operations, not URL(fileURLWithPath:), which would resolve a
     // relative or `~` path against the current directory.
-    let project = projectDirectory as NSString
-    let logsRoot = (project.deletingLastPathComponent as NSString)
+    let project = projectDirectory
+    let logsRoot = project.deletingLastPathComponent
         .appendingPathComponent(project.lastPathComponent + "_muter_logs")
     do {
         try fileManager.createDirectory(atPath: logsRoot, withIntermediateDirectories: true, attributes: nil)
@@ -66,7 +65,7 @@ private func claimFolder(named name: String, in folder: String, fileManager: Fil
     var number = 1
     var attempts = 0
     while true {
-        let claimed = (folder as NSString).appendingPathComponent(number == 1 ? name : "\(name) (\(number))")
+        let claimed = folder.appendingPathComponent(number == 1 ? name : "\(name) (\(number))")
         do {
             try fileManager.createDirectory(atPath: claimed, withIntermediateDirectories: false, attributes: nil)
             return claimed
@@ -88,8 +87,8 @@ private func claimFolder(named name: String, in folder: String, fileManager: Fil
 @discardableResult
 func removeFolderIfEmpty(
     atPath path: String,
-    ignoring ignored: Set<String> = [],
-    fileManager: FileSystemManager
+    fileManager: FileSystemManager,
+    ignoring ignored: Set<String> = []
 ) -> Bool {
     guard let contents = try? fileManager.contentsOfDirectory(atPath: path),
           contents.allSatisfy(ignored.contains)

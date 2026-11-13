@@ -6,40 +6,12 @@ import XCTest
 /// The verdict on a run's score against a baseline file's: the drop compared exactly, what it says, which results it
 /// doesn't compare, and the status it exits with.
 final class ScoreDropCheckTests: XCTestCase {
-    private func baseline(killed: Int, of scored: Int) -> BaselineFile {
-        BaselineFile(
-            path: "muter.baseline.yml",
-            swiftMutator: "0.1.0",
-            score: .init(killed: killed, scored: scored),
-            scope: BaselineScope(operators: [], skipCoverage: false, configuration: .init()),
-            survivors: []
-        )
-    }
-
-    private func check(
-        _ killed: Int,
-        of scored: Int,
-        against recorded: (killed: Int, scored: Int),
-        allowing limit: Double = 2
-    ) -> ScoreDropCheck {
-        ScoreDropCheck(
-            baseline: baseline(killed: recorded.killed, of: recorded.scored),
-            maxScoreDrop: limit,
-            killed: killed,
-            scored: scored
-        )
-    }
-
-    /// An outcome that killed `killed` of `scored` mutants, each in a file of its own.
-    private func outcome(killed: Int, of scored: Int) -> MutationTestOutcome {
-        .make(Array(repeating: .failed, count: killed) + Array(repeating: .passed, count: scored - killed))
-    }
 
     func test_aDropEqualToTheLimit_passes() {
         let verdict = check(78, of: 100, against: (80, 100))
 
         XCTAssertEqual(verdict.verdict, .passed)
-        XCTAssertTrue(verdict.passed)
+        XCTAssertEqual(verdict.result, .passed)
         XCTAssertNil(verdict.exitStatus)
         XCTAssertEqual(
             verdict.line,
@@ -77,7 +49,7 @@ final class ScoreDropCheckTests: XCTestCase {
     func test_theScoresAndTheDrop_showAsManyDecimalsAsTheLimit() {
         let verdict = check(66, of: 100, against: (2, 3), allowing: 0.25)
 
-        XCTAssertFalse(verdict.passed)
+        XCTAssertEqual(verdict.result, .failed)
         XCTAssertEqual(
             verdict.line,
             "Mutation score 66.00% is 0.66 points below the baseline file muter.baseline.yml's 66.66%, more than the "
@@ -96,7 +68,7 @@ final class ScoreDropCheckTests: XCTestCase {
     func test_aDropPastTheLimit_thatShowsWithinIt_showsMoreDecimals() {
         let verdict = check(80, of: 100, against: (8_209, 10_000))
 
-        XCTAssertFalse(verdict.passed)
+        XCTAssertEqual(verdict.result, .failed)
         XCTAssertEqual(
             verdict.line,
             "Mutation score 80.00% is 2.09 points below the baseline file muter.baseline.yml's 82.09%, more than the 2 "
@@ -126,7 +98,7 @@ final class ScoreDropCheckTests: XCTestCase {
     func test_theDrop_isExact_soADropEqualToTheLimit_isTheLimit() throws {
         for (run, recorded) in [((47, 150), (1, 3)), ((176, 1_200), (300, 1_800))] {
             let verdict = check(run.0, of: run.1, against: recorded)
-            XCTAssertTrue(verdict.passed)
+            XCTAssertEqual(verdict.result, .passed)
             XCTAssertEqual(verdict.drop, 2)
             let summary = RunSummary(of: .make([.passed]), ended: .finished, report: nil, scoreDrop: verdict)
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: Any])
@@ -144,13 +116,13 @@ final class ScoreDropCheckTests: XCTestCase {
             "Mutation score 84.0% is 4.0 points above the baseline file muter.baseline.yml's 80.0%."
         )
         let same = check(160, of: 200, against: (80, 100), allowing: 0)
-        XCTAssertTrue(same.passed)
+        XCTAssertEqual(same.result, .passed)
         XCTAssertEqual(same.line, "Mutation score 80.0% is the same as the baseline file muter.baseline.yml's.")
         XCTAssertEqual(
             check(33_334, of: 100_000, against: (1, 3), allowing: 0).line,
             "Mutation score 33.3% is less than 0.1 points above the baseline file muter.baseline.yml's 33.3%."
         )
-        XCTAssertTrue(check(84, of: 100, against: (80, 100), allowing: 0).passed)
+        XCTAssertEqual(check(84, of: 100, against: (80, 100), allowing: 0).result, .passed)
     }
 
     // As `--fail-under` counts it: a mutant taken out of the build with others may compile, so counts as not killed.
@@ -176,77 +148,19 @@ final class ScoreDropCheckTests: XCTestCase {
     // Only a whole project's score compares with the file's.
     func test_resultsThatArentTheWholeProjects_areNotChecked_andSayWhy() {
         let tested = outcome(killed: 1, of: 2)
-        var filesToMutate = tested
-        filesToMutate.filesToMutate = ["Sources/X.swift"]
-        let cases: [(MutationTestOutcome, ScoreGate.Progress?, ScoreDropCheck.NotChecked, String)] = [
-            (
-                .make([.failed], mutant: "Sources/X.swift:1:1 RelationalBoundary"),
-                nil,
-                .oneMutant,
-                "one mutant's score (--mutant) isn't the project's."
-            ),
-            (
-                .make([.failed], shards: ShardScope(.make(index: 1, count: 2, mutantsInAllShards: 2))),
-                nil,
-                .shard,
-                "a shard's score isn't the whole run's. Compare the merged report instead: swift-mutator report "
-                    + "--baseline muter.baseline.yml --max-score-drop 2 <each shard's results file>"
-            ),
-            (
-                MutationTestOutcome(
-                    mutations: tested.mutations,
-                    sample: SampleSelection(size: 2, seed: 9, mutantsSampledFrom: 40, mutantsSampled: 2)
-                ),
-                nil,
-                .sample,
-                "a sample's score (--sample) isn't the whole project's."
-            ),
-            (
-                MutationTestOutcome(mutations: tested.mutations, since: .make(changedLines: true)),
-                nil,
-                .since,
-                "the score of the code --since chose isn't the whole project's."
-            ),
-            (
-                MutationTestOutcome(mutations: tested.mutations, since: .make()),
-                nil,
-                .since,
-                "the score of the code --since chose isn't the whole project's."
-            ),
-            (
-                filesToMutate,
-                nil,
-                .filesToMutate,
-                "the score of the files --files-to-mutate chose isn't the whole project's."
-            ),
-            (
-                tested,
-                ScoreGate.Progress(results: 2, discovered: 10),
-                .unfinished,
-                "only 2 of 10 mutants have results, as the run didn't finish."
-            ),
-            (
-                MutationTestOutcome(mutations: tested.mutations, sampleIsCutShort: true),
-                nil,
-                .unfinished,
-                "the run didn't test every mutant it discovered."
-            ),
-            (.make([.buildError]), nil, .nothingScored, "no mutant was scored."),
-            (.make([]), nil, .nothingScored, "no mutant was scored."),
-        ]
-        for (judged, progress, reason, why) in cases {
+        for results in uncheckedResults(tested) {
             let verdict = ScoreDropCheck(
                 baseline: baseline(killed: 1, of: 2),
                 maxScoreDrop: 2,
-                judging: judged,
-                progress: progress
+                judging: results.judged,
+                progress: results.progress
             )
-            XCTAssertEqual(verdict.verdict, .notChecked(reason))
-            XCTAssertNil(verdict.passed)
+            XCTAssertEqual(verdict.verdict, .notChecked(results.reason))
+            XCTAssertEqual(verdict.result, .notChecked)
             XCTAssertNil(verdict.exitStatus)
             XCTAssertNil(verdict.score)
             XCTAssertNil(verdict.drop)
-            let line = "The score isn't compared with the baseline file muter.baseline.yml's: \(why)"
+            let line = "The score isn't compared with the baseline file muter.baseline.yml's: \(results.why)"
             XCTAssertEqual(verdict.line, line)
             XCTAssertEqual(verdict.consoleLines, ["⚠️ " + line])
         }
@@ -317,7 +231,7 @@ final class ScoreDropCheckTests: XCTestCase {
             )
         )
         XCTAssertEqual(unchecked.scoreDrop?.notChecked, .shard)
-        XCTAssertNil(unchecked.scoreDrop?.passed)
+        XCTAssertEqual(unchecked.scoreDrop?.passed, .notChecked)
         XCTAssertNil(unchecked.scoreDrop?.score)
         let plain = try XCTUnwrap(
             JSONSerialization.jsonObject(with: RunSummary(of: .make([.passed]), ended: .finished, report: nil).json)

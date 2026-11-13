@@ -34,12 +34,12 @@ struct Run: RunCommand {
             valueName: "k/n"
         ),
         transform: { text in
-            guard let shard = Shard(text) else {
+            guard let parsedShard = Shard(text) else {
                 throw ValidationError(
                     "give two whole numbers k/n with 1 ≤ k ≤ n ≤ \(Shard.largestCount), such as 1/2."
                 )
             }
-            return shard
+            return parsedShard
         }
     )
     var shard: Shard?
@@ -68,10 +68,10 @@ struct Run: RunCommand {
             valueName: "S"
         ),
         transform: { text in
-            guard text.allSatisfy({ ("0"..."9").contains($0) }), let seed = UInt64(text) else {
+            guard text.allSatisfy({ ("0"..."9").contains($0) }), let parsedSeed = UInt64(text) else {
                 throw ValidationError("give a whole number, 0 or more, such as 1234.")
             }
-            return seed
+            return parsedSeed
         }
     )
     var seed: UInt64?
@@ -114,7 +114,9 @@ struct Run: RunCommand {
     )
     var forceReuse = false
 
-    init() {}
+    init() {
+        // ArgumentParser sets the properties from the command line.
+    }
 
     /// The options the command line gives the run. Without `--seed`, a `--sample` gets a seed chosen afresh each time,
     /// so `run()` asks once. `--mutant` skips coverage, which only leaves files and code out of discovery. It leaves
@@ -123,6 +125,9 @@ struct Run: RunCommand {
     /// operator, and `SelectMutant` picks the mutant.
     var runOptions: Self.Options {
         Self.Options(
+            skipCoverage: options.skipCoverage || lone.mutant != nil,
+            skipUpdateCheck: options.skipUpdateCheck,
+            configurationURL: options.configurationURL,
             filesToMutate: selection.filesToMutate,
             exclude: selection.exclude,
             since: since,
@@ -136,10 +141,7 @@ struct Run: RunCommand {
             mutationOperatorsList: selection.mutationOperatorsList,
             operatorsAreNamed: selection.operatorsAreNamed,
             skipOperators: selection.skippedOperators,
-            skipCoverage: options.skipCoverage || lone.mutant != nil,
-            skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
-            configurationURL: options.configurationURL,
             workers: testing.workers,
             timeout: testing.timeout,
             buildTimeout: options.buildTimeout,
@@ -199,10 +201,8 @@ struct Run: RunCommand {
             }
         }
     }
-}
 
-private extension Run {
-    func validateWriteBaseline() throws {
+    private func validateWriteBaseline() throws {
         guard reportOptions.writeBaseline != nil else { return }
         let limits: [(option: String, isGiven: Bool)] = [
             ("--mutant", lone.mutant != nil),
@@ -219,7 +219,7 @@ private extension Run {
         }
     }
 
-    func validateMutant() throws {
+    private func validateMutant() throws {
         guard lone.mutant != nil else { return }
         let others: [(option: String, isGiven: Bool)] = [
             ("--operators", !selection.operators.isEmpty),
@@ -238,7 +238,7 @@ private extension Run {
         }
     }
 
-    func validateSample() throws {
+    private func validateSample() throws {
         if seed != nil, sample == nil {
             throw ValidationError("--seed only applies with --sample.")
         }

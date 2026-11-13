@@ -14,13 +14,13 @@ final class CheckMutantSwitchesTests: MuterTestCase {
     private let state = MutationTestState()
     private let sut = CheckMutantSwitches()
 
-    func test_whenEveryMutantHasItsSwitch_thenItPasses() async throws {
+    func test_whenEveryMutantHasItsSwitch_thenItPasses() throws {
         let file = try mutatedFile(named: "Check")
         XCTAssertGreaterThan(file.mapping.mutationSchemata.count, 1, "the fixture should hold several mutants")
         state.mutationMapping = [file.mapping]
         queueCode(file.rewritten)
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
         XCTAssertEqual(fileManager.contentsAtPath, [file.mapping.filePath])
@@ -38,7 +38,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
         )
 
         try await assertThrowsMuterError(
-            await sut.run(with: state),
+            sut.run(with: state),
             .literal(reason: CheckMutantSwitches.reason(for: [gap], usingTestPlan: false))
         )
         let reason = CheckMutantSwitches.reason(for: [gap], usingTestPlan: false)
@@ -58,7 +58,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
         state.mutationMapping = [file.mapping]
         queueCode(file.rewritten.replacingOccurrences(of: "\"\(lost.id)\"", with: "\"\""))
 
-        try await assertThrowsMuterError(await sut.run(with: state)) { error in
+        try await assertThrowsMuterError(sut.run(with: state)) { error in
             guard case let .literal(reason) = error else { return XCTFail("\(error)") }
             let count = file.mapping.mutationSchemata.count
             XCTAssertTrue(reason.contains("1 mutant has no switch"), reason)
@@ -81,7 +81,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
         let file = try mutatedFile(named: "Check")
         state.mutationMapping = [file.mapping]
 
-        try await assertThrowsMuterError(await sut.run(with: state)) { error in
+        try await assertThrowsMuterError(sut.run(with: state)) { error in
             guard case let .literal(reason) = error else { return XCTFail("\(error)") }
             XCTAssertTrue(reason.contains("/path/to/muted/Sources/Check.swift could not be read"), reason)
         }
@@ -94,7 +94,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
         state.mutationMapping = [file.mapping]
         queueCode(file.original)
 
-        try await assertThrowsMuterError(await sut.run(with: state)) { error in
+        try await assertThrowsMuterError(sut.run(with: state)) { error in
             guard case let .literal(reason) = error else { return XCTFail("\(error)") }
             XCTAssertTrue(reason.contains("`swift-mutator mutate-without-running`"), reason)
             XCTAssertFalse(reason.contains("bug"), reason)
@@ -116,7 +116,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
         queueCode(second.rewritten)
         queueCode(third.original)
 
-        try await assertThrowsMuterError(await sut.run(with: state)) { error in
+        try await assertThrowsMuterError(sut.run(with: state)) { error in
             guard case let .literal(reason) = error else { return XCTFail("\(error)") }
             XCTAssertTrue(reason.contains("First.swift lacks"), reason)
             XCTAssertFalse(reason.contains("Second.swift"), reason)

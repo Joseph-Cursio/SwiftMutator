@@ -3,15 +3,15 @@ import SwiftSyntax
 enum SwapTernaryOperator {
     final class Visitor: MuterVisitor {
         convenience init(
-            configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
+            configuration: MuterConfiguration? = nil,
             coverage: FileCoverage = .empty
         ) {
             self.init(
-                configuration: configuration,
                 sourceCodeInfo: sourceCodeInfo,
                 mutationOperatorId: .swapTernary,
-                coverage: coverage
+                coverage: coverage,
+                configuration: configuration
             )
         }
 
@@ -215,8 +215,8 @@ enum SwapTernaryOperator {
         }
 
         private func containsComplexExpressions(_ nodes: [ExprSyntax]) -> Bool {
-            nodes.contains(where: { $0.is(AsExprSyntax.self) })
-                || nodes.contains(where: { $0.is(UnresolvedAsExprSyntax.self) })
+            nodes.contains { $0.is(AsExprSyntax.self) }
+                || nodes.contains { $0.is(UnresolvedAsExprSyntax.self) }
         }
     }
 }

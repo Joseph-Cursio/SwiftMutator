@@ -1,5 +1,3 @@
-import Foundation
-
 public class Queue<A>: CustomDebugStringConvertible {
     public var debugDescription: String {
         """

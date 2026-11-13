@@ -28,14 +28,10 @@ enum SwiftPackageBuildConditions {
         case let .failure(failure): return .failure(BuildConditionsUnavailable(reason: failure.reason))
         }
 
-        var manifests: [Manifest] = []
-        for package in packages {
-            guard let manifest = await manifest(of: package, testedBy: configuration, process: process) else {
-                return .failure(BuildConditionsUnavailable(
-                    reason: "`swift package dump-package` gave nothing it could read for \(package.path)"
-                ))
-            }
-            manifests.append(manifest)
+        let manifests: [PackageManifest]
+        switch await Self.manifests(of: packages, testedBy: configuration, process: process) {
+        case let .success(dumped): manifests = dumped
+        case let .failure(failure): return .failure(failure)
         }
 
         let arguments = configuration.testCommandArguments
@@ -52,44 +48,16 @@ enum SwiftPackageBuildConditions {
             flags: customConditions(inSwiftFlags: swiftcFlags(in: arguments)).union(xcodeScheme == nil ? [] : ["Xcode"])
         )
 
-        var targets: [Set<String>] = []
-        var ofFile: [FilePath: [Set<String>]] = [:]
-        var undecided: Set<String> = []
-        var modes: [LanguageMode?] = []
+        var gathered = TargetConditions()
         let buildsToolsWithFlags = arguments.contains {
             $0 == "-Xbuild-tools-swiftc" || $0.hasPrefix("-Xbuild-tools-swiftc=")
         }
         for (package, manifest) in zip(packages, manifests) {
-            let unreadable = BuildConditionsUnavailable(
-                reason: "`swift package dump-package` gave nothing it could read for \(package.path)"
-            )
-            undecided.formUnion((manifest.traits ?? []).map(\.name))
-            // SwiftPM builds a plugin in its tools version's mode, with `-Xbuild-tools-swiftc`'s flags.
-            func languageMode(of target: Manifest.Target) -> LanguageMode? {
-                guard target.type == "plugin" else {
-                    return build.languageMode(of: target.settings ?? [], default: manifest.defaultLanguageMode)
-                }
-                return buildsToolsWithFlags ? nil : manifest.toolsVersionsLanguageMode
-            }
-            // A test target's or a plugin's are no target's here, but `--files-to-mutate` can name their files.
-            for other in manifest.targets where !package.targets.contains(where: { $0.name == other.name }) {
-                let conditions = build.conditions(of: other.settings ?? [])
-                undecided.formUnion(conditions.set.subtracting(build.conditions(of: []).set))
-                undecided.formUnion(conditions.undecided)
-                modes.append(languageMode(of: other))
-            }
-            for target in package.targets {
-                // Taking a target with no settings to read for one with none would decide its conditions wrongly.
-                guard let declared = manifest.targets.first(where: { $0.name == target.name }) else {
-                    return .failure(unreadable)
-                }
-                let conditions = build.conditions(of: declared.settings ?? [])
-                targets.append(conditions.set)
-                undecided.formUnion(conditions.undecided)
-                modes.append(languageMode(of: declared))
-                for file in target.files {
-                    ofFile[file, default: []].append(conditions.set)
-                }
+            guard gathered.add(package, manifest: manifest, build: build, buildsToolsWithFlags: buildsToolsWithFlags)
+            else {
+                return .failure(BuildConditionsUnavailable(
+                    reason: "`swift package dump-package` gave nothing it could read for \(package.path)"
+                ))
             }
         }
 
@@ -97,21 +65,40 @@ enum SwiftPackageBuildConditions {
             ? nil
             : await compilerVersion(testedBy: configuration, process: process, environment: environment)
         let commandSetsTheMode = LanguageMode.isSet(inFlags: swiftcFlags(in: arguments))
+        let language = commandSetsTheMode ? nil : LanguageMode.languageVersion(of: gathered.modes, compiler: compiler)
         return .success(ProjectBuildConditions(
             everyTarget: BuildConditions(
                 platform: platform,
-                customConditions: targets,
-                undecidedConditions: undecided,
+                customConditions: gathered.targets,
+                undecidedConditions: gathered.undecided,
                 compiler: compiler,
-                language: commandSetsTheMode ? nil : LanguageMode.languageVersion(of: modes, compiler: compiler)
+                language: language
             ),
-            customConditionsOfFile: ofFile
+            customConditionsOfFile: gathered.ofFile
         ))
+    }
+
+    /// The manifest of each of `packages`, from `swift package dump-package`.
+    private static func manifests(
+        of packages: [SwiftPackageSources.Package],
+        testedBy configuration: MuterConfiguration,
+        process: ProcessFactory
+    ) async -> Result<[PackageManifest], BuildConditionsUnavailable> {
+        var manifests: [PackageManifest] = []
+        for package in packages {
+            guard let manifest = await manifest(of: package, testedBy: configuration, process: process) else {
+                return .failure(BuildConditionsUnavailable(
+                    reason: "`swift package dump-package` gave nothing it could read for \(package.path)"
+                ))
+            }
+            manifests.append(manifest)
+        }
+        return .success(manifests)
     }
 
     /// Whether a package has a macro or a plugin, whose tools are built, with what they depend on, for the Mac that
     /// builds.
-    private static func builtForTheMac(_ manifests: [Manifest]) -> Bool {
+    private static func builtForTheMac(_ manifests: [PackageManifest]) -> Bool {
         manifests.contains { $0.targets.contains { $0.type == "macro" || $0.type == "plugin" } }
     }
 
@@ -141,159 +128,11 @@ enum SwiftPackageBuildConditions {
         return muterCore.compilerVersion(inVersionOutput: version.output)
     }
 
-    /// What decides a package's conditions in this build. `platform` is as a manifest's conditions name it; nil if
-    /// SwiftMutator can't tell.
-    private struct Build {
-        let configuration: String
-        let platform: String?
-        let flags: Set<String>
-
-        /// The conditions a target with `settings` sets, and those that depend on what can't be told here.
-        func conditions(of settings: [Manifest.Setting]) -> (set: Set<String>, undecided: Set<String>) {
-            var set = flags.union(["SWIFT_PACKAGE"])
-            if configuration == "debug" {
-                set.insert("DEBUG")
-            }
-            var undecided: Set<String> = []
-            for setting in settings where setting.tool == "swift" {
-                let names = setting.kind.define.map { [$0._0] } ?? []
-                let flags = customConditions(inSwiftFlags: setting.kind.unsafeFlags?._0 ?? [])
-                let declared = Set(names).union(flags)
-                switch applies(setting.condition) {
-                case true?: set.formUnion(declared)
-                case false?: break
-                case nil: undecided.formUnion(declared)
-                }
-            }
-            return (set, undecided)
-        }
-
-        /// The language mode a target with `settings` builds in, in a package whose own is `packageMode`: the one its
-        /// `swiftLanguageMode` sets, if it does. Nil if it can't be told: a setting that may or may not apply, one
-        /// SwiftMutator can't read, two that differ, or flags that set it.
-        func languageMode(of settings: [Manifest.Setting], default packageMode: LanguageMode?) -> LanguageMode? {
-            var targetsOwn: LanguageMode?
-            for setting in settings where setting.tool == "swift" {
-                let setsIt = setting.kind.setsLanguageMode
-                    || LanguageMode.isSet(inFlags: setting.kind.unsafeFlags?._0 ?? [])
-                guard setsIt else { continue }
-                switch applies(setting.condition) {
-                case false?:
-                    continue
-                case true?:
-                    guard let mode = setting.kind.languageMode, targetsOwn == nil || targetsOwn == mode else {
-                        return nil
-                    }
-                    targetsOwn = mode
-                case nil:
-                    return nil
-                }
-            }
-            return targetsOwn ?? packageMode
-        }
-
-        /// Whether a setting with `condition` applies; nil if it can't be told, as for one that a trait enables.
-        private func applies(_ condition: Manifest.Condition?) -> Bool? {
-            guard let condition else { return true }
-            if let config = condition.config, config != configuration {
-                return false
-            }
-            guard (condition.traits ?? []).isEmpty else { return nil }
-            let platforms = condition.platformNames ?? []
-            guard !platforms.isEmpty else { return true }
-            return platform.map(platforms.contains)
-        }
-    }
-
-    /// The fields of `swift package dump-package` that say what a target compiles with.
-    private struct Manifest: Decodable {
-        let targets: [Target]
-        let traits: [Trait]?
-        let toolsVersion: ToolsVersion?
-        let swiftLanguageVersions: [String]?
-
-        struct ToolsVersion: Decodable {
-            // swiftlint:disable:next identifier_name
-            let _version: String
-        }
-
-        /// The language mode of a target that sets none: the latest of `swiftLanguageModes`, as a compiler that has
-        /// them all builds in, or else the one its tools version sets. Nil for a mode SwiftMutator doesn't know, which
-        /// may be the latest, or a tools version before 5.
-        var defaultLanguageMode: LanguageMode? {
-            if let written = swiftLanguageVersions, !written.isEmpty {
-                let modes = written.compactMap(LanguageMode.init)
-                return modes.count == written.count ? modes.max() : nil
-            }
-            return toolsVersionsLanguageMode
-        }
-
-        /// The language mode the tools version sets, which a plugin is built in whatever `swiftLanguageModes` says.
-        var toolsVersionsLanguageMode: LanguageMode? {
-            switch toolsVersion?._version.split(separator: ".").first {
-            case "5": return .swift5
-            case "6": return .swift6
-            default: return nil
-            }
-        }
-
-        struct Trait: Decodable {
-            let name: String
-        }
-
-        struct Target: Decodable {
-            let name: String
-            let type: String?
-            let settings: [Setting]?
-        }
-
-        struct Setting: Decodable {
-            let tool: String
-            let kind: Kind
-            let condition: Condition?
-        }
-
-        struct Kind: Decodable {
-            let define: Payload<String>?
-            let unsafeFlags: Payload<[String]>?
-            /// Whether the setting sets the language mode: `swiftLanguageMode`, `swiftLanguageVersion` as tools
-            /// versions before 6 write it, or another spelling of either.
-            let setsLanguageMode: Bool
-            /// The mode it sets; nil if it sets none, or one SwiftMutator can't read.
-            let languageMode: LanguageMode?
-
-            init(from decoder: Decoder) throws {
-                let container = try decoder.container(keyedBy: ManifestKey.self)
-                define = try container.decodeIfPresent(Payload<String>.self, forKey: ManifestKey("define"))
-                unsafeFlags = try container.decodeIfPresent(Payload<[String]>.self, forKey: ManifestKey("unsafeFlags"))
-                let modeKeys = container.allKeys.filter { key in
-                    let name = key.stringValue.lowercased()
-                    return name.contains("languagemode") || name.contains("languageversion")
-                }
-                setsLanguageMode = !modeKeys.isEmpty
-                let known = modeKeys.count == 1 && ["swiftLanguageMode", "swiftLanguageVersion"]
-                    .contains(modeKeys[0].stringValue)
-                languageMode = known
-                    ? (try? container.decode(Payload<String>.self, forKey: modeKeys[0])).flatMap { LanguageMode($0._0) }
-                    : nil
-            }
-        }
-
-        // swiftlint:disable:next identifier_name
-        struct Payload<Value: Decodable>: Decodable { let _0: Value }
-
-        struct Condition: Decodable {
-            let config: String?
-            let platformNames: [String]?
-            let traits: [String]?
-        }
-    }
-
     private static func manifest(
         of package: SwiftPackageSources.Package,
         testedBy configuration: MuterConfiguration,
         process: ProcessFactory
-    ) async -> Manifest? {
+    ) async -> PackageManifest? {
         let options = SwiftPackageSources.forwardedOptions(in: configuration.testCommandArguments)
         guard let dumped = await process().runCommand(
             url: configuration.testCommandExecutable,
@@ -301,7 +140,7 @@ enum SwiftPackageBuildConditions {
         ), dumped.succeeded else {
             return nil
         }
-        return try? JSONDecoder().decode(Manifest.self, from: Data(dumped.output.utf8))
+        return try? JSONDecoder().decode(PackageManifest.self, from: Data(dumped.output.utf8))
     }
 
     /// `-c`'s or `--configuration`'s value, or `debug`, `swift test`'s default.
@@ -373,24 +212,6 @@ enum SwiftPackageBuildConditions {
         #else
         return nil
         #endif
-    }
-}
-
-/// Any key of a manifest's JSON, for a setting whose keys aren't all known.
-private struct ManifestKey: CodingKey {
-    let stringValue: String
-    var intValue: Int? { nil }
-
-    init(_ name: String) {
-        stringValue = name
-    }
-
-    init?(stringValue: String) {
-        self.stringValue = stringValue
-    }
-
-    init?(intValue _: Int) {
-        nil
     }
 }
 

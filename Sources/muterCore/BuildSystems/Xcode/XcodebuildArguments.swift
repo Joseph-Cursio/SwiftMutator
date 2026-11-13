@@ -1,21 +1,20 @@
-import Foundation
-
 /// An xcodebuild test command's arguments, read one at a time: each action, such as `test`, each option with its value,
 /// if it takes one, and anything else, such as a build setting. An option takes the argument after it as its value only
 /// if xcodebuild takes a value for it (`optionsWithAValue`), so in `-scheme test` the `test` is a value, not an action.
 /// An option it doesn't list is taken to stand alone, so that a wrapper script's own flag and its value are both kept
 /// wherever they are.
 struct XcodebuildArguments: Equatable {
+    /// What an `Argument` is.
+    enum ArgumentKind: Equatable {
+        case action
+        case option
+        /// A build setting, as `SWIFT_TREAT_WARNINGS_AS_ERRORS=NO`, or anything else that is neither.
+        case other
+    }
+
     /// One action, option or other argument, as the test command gives it.
     struct Argument: Equatable {
-        enum Kind: Equatable {
-            case action
-            case option
-            /// A build setting, as `SWIFT_TREAT_WARNINGS_AS_ERRORS=NO`, or anything else that is neither.
-            case other
-        }
-
-        let kind: Kind
+        let kind: ArgumentKind
         /// The action, or the option's name, as `-only-testing` for `-only-testing:AppTests`; any other argument as it
         /// is written.
         let name: String
@@ -26,27 +25,27 @@ struct XcodebuildArguments: Equatable {
     let arguments: [Argument]
 
     init(_ written: [String]) {
-        var arguments: [Argument] = []
+        var parsed: [Argument] = []
         var index = 0
         while index < written.count {
             let argument = written[index]
             if Self.actions.contains(argument) {
-                arguments.append(Argument(kind: .action, name: argument, written: [argument]))
+                parsed.append(Argument(kind: .action, name: argument, written: [argument]))
             } else if argument.hasPrefix("-") {
                 let name = argument.split(separator: ":", maxSplits: 1).first.map(String.init) ?? argument
                 let takesAValue = name == argument && Self.optionsWithAValue.contains(name) && index + 1 < written.count
-                arguments.append(Argument(
+                parsed.append(Argument(
                     kind: .option,
                     name: name,
                     written: takesAValue ? [argument, written[index + 1]] : [argument]
                 ))
                 index += takesAValue ? 1 : 0
             } else {
-                arguments.append(Argument(kind: .other, name: argument, written: [argument]))
+                parsed.append(Argument(kind: .other, name: argument, written: [argument]))
             }
             index += 1
         }
-        self.arguments = arguments
+        self.arguments = parsed
     }
 
     /// The arguments as written, less those `isLeftOut` picks, each with its value.
@@ -89,9 +88,7 @@ struct XcodebuildArguments: Equatable {
         "-parallel-testing-enabled", "-parallel-testing-worker-count", "-maximum-parallel-testing-workers",
         "-parallelize-tests-among-destinations",
     ]
-}
 
-extension XcodebuildArguments {
     /// The test command's arguments for an xcodebuild run from an `.xctestrun`, a mutant's, beside the
     /// `test-without-building`, `-destination` and `-xctestrun` the run is given, `worker`'s own arguments and the
     /// `-only-testing:` of a test filter, when `filtered`. So the options that say which tests run and how, such as
@@ -119,16 +116,22 @@ extension XcodebuildArguments {
             switch (argument.kind, argument.name) {
             case (.action, _):
                 return true
+
             case (.option, "-derivedDataPath"):
                 return worker != nil
+
             case (.option, "-collect-test-diagnostics"):
                 return worker?.testDiagnosticsOff == true
+
             case let (.option, name) where Self.parallelTestingOptions.contains(name):
                 return worker?.parallelTestingOff == true
+
             case (.option, "-only-testing"):
                 return filtered
+
             case let (.option, name):
                 return Self.leftOutOfARunFromTheTestRunFile.contains(name)
+
             case (.other, _):
                 return false
             }
@@ -177,28 +180,35 @@ extension XcodebuildArguments {
              (.action, "clean"),
              (.action, "build"):
             return nil
+
         case (.action, "build-for-testing"),
              (.action, "test-without-building"):
             return "`\(name)` in `arguments` is an action SwiftMutator runs itself: it builds once with "
                 + "`build-for-testing`, then tests each mutant with `test-without-building`. Give `test` as the action "
                 + "instead."
+
         case (.action, _):
             return "`\(name)` in `arguments` isn't an action SwiftMutator can test with: it runs your tests with "
                 + "`test`, and builds them with `build-for-testing` itself. Give `test` as the action instead."
+
         case (.option, "-xctestrun"):
             return "`-xctestrun` in `arguments` names what SwiftMutator tests each mutant from itself, the "
                 + "`.xctestrun` its build for testing writes. Leave it out, and name the project or workspace and the "
                 + "scheme to build, with `-project` or `-workspace` and `-scheme`."
+
         case (.option, "-testProductsPath"):
             return "`-testProductsPath` in `arguments` can't be used: each mutant's run tests from the `.xctestrun` "
                 + "SwiftMutator's build for testing writes, which xcodebuild won't take with it. Leave it out."
+
         case (.option, "-resultBundlePath"):
             return "`-resultBundlePath` in `arguments` would have SwiftMutator's coverage run, build for testing and "
                 + "baseline write one result bundle, and xcodebuild fails a run whose bundle is already there. Leave "
                 + "it out."
+
         case (.option, "-enumerate-tests"):
             return "`-enumerate-tests` in `arguments` lists the tests without running them, so every mutant would "
                 + "survive. Leave it out."
+
         default:
             return nil
         }

@@ -1,5 +1,4 @@
 @testable import muterCore
-import Rainbow
 import TestingExtensions
 import XCTest
 
@@ -67,7 +66,8 @@ final class ShardRunTests: MuterTestCase {
         let changes = try await DiscoverMutationPoints().run(with: state)
 
         guard case let .shardSelected(selection)? = changes.first else {
-            return XCTFail("Expected the shard first, got \(changes)")
+            XCTFail("Expected the shard first, got \(changes)")
+            return
         }
         XCTAssertEqual(selection.shard, shard)
         XCTAssertEqual(selection.mutantsInAllShards, 11)
@@ -153,8 +153,8 @@ final class ShardRunTests: MuterTestCase {
 
     func test_theConsole_saysHowManyEveryShardHolds_andThisOne() throws {
         let mapping = try SchemataMutationMapping.make(
-            filePath: "/project_mutated/Sources/Sum.swift",
-            (source: "let value = a == b", schemata: [.make(filePath: "/project_mutated/Sources/Sum.swift")])
+            (source: "let value = a == b", schemata: [.make(filePath: "/project_mutated/Sources/Sum.swift")]),
+            filePath: "/project_mutated/Sources/Sum.swift"
         )
         let logger = Logger()
 
@@ -245,18 +245,24 @@ final class ShardRunTests: MuterTestCase {
         let selection = ChangeSelection.make(ref: "origin/main")
 
         XCTAssertEqual(
-            ResumeSummary.selectionChange(from: (nil, nil, nil), to: (selection, Shard(index: 1, count: 2), nil)),
+            ResumeSummary.selectionChange(
+                from: ResumeSummary.Selection(),
+                to: ResumeSummary.Selection(since: selection, shard: Shard(index: 1, count: 2))
+            ),
             "This run mutates only what changed since the merge base of origin/main and HEAD (ba5e000), so no earlier "
                 + "result of another mutant is reused. This run tests only shard 1 of 2, so no earlier result of "
                 + "another shard's mutant is reused."
         )
-        XCTAssertNil(ResumeSummary.selectionChange(from: (selection, nil, nil), to: (selection, nil, nil)))
+        XCTAssertNil(
+            ResumeSummary.selectionChange(
+                from: ResumeSummary.Selection(since: selection),
+                to: ResumeSummary.Selection(since: selection)
+            )
+        )
     }
-}
 
-private extension ShardRunTests {
     /// The keys of the mutants discovery keeps with `shard`, in job order; nil discovers every one.
-    func keys(discovering shard: Shard?) async throws -> [MutantKey] {
+    private func keys(discovering shard: Shard?) async throws -> [MutantKey] {
         state.runOptions = .make(shard: shard)
         let changes = try await DiscoverMutationPoints().run(with: state)
         let mappings = changes.compactMap { change -> [SchemataMutationMapping]? in
@@ -267,12 +273,12 @@ private extension ShardRunTests {
     }
 
     /// A shard of `count` that holds some of the mutants.
-    func nonEmptyShard(of count: Int) async throws -> Shard? {
+    private func nonEmptyShard(of count: Int) async throws -> Shard? {
         let first = try await keys(discovering: nil).first
         return first.map { Shard(index: Shard.index(ofPlace: $0, among: count), count: count) }
     }
 
-    func prepare(source: String? = nil) throws {
+    private func prepare(source: String? = nil) throws {
         let project = try makeTemporaryDirectory()
         let path = "\(project)/Check.swift"
         try (source ?? self.source).write(toFile: path, atomically: true, encoding: .utf8)

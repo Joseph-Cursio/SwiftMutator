@@ -28,10 +28,10 @@ struct BuildForTesting: MutationStep {
         fileManager.changeCurrentDirectoryPath(state.mutatedProjectDirectoryURL.path)
 
         do {
-            let buildDirectory = try buildDirectory(state.muterConfiguration)
+            let directory = try buildDirectory(state.muterConfiguration)
             let leftOut = try await buildLeavingOutMutants(state: state)
             let tempDebugURL = createTestContetsUrl(state.mutatedProjectDirectoryURL)
-            try copyBuildArtifactsAtPath(buildDirectory, to: tempDebugURL.path)
+            try copyBuildArtifactsAtPath(directory, to: tempDebugURL.path)
 
             let xcTestRun = try parseXCTestRunAt(tempDebugURL)
             let canTurnOffTestDiagnostics = await takesNoTestDiagnostics(state.muterConfiguration)
@@ -173,14 +173,6 @@ struct BuildForTesting: MutationStep {
         """
     }
 
-    private func parseBuildRequest(_ path: String) throws -> XCTestBuildRequest {
-        guard let jsonContent = fileManager.contents(atPath: path) else {
-            throw MuterError.literal(reason: "Could not parse build request json at path: \(path)")
-        }
-
-        return try JSONDecoder().decode(XCTestBuildRequest.self, from: jsonContent)
-    }
-
     private func copyBuildArtifactsAtPath(_ buildPath: String, to destination: String) throws {
         try? fileManager.removeItem(
             atPath: destination
@@ -200,11 +192,11 @@ struct BuildForTesting: MutationStep {
             throw MuterError.literal(reason: "Could not parse xctestrun at path: \(xcTestRunPath)")
         }
 
-        guard let replaced = stringContents.replacingOccurrences(
+        let rooted = stringContents.replacingOccurrences(
             of: "__TESTROOT__/",
             with: "__TESTROOT__/\(Self.testContentsFolder)/\(buildDirectory)"
-        ).data(using: .utf8)
-        else {
+        )
+        guard let replaced = rooted.data(using: .utf8) else {
             throw MuterError.literal(reason: "Error error")
         }
 
@@ -220,11 +212,11 @@ struct BuildForTesting: MutationStep {
     }
 
     private func findMostRecentXCTestRunAtURL(_ url: URL) throws -> String {
-        guard let xctestrun = try fileManager.contents(
+        let contents = try fileManager.contents(
             atPath: url.path,
             sortedByDate: .orderedDescending
-        ).first(where: { $0.hasSuffix(".xctestrun") })
-        else {
+        )
+        guard let xctestrun = contents.first(where: { $0.hasSuffix(".xctestrun") }) else {
             throw MuterError.literal(reason: "Could not find xctestrun file at path: \(url.path)")
         }
 
@@ -233,25 +225,5 @@ struct BuildForTesting: MutationStep {
 
     private func createTestContetsUrl(_ tempURL: URL) -> URL {
         tempURL.appendingPathComponent(Self.testContentsFolder)
-    }
-}
-
-private struct XCTestBuildRequest: Codable {
-    var buildProductsPath: String {
-        parameters.arenaInfo.buildProductsPath
-    }
-
-    private let parameters: Parameters
-}
-
-extension XCTestBuildRequest {
-    struct Parameters: Codable {
-        let arenaInfo: ArenaInfo
-    }
-}
-
-extension XCTestBuildRequest.Parameters {
-    struct ArenaInfo: Codable {
-        let buildProductsPath: String
     }
 }

@@ -2,13 +2,11 @@ import Foundation
 @testable import muterCore
 
 // A test sets it up, then the code under test uses it from one task at a time, so it needs no lock.
-final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
+final class FileManagerSpy: FileSystemManager, @unchecked Sendable {
 
     private(set) var methodCalls: [String] = []
     private(set) var paths: [String] = []
     private(set) var createsIntermediates: [Bool] = []
-    private(set) var searchPathDirectories: [FileManager.SearchPathDirectory] = []
-    private(set) var domains: [FileManager.SearchPathDomainMask] = []
     private(set) var copyPaths: [(source: String, dest: String)] = []
     private(set) var contentsAtPath: [String] = []
     private(set) var contentsAtPathSorted: [String] = []
@@ -29,7 +27,7 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
         }
     }
 
-    var delegate: FileManagerDelegate?
+    weak var delegate: FileManagerDelegate?
     private(set) var delegateDuringCopy: FileManagerDelegate?
     /// Files that "disappear" during `copyItem`: each is reported to the delegate as a
     /// no-such-file error, the way Foundation reports one, and the copy carries on if it

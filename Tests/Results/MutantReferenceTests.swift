@@ -92,11 +92,11 @@ final class MutantReferenceTests: XCTestCase {
     // does.
     func test_anAbsolutePath_throughASymbolicLink_isMadeRelative_toTheRootItResolvesInto() throws {
         let (directory, link) = try makeDirectoryWithSymbolicLink()
-        let sources = (directory as NSString).appendingPathComponent("Sources")
+        let sources = directory.appendingPathComponent("Sources")
         try FileManager.default.createDirectory(atPath: sources, withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: (sources as NSString).appendingPathComponent("Bar.swift"), contents: nil)
+        FileManager.default.createFile(atPath: sources.appendingPathComponent("Bar.swift"), contents: nil)
         try FileManager.default.createSymbolicLink(
-            atPath: (sources as NSString).appendingPathComponent("Link.swift"),
+            atPath: sources.appendingPathComponent("Link.swift"),
             withDestinationPath: "Bar.swift"
         )
         let resolvedRoot = URL(fileURLWithPath: directory.canonicalPath)

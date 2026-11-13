@@ -3,6 +3,94 @@ import Foundation
 import FoundationXML
 #endif
 
+/// A path a workspace references, absolute and standardized, and whether the workspace names it by an absolute path,
+/// which the copy's workspace names too.
+private struct WorkspaceReference {
+    let url: URL
+    let isAbsolute: Bool
+}
+
+/// Reads a workspace's `FileRef` locations, resolving each against the `Group`s it is in.
+private final class WorkspaceReader: NSObject, XMLParserDelegate {
+    private let container: WorkspaceReference
+    /// Where each group the parser is in is, innermost last; nil for one whose location names nothing.
+    private var groups: [WorkspaceReference?] = []
+    private(set) var references: [WorkspaceReference] = []
+
+    init(container: URL) {
+        self.container = WorkspaceReference(url: container.standardizedFileURL, isAbsolute: false)
+    }
+
+    func parser(
+        _: XMLParser,
+        didStartElement elementName: String,
+        namespaceURI _: String?,
+        qualifiedName _: String?,
+        attributes attributeDict: [String: String] = [:]
+    ) {
+        switch elementName {
+        case "Group":
+            // A group without a location is only a name, so its references are relative to the group it is in.
+            if let location = attributeDict["location"] {
+                groups.append(resolve(location))
+            } else {
+                groups.append(currentGroup)
+            }
+
+        case "FileRef":
+            if let location = attributeDict["location"], let reference = resolve(location) {
+                references.append(reference)
+            }
+
+        default:
+            break
+        }
+    }
+
+    func parser(
+        _: XMLParser,
+        didEndElement elementName: String,
+        namespaceURI _: String?,
+        qualifiedName _: String?
+    ) {
+        if elementName == "Group", !groups.isEmpty {
+            groups.removeLast()
+        }
+    }
+
+    /// Where the innermost group the parser is in is, or the container outside every group.
+    private var currentGroup: WorkspaceReference? {
+        guard let innermost = groups.last else { return container }
+        return innermost
+    }
+
+    private func resolve(_ location: String) -> WorkspaceReference? {
+        guard let colon = location.firstIndex(of: ":") else { return nil }
+        let path = String(location[location.index(after: colon)...])
+        let base: WorkspaceReference?
+        switch location[..<colon] {
+        case "group":
+            base = currentGroup
+
+        case "container":
+            base = container
+
+        case "absolute":
+            return WorkspaceReference(url: URL(fileURLWithPath: path).standardizedFileURL, isAbsolute: true)
+
+        default:
+            return nil
+        }
+        guard let base else { return nil }
+        return path.isEmpty
+            ? base
+            : WorkspaceReference(
+                url: base.url.appendingPathComponent(path).standardizedFileURL,
+                isAbsolute: base.isAbsolute
+            )
+    }
+}
+
 /// The code outside the project's folder that its build uses from where it is. SwiftMutator copies only the project,
 /// beside it, so a relative path names the same folder from the project and its copy, and that code is built as it is,
 /// unmutated. It is the local packages the project's manifests name (`LocalPackageDependencies`), and the Xcode
@@ -27,10 +115,10 @@ enum OutsideProjectCode {
     /// The Xcode projects and package folders inside `projectRoot` that the workspaces and manifests among `paths`,
     /// relative to it, name by an absolute path, by their paths relative to it, without duplicates and sorted.
     static func namedByAbsolutePath(in projectRoot: URL, listed paths: some Sequence<String>) -> [String] {
-        let paths = Array(paths)
+        let pathList = Array(paths)
         let root = projectRoot.standardizedFileURL.pathComponents
-        let packages = LocalPackageDependencies.namedByAbsolutePath(inside: projectRoot, manifests: paths)
-        let references = builtReferences(in: projectRoot, workspaces: paths).compactMap { reference in
+        let packages = LocalPackageDependencies.namedByAbsolutePath(inside: projectRoot, manifests: pathList)
+        let references = builtReferences(in: projectRoot, workspaces: pathList).compactMap { reference in
             let components = reference.url.pathComponents
             return reference.isAbsolute && components.count > root.count && components.starts(with: root)
                 ? reference.url
@@ -71,19 +159,13 @@ enum OutsideProjectCode {
             && components[components.count - 2].hasSuffix(".xcworkspace")
             && !components.dropLast(2).contains { $0.hasSuffix(".xcodeproj") }
     }
-}
 
-/// A path a workspace references, absolute and standardized, and whether the workspace names it by an absolute path,
-/// which the copy's workspace names too.
-private struct WorkspaceReference {
-    let url: URL
-    let isAbsolute: Bool
-}
-
-private extension OutsideProjectCode {
     /// What the workspaces among `paths`, relative to `projectRoot`, reference that is built: a file, or a folder that
     /// is neither an Xcode project nor a package, isn't, and nor is anything that doesn't exist.
-    static func builtReferences(in projectRoot: URL, workspaces paths: some Sequence<String>) -> [WorkspaceReference] {
+    private static func builtReferences(
+        in projectRoot: URL,
+        workspaces paths: some Sequence<String>
+    ) -> [WorkspaceReference] {
         paths.filter(isWorkspace).flatMap { path in
             references(in: projectRoot.appendingPathComponent(path)).filter { isBuilt($0.url) }
         }
@@ -93,7 +175,7 @@ private extension OutsideProjectCode {
     /// top-level one, as a `container:` location, to the folder that holds the workspace. `absolute:` is a path of
     /// its own, and so is a `group:` location in a group with one. Any other kind, such as `self:` or `developer:`,
     /// names nothing of the project's, and nor does anything in a group with such a location.
-    static func references(in file: URL) -> [WorkspaceReference] {
+    private static func references(in file: URL) -> [WorkspaceReference] {
         guard let data = try? Data(contentsOf: file) else { return [] }
         let reader = WorkspaceReader(container: file.deletingLastPathComponent().deletingLastPathComponent())
         let parser = XMLParser(data: data)
@@ -104,7 +186,7 @@ private extension OutsideProjectCode {
     }
 
     /// An Xcode project, or a folder that holds a package manifest.
-    static func isBuilt(_ url: URL) -> Bool {
+    private static func isBuilt(_ url: URL) -> Bool {
         var isFolder: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), isFolder.boolValue else {
             return false
@@ -114,81 +196,5 @@ private extension OutsideProjectCode {
         }
         let names = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
         return names.contains(where: LocalPackageDependencies.isManifest)
-    }
-}
-
-/// Reads a workspace's `FileRef` locations, resolving each against the `Group`s it is in.
-private final class WorkspaceReader: NSObject, XMLParserDelegate {
-    private let container: WorkspaceReference
-    /// Where each group the parser is in is, innermost last; nil for one whose location names nothing.
-    private var groups: [WorkspaceReference?] = []
-    private(set) var references: [WorkspaceReference] = []
-
-    init(container: URL) {
-        self.container = WorkspaceReference(url: container.standardizedFileURL, isAbsolute: false)
-    }
-
-    func parser(
-        _: XMLParser,
-        didStartElement elementName: String,
-        namespaceURI _: String?,
-        qualifiedName _: String?,
-        attributes attributeDict: [String: String] = [:]
-    ) {
-        switch elementName {
-        case "Group":
-            // A group without a location is only a name, so its references are relative to the group it is in.
-            if let location = attributeDict["location"] {
-                groups.append(resolve(location))
-            } else {
-                groups.append(currentGroup)
-            }
-        case "FileRef":
-            if let location = attributeDict["location"], let reference = resolve(location) {
-                references.append(reference)
-            }
-        default:
-            break
-        }
-    }
-
-    func parser(
-        _: XMLParser,
-        didEndElement elementName: String,
-        namespaceURI _: String?,
-        qualifiedName _: String?
-    ) {
-        if elementName == "Group", !groups.isEmpty {
-            groups.removeLast()
-        }
-    }
-
-    /// Where the innermost group the parser is in is, or the container outside every group.
-    private var currentGroup: WorkspaceReference? {
-        guard let innermost = groups.last else { return container }
-        return innermost
-    }
-
-    private func resolve(_ location: String) -> WorkspaceReference? {
-        guard let colon = location.firstIndex(of: ":") else { return nil }
-        let path = String(location[location.index(after: colon)...])
-        let base: WorkspaceReference?
-        switch location[..<colon] {
-        case "group":
-            base = currentGroup
-        case "container":
-            base = container
-        case "absolute":
-            return WorkspaceReference(url: URL(fileURLWithPath: path).standardizedFileURL, isAbsolute: true)
-        default:
-            return nil
-        }
-        guard let base else { return nil }
-        return path.isEmpty
-            ? base
-            : WorkspaceReference(
-                url: base.url.appendingPathComponent(path).standardizedFileURL,
-                isAbsolute: base.isAbsolute
-            )
     }
 }

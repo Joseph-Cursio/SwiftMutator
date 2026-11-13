@@ -4,12 +4,17 @@ import XCTest
 /// Real folders and a real git. The fixtures are made without the user's or the system's git settings, under a fixed
 /// identity; the selection's own git calls see them, as a user's run would.
 final class GitChangesTests: XCTestCase {
-    private var repository = ""
+    private let repository = XCTestCase.unusedTemporaryPath()
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        repository = try makeTemporaryDirectory()
+        try FileManager.default.createDirectory(atPath: repository, withIntermediateDirectories: true)
         try git("init", "-q", "-b", "main")
+    }
+
+    override func tearDownWithError() throws {
+        try FileManager.default.removeItem(atPath: repository)
+        try super.tearDownWithError()
     }
 
     // The merge base, not main itself: a change main made after the branch left it isn't the branch's.
@@ -221,10 +226,8 @@ final class GitChangesTests: XCTestCase {
 
         XCTAssertEqual(selection.files, [])
     }
-}
 
-private extension GitChangesTests {
-    func select(
+    private func select(
         since ref: String,
         changedLines: Bool = false,
         in project: URL? = nil
@@ -232,18 +235,18 @@ private extension GitChangesTests {
         try await GitChanges.select(since: ref, changedLines: changedLines, in: project ?? url("")).get()
     }
 
-    func url(_ path: String) -> URL {
+    private func url(_ path: String) -> URL {
         URL(fileURLWithPath: repository).appendingPathComponent(path)
     }
 
     /// "line 1\n" to "line n\n", with each line in `changing` changed and each in `removing` left out.
-    func lines(_ numbers: ClosedRange<Int>, changing: Set<Int> = [], removing: Set<Int> = []) -> String {
+    private func lines(_ numbers: ClosedRange<Int>, changing: Set<Int> = [], removing: Set<Int> = []) -> String {
         numbers.filter { !removing.contains($0) }
             .map { changing.contains($0) ? "line \($0) changed\n" : "line \($0)\n" }
             .joined()
     }
 
-    func write(_ files: [String: String]) throws {
+    private func write(_ files: [String: String]) throws {
         for (path, contents) in files {
             let file = url(path)
             try FileManager.default.createDirectory(
@@ -254,7 +257,7 @@ private extension GitChangesTests {
         }
     }
 
-    func commit(_ message: String) throws {
+    private func commit(_ message: String) throws {
         try git("add", "-A")
         try run([
             "-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false",
@@ -262,16 +265,16 @@ private extension GitChangesTests {
         ])
     }
 
-    func git(_ arguments: String...) throws {
+    private func git(_ arguments: String...) throws {
         _ = try run(arguments)
     }
 
-    func output(_ arguments: String...) throws -> String {
+    private func output(_ arguments: String...) throws -> String {
         try run(arguments).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     @discardableResult
-    func run(_ arguments: [String], expecting status: Int32 = 0) throws -> String {
+    private func run(_ arguments: [String], expecting status: Int32 = 0) throws -> String {
         let git = Foundation.Process()
         git.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         git.arguments = ["-C", repository] + arguments
@@ -287,6 +290,6 @@ private extension GitChangesTests {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         git.waitUntilExit()
         XCTAssertEqual(git.terminationStatus, status, "git \(arguments.joined(separator: " "))")
-        return String(decoding: data, as: UTF8.self)
+        return String(lossyUTF8: data)
     }
 }

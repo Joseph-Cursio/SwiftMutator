@@ -1,5 +1,3 @@
-import Foundation
-
 struct PlainTextReporter: Reporter {
     func report(from outcome: MutationTestOutcome) -> String {
         let report = MuterTestReport(from: outcome)
@@ -12,29 +10,41 @@ struct PlainTextReporter: Reporter {
 
 
         """ + notCoveredMessage(from: report)
-        let appliedMutationsMessage = """
+        return survivorsMessage + appliedMutationsMessage(from: report) + killingTestsMessage(from: report)
+            + propertyKillsMessage(from: report) + triageMessage(from: report)
+            + mutationScoresMessage(from: report, coverageSkipped: outcome.coverageSkipped)
+            + runMessage(from: report)
+    }
+
+    /// The Applied Mutation Operators section: how many mutants each file has, and what each operator does.
+    private func appliedMutationsMessage(from report: MuterTestReport) -> String {
+        """
         --------------------------
         Applied Mutation Operators
         --------------------------
 
         These are all of the ways that SwiftMutator introduced changes into your code.
 
-        In total, SwiftMutator introduced \(report.totalAppliedMutationOperators) mutants in \(report.fileReports.count) files.
+        In total, SwiftMutator introduced \(report.totalAppliedMutationOperators) mutants in \
+        \(report.fileReports.count) files.
 
-        \(generateAppliedMutationOperatorsCLITable(from: report.fileReports).description)\(
+        \(CLITable.appliedMutationOperators(from: report.fileReports).description)\(
             operatorLegend(from: report)
         )
 
 
         """
+    }
 
-        let coloredGlobalScore = coloredMutationScore(
+    /// The Mutation Test Scores section: the score, its counts and what it covers, and each file's score.
+    private func mutationScoresMessage(from report: MuterTestReport, coverageSkipped: Bool) -> String {
+        let coloredGlobalScore = CLITable.coloredMutationScore(
             for: report.globalMutationScore,
             appliedTo: "\(report.globalMutationScore)%"
         )
-        let projectCoverageMessage = Self.coverageMessage(from: report, skipped: outcome.coverageSkipped)
+        let projectCoverageMessage = Self.coverageMessage(from: report, skipped: coverageSkipped)
         let mutationScoreMessage = "Mutation Score of Test Suite: ".bold + "\(coloredGlobalScore)"
-        let mutationScoresMessage = """
+        return """
         --------------------
         Mutation Test Scores
         --------------------
@@ -58,12 +68,8 @@ struct PlainTextReporter: Reporter {
             report.mutant.map { "\n" + MuterTestReport.oneMutantSentence($0) } ?? ""
         )
 
-        \(generateMutationScoresCLITable(from: report.fileReports).description)
+        \(CLITable.mutationScores(from: report.fileReports).description)
         """
-
-        return survivorsMessage + appliedMutationsMessage + killingTestsMessage(from: report)
-            + propertyKillsMessage(from: report) + triageMessage(from: report) + mutationScoresMessage
-            + runMessage(from: report)
     }
 
     /// What each operator in the table does, after a blank line; none without mutants.
@@ -144,7 +150,7 @@ struct PlainTextReporter: Reporter {
     private func killingTestsMessage(from report: MuterTestReport) -> String {
         guard let summary = report.killingTestSummary else { return "" }
         // Without the line break CLITable ends each line with; none when there are no tests.
-        let tableLines = generateKillingTestsCLITable(from: summary).description
+        let tableLines = CLITable.killingTests(from: summary).description
             .split(separator: "\n")
             .map(String.init)
         let paragraphs: [String?] = [
@@ -164,7 +170,7 @@ struct PlainTextReporter: Reporter {
     /// `propertyTests`, so such a report is as it was.
     private func propertyKillsMessage(from report: MuterTestReport) -> String {
         guard let summary = report.propertyKillSummary else { return "" }
-        let tableLines = summary.properties.isEmpty ? [] : generatePropertyKillsCLITable(from: summary).description
+        let tableLines = summary.properties.isEmpty ? [] : CLITable.propertyKills(from: summary).description
             .split(separator: "\n")
             .map(String.init)
         let paragraphs: [String?] = [

@@ -1,5 +1,4 @@
 @testable import muterCore
-import SwiftSyntax
 import TestingExtensions
 import XCTest
 
@@ -31,7 +30,8 @@ final class PerformMutationTestingControlRunTests: MuterTestCase {
 
     func test_tasks_putOneControlRunHalfwayThroughEachWholeStretch() {
         XCTAssertEqual(
-            PerformMutationTesting.tasks(Array(0 ..< 250), controlRunEvery: 100).enumerated()
+            PerformMutationTesting.tasks(Array(0 ..< 250), controlRunEvery: 100)
+                .enumerated()
                 .compactMap { position, task in task == .control(1) || task == .control(2) ? position : nil },
             [50, 151]
         )
@@ -234,7 +234,7 @@ final class PerformMutationTestingControlRunTests: MuterTestCase {
             outcome: .failed, worker: 2, failedTests: [.init(name: "timing()", location: "TimingTests.swift:9:5")]
         )
         let lines: [any Encodable] = [ResultsHeader.make(), earlier, ResultsEnd.make(recorded: 0)]
-        let session = TestingSession(number: 2, startedAt: ResultsHeader.fixedStart + 3_600)
+        let session = TestingSession(startedAt: ResultsHeader.fixedStart + 3_600, number: 2)
         session.controlRuns = [.make(session: 2, finishedAt: ResultsHeader.fixedStart + 3_700)]
 
         state.resumeState = try ResumeState.make(lines: lines, file: resultsFiles.openForResume(at: "/r.jsonl"))
@@ -280,7 +280,6 @@ final class PerformMutationTestingControlRunTests: MuterTestCase {
 
     private func makeSchemataMapping(file: String, line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/project_mutated/\(file)",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -292,7 +291,8 @@ final class PerformMutationTestingControlRunTests: MuterTestCase {
                         snapshot: .make(before: ">", after: "<", description: "changed > to <")
                     ),
                 ]
-            )
+            ),
+            filePath: "/project_mutated/\(file)"
         )
     }
 }

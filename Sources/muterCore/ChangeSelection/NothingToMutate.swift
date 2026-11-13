@@ -1,5 +1,3 @@
-import Foundation
-
 /// A `--since` run with nothing left to mutate. Not a failure: SwiftMutator says why and exits with 0, writing no
 /// report or results file, so a CI job on a change that touches no Swift code passes.
 struct NothingToMutate: Error, Equatable, CustomStringConvertible {
@@ -31,19 +29,24 @@ struct NothingToMutate: Error, Equatable, CustomStringConvertible {
         switch reason {
         case .noSwiftFileChanged:
             why = "No Swift file changed \(since)"
+
         case let .everyFileExcluded(count):
             why = "\(files(count)) changed \(since), and the excludes leave out \(count == 1 ? "it" : "every one")"
+
         case let .noTargetCompiles(count):
             why = "\(files(count)) changed \(since), and no target compiles \(count == 1 ? "it" : "any of them")"
+
         case let .noFileDiscovered(count):
             why = "\(files(count)) changed \(since), and discovery leaves out \(count == 1 ? "it" : "every one"): "
                 + "no target compiles \(count == 1 ? "it" : "them"), "
                 + "or the tests don't cover \(count == 1 ? "it" : "them")"
+
         case let .noMutantInChangedFiles(count):
             let none = chosenOperators.map { "none of the operators chosen (\(Self.listed($0))) mutates" }
                 ?? "no operator mutates"
             why = "\(files(count)) changed \(since), and \(none) any code in "
                 + (count == 1 ? "it" : "them")
+
         case .noMutantOnChangedLines:
             let mutant = chosenOperators.map { "No mutant of the operators chosen (\(Self.listed($0)))" } ?? "No mutant"
             why = "\(mutant) is on a line added or changed \(since)"

@@ -24,7 +24,7 @@ enum TriageLabel: String, Codable, CaseIterable {
 /// One mutant's label in the triage file. A key holds its mutant's line and column, which any edit above it moves, so
 /// an entry also holds what its mutant changes (`TriageMatches`). Those three are optional, for an entry written by
 /// hand: without them it applies at its key alone, and can't follow its code.
-struct TriageEntry: Equatable {
+struct TriageEntry: Equatable, Encodable {
     let mutant: MutantKey
     let label: TriageLabel
     let note: String?
@@ -50,16 +50,12 @@ struct TriageEntry: Equatable {
         self.after = after
         self.line = line?.trimmingCharacters(in: .whitespaces)
     }
-}
 
-extension TriageEntry {
     /// This entry at `key`, where its code now is.
-    func moved(to key: MutantKey) -> TriageEntry {
-        TriageEntry(mutant: key, label: label, note: note, before: before, after: after, line: line)
+    func moved(to key: MutantKey) -> Self {
+        Self(mutant: key, label: label, note: note, before: before, after: after, line: line)
     }
-}
 
-extension TriageEntry: Encodable {
     private enum CodingKeys: String, CodingKey {
         case mutant
         case label
@@ -90,19 +86,20 @@ struct TriageFile: Equatable {
     let path: String
     var entries: [TriageEntry]
 
+    /// An entry as YAML gives it (`Written`).
+    private struct WrittenEntry: Decodable {
+        let mutant: String
+        let label: String
+        let note: String?
+        let before: String?
+        let after: String?
+        let line: String?
+    }
+
     /// The file as YAML gives it. A mutant and a label are checked once it's decoded: a decoder's errors say where, in
     /// its own words, and hide why.
     private struct Written: Decodable {
-        struct Entry: Decodable {
-            let mutant: String
-            let label: String
-            let note: String?
-            let before: String?
-            let after: String?
-            let line: String?
-        }
-
-        let mutants: [Entry]?
+        let mutants: [WrittenEntry]?
     }
 
     private struct Saved: Encodable {
@@ -111,7 +108,7 @@ struct TriageFile: Equatable {
 
     /// `muter.triage.yml` in `folder`.
     static func path(in folder: String) -> String {
-        (folder as NSString).appendingPathComponent(fileName)
+        folder.appendingPathComponent(fileName)
     }
 
     /// The file at `path`; nil when there is none. A file with no entries is one with none to apply. Whatever a save
@@ -128,7 +125,7 @@ struct TriageFile: Equatable {
     private static func entries(in data: Data, path: String) throws -> [TriageEntry] {
         let refusal = { (problem: String) in MuterError.literal(reason: "Could not read \(path): \(problem)") }
         guard let text = String(data: data, encoding: .utf8) else { throw refusal("it isn't UTF-8") }
-        let written: [Written.Entry]
+        let written: [WrittenEntry]
         do {
             let document = try Yams.load(yaml: text)
             if let problem = unknownKey(in: document) { throw refusal(problem) }

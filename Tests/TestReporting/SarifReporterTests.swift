@@ -54,30 +54,7 @@ final class SarifReporterTests: MuterTestCase {
     // read, over the code the mutant changes, wherever its operator placed it, with that code as the region's snippet
     // and its lines whole as the context's.
     func test_locations() throws {
-        let outcome = Fixture.outcome([
-            Fixture.mutant(.passed, line: 2, column: 25),
-            Fixture.mutant(.passed, line: 3, column: 14, before: "<", after: ">"),
-            Fixture.mutant(
-                .passed, .logicalOperator, "Sources/Other.swift", line: 4, column: 9, before: "&&", after: "||"
-            ),
-            Fixture.mutant(.passed, .ror, "/elsewhere/Shared.swift", line: 1, column: 14),
-            Fixture.mutant(
-                .passed,
-                .logicalOperator,
-                line: Fixture.andPlace.line,
-                column: Fixture.andPlace.column,
-                before: "&&",
-                after: "||"
-            ),
-            Fixture.mutant(
-                .passed,
-                .swapTernary,
-                line: Fixture.ternaryEnd.line,
-                column: Fixture.ternaryEnd.column,
-                before: Fixture.ternary,
-                after: "flag ? 2 : 1"
-            ),
-        ])
+        let outcome = mutantsInEveryKindOfPlace
         let run = try run(outcome)
         let locations = run.results.compactMap { $0.locations.first?.physicalLocation }
 
@@ -120,7 +97,7 @@ final class SarifReporterTests: MuterTestCase {
         current.projectInWorkTree = { _ in .init(root: "/work", projectFolder: "My Foo") }
         let outcome = Fixture.outcome([
             Fixture.mutant(.passed, line: 2, column: 25),
-            Fixture.mutant(.passed, .ror, "/elsewhere/Shared.swift", line: 1, column: 14),
+            Fixture.mutant(.passed, line: 1, column: 14, operatorId: .ror, path: "/elsewhere/Shared.swift"),
         ])
         let run = try run(outcome)
 
@@ -245,5 +222,40 @@ final class SarifReporterTests: MuterTestCase {
         XCTAssertEqual(run.tool.driver.name, "SwiftMutator")
         XCTAssertEqual(run.tool.driver.version, "1.2.3")
         XCTAssertEqual(run.tool.driver.informationUri, "https://github.com/Joseph-Cursio/SwiftMutator")
+    }
+
+    /// Mutants in the project and outside it, in another file, and placed by their operators at the start of a
+    /// chain's link and at the end of a ternary over several lines.
+    private var mutantsInEveryKindOfPlace: MutationTestOutcome {
+        Fixture.outcome([
+            Fixture.mutant(.passed, line: 2, column: 25),
+            Fixture.mutant(.passed, line: 3, column: 14, before: "<", after: ">"),
+            Fixture.mutant(
+                .passed,
+                line: 4,
+                column: 9,
+                operatorId: .logicalOperator,
+                path: "Sources/Other.swift",
+                before: "&&",
+                after: "||"
+            ),
+            Fixture.mutant(.passed, line: 1, column: 14, operatorId: .ror, path: "/elsewhere/Shared.swift"),
+            Fixture.mutant(
+                .passed,
+                line: Fixture.andPlace.line,
+                column: Fixture.andPlace.column,
+                operatorId: .logicalOperator,
+                before: "&&",
+                after: "||"
+            ),
+            Fixture.mutant(
+                .passed,
+                line: Fixture.ternaryEnd.line,
+                column: Fixture.ternaryEnd.column,
+                operatorId: .swapTernary,
+                before: Fixture.ternary,
+                after: "flag ? 2 : 1"
+            ),
+        ])
     }
 }

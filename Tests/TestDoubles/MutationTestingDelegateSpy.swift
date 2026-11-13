@@ -1,14 +1,9 @@
 import Foundation
 @testable import muterCore
-import SwiftSyntax
 
 // A test sets it up before the run. What parallel workers call is behind `lock`.
-final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @unchecked Sendable {
+final class MutationTestingDelegateSpy: MutationTestingIODelegate, @unchecked Sendable {
     private(set) var methodCalls: [String] = []
-    private(set) var backedUpFilePaths: [String] = []
-    private(set) var mutatedFileContents: [String] = []
-    private(set) var mutatedFilePaths: [String] = []
-    private(set) var restoredFilePaths: [String] = []
 
     private(set) var schematas: MutationSchemata = []
     private(set) var testRuns: [XCTestRun] = []
@@ -30,7 +25,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private var directoriesInUse: Set<URL> = []
     private let lock = NSLock()
 
-    var testSuiteOutcomes: [TestSuiteOutcome]!
+    var testSuiteOutcomes: [TestSuiteOutcome] = []
     /// How the run of the mutant with this id ends, before `testSuiteOutcomes`: for a verdict that mustn't depend on
     /// which worker tests the mutant, or when.
     var outcomesByMutant: [String: TestSuiteOutcome] = [:]
@@ -50,7 +45,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     var mutantRunEndings: [TestRun.Ending] = []
     /// What each mutant's run shows of its block, in the order they're run (`TestRun.activated`); that it ran once
     /// empty.
-    var mutantActivations: [Bool?] = []
+    var mutantActivations: [MutantActivation] = []
     /// Called with each mutant run's zero-based number just before it returns, so a test can cancel
     /// mutation testing while a run is under way.
     var whileRunningMutant: ((Int) -> Void)?
@@ -94,17 +89,6 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     /// Each run's output `keepOutput` was asked to move, and where to, nil to remove it, in order.
     private(set) var keptOutputs: [(output: String, path: String?)] = []
     private var mutantRunCount = 0
-
-    func backupFile(at path: String, using _: [FilePath: FilePath]) {
-        methodCalls.append(#function)
-        backedUpFilePaths.append(path)
-    }
-
-    func writeFile(to path: String, contents: String) throws {
-        methodCalls.append(#function)
-        mutatedFilePaths.append(path)
-        mutatedFileContents.append(contents)
-    }
 
     func runTestSuite(
         withSchemata schemata: MutationSchema,
@@ -168,7 +152,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         let testLog = mutantTestLogs.isEmpty ? "testLog" : mutantTestLogs.removeFirst()
         let ending = mutantRunEndings.isEmpty ? .exited : mutantRunEndings.removeFirst()
         let outcome = outcomesByMutant[schemata.id] ?? testSuiteOutcomes.remove(at: 0)
-        let activated = mutantActivations.isEmpty ? true : mutantActivations.removeFirst()
+        let activated = mutantActivations.isEmpty ? .ran : mutantActivations.removeFirst()
         return (TestRun(outcome: outcome, testLog: testLog, ending: ending, activated: activated), mutantRunCount)
     }
 
@@ -247,7 +231,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         }
         whileRunningTestsWithoutBuilding?()
         let (run, ending) = lock.withLock {
-            let name = (fileName as NSString).lastPathComponent
+            let name = fileName.lastPathComponent
             let run = firstTestRunsWithoutBuildingWritingTo.removeValue(forKey: name)
                 ?? testRunsWithoutBuildingWritingTo[name]
                 ?? (testRunsWithoutBuilding.isEmpty
@@ -276,10 +260,5 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     func keepOutput(at output: String, as path: String?) -> Bool {
         lock.withLock { keptOutputs.append((output, path)) }
         return false
-    }
-
-    func restoreFile(at path: String, using _: [FilePath: FilePath]) {
-        methodCalls.append(#function)
-        restoredFilePaths.append(path)
     }
 }

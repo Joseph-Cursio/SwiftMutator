@@ -57,8 +57,8 @@ struct ApplySchemata: MutationStep {
         let count = mapping.mutationSchemata.count
         return """
         SwiftMutator could not read \(mapping.filePath), or it isn't UTF-8, so it could not insert the \
-        \(count == 1 ? "switch of the mutant" : "switches of the \(count) mutants") it found there. Their tests would run without them, and every \
-        one would survive.
+        \(count == 1 ? "switch of the mutant" : "switches of the \(count) mutants") it found there. \
+        Their tests would run without them, and every one would survive.
         """
     }
 

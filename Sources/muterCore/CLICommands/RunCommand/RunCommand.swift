@@ -1,10 +1,7 @@
 import ArgumentParser
 import Foundation
 
-protocol RunCommand: AsyncParsableCommand {
-    func run(with options: Run.Options) async throws
-    func validate() throws
-}
+protocol RunCommand: AsyncParsableCommand {}
 
 extension RunCommand {
     func run(with options: Run.Options) async throws {
@@ -28,8 +25,6 @@ extension RunCommand {
         }
     }
 
-    func validate() throws {}
-
     /// What a run command prints when its work failed with `error`. A refused resume, a run refused because another
     /// is using the project's copy, a refused test plan, a refused baseline file, a `--mutant` that names no mutant to
     /// test on its own, a `--since` that git couldn't answer, and one with nothing to mutate or a shard with no mutant,
@@ -44,6 +39,7 @@ extension RunCommand {
         case is ResumeRefused, MutatedProjectLockError.inUse, is TestPlanRefused, is BaselineRefused, is MutantRefused,
              is ChangeSelectionError, is NothingToMutate, is EmptyShard, is OnlyUncoveredMutants:
             return "\(error)"
+
         default:
             break
         }
@@ -81,6 +77,7 @@ extension Interruptions.Ended where Value == RunChecks {
         switch result {
         case let .failure(error):
             ExitCode.exitStatus(afterRunFailedWith: error)
+
         case let .success(checks):
             checks.exitStatus
         }

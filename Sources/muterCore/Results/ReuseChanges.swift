@@ -25,9 +25,7 @@ struct ReuseChanges: Equatable {
     var isEmpty: Bool {
         otherFiles.isEmpty && waived.isEmpty && testFiles.isEmpty
     }
-}
 
-extension ReuseChanges {
     /// The changes from the session's tree `recorded` to this run's, `current`, split, with `globs` matched against the
     /// files other than test files only. `readSource` gives a file's text by its path relative to the project, as the
     /// copy holds it, or nil if it can't be read. Changes to a local package's own tests, outside the project, are left
@@ -42,7 +40,7 @@ extension ReuseChanges {
             .filter { !($0.path.hasPrefix("../") && Self.isInTestFolder($0.path)) }
         let testPaths = Set(changes.filter { $0.kind != .removed && Self.isTestFile($0.path, readSource: readSource) }
             .map(\.path))
-        let testFiles = changes.filter { testPaths.contains($0.path) }
+        let changedTests = changes.filter { testPaths.contains($0.path) }
         // A removed file's text is gone, so nothing shows whether it was a test or a fixture. One that may have been
         // either counts as another file, which no glob lets through.
         let others = changes.filter { !testPaths.contains($0.path) }
@@ -52,7 +50,7 @@ extension ReuseChanges {
         }
         let split = others.filter { !mayHaveBeenATest($0) }.partition(by: globs)
         var sources: [String: String] = [:]
-        if !testFiles.isEmpty {
+        if !changedTests.isEmpty {
             for path in current.files.keys
                 where path.hasSuffix(".swift") && Self.isTestFile(path, readSource: readSource) {
                 sources[path] = readSource(path)
@@ -60,7 +58,7 @@ extension ReuseChanges {
         }
         otherFiles = (others.filter(mayHaveBeenATest) + split.unwaived).sorted { $0.path < $1.path }
         waived = split.waived.map(\.path)
-        self.testFiles = testFiles
+        self.testFiles = changedTests
         testSources = sources
         recordedFiles = recorded.files
         currentFiles = current.files
@@ -116,7 +114,7 @@ extension ReuseChanges {
         }
         // A file's type is its name's, up to a `+`: `ParsingTests+Helpers.swift` extends `ParsingTests`.
         let changedTypes = testFiles.map { change in
-            String((change.path as NSString).lastPathComponent.prefix { $0 != "+" && $0 != "." })
+            String(change.path.lastPathComponent.prefix { $0 != "+" && $0 != "." })
         }
         return !changedTypes.contains { Searched.containsIdentifier($0, in: text) }
     }
@@ -127,7 +125,7 @@ extension ReuseChanges {
     }
 
     private static func pathsByName(_ files: [String: String]) -> [String: [String]] {
-        Dictionary(grouping: files.keys) { ($0 as NSString).lastPathComponent }
+        Dictionary(grouping: files.keys) { ($0).lastPathComponent }
     }
 
     /// The only path whose file's name is `name`; nil if there is none, or more than one.
@@ -144,16 +142,16 @@ extension ReuseChanges {
         case type(String)
 
         init?(_ name: String) {
-            var name = Substring(name)
-            let isSuite = name.hasPrefix("Suite ")
+            var remaining = Substring(name)
+            let isSuite = remaining.hasPrefix("Suite ")
             if isSuite {
-                name = name.dropFirst("Suite ".count)
+                remaining = remaining.dropFirst("Suite ".count)
             }
-            if name.hasPrefix("\""), name.hasSuffix("\""), name.count > 2 {
-                self = .displayName(String(name))
+            if remaining.hasPrefix("\""), remaining.hasSuffix("\""), remaining.count > 2 {
+                self = .displayName(String(remaining))
                 return
             }
-            let identifier = String(name.prefix { $0 != "(" })
+            let identifier = String(remaining.prefix { $0 != "(" })
             guard !identifier.isEmpty, identifier.allSatisfy(Self.isIdentifierCharacter) else { return nil }
             self = isSuite ? .type(identifier) : .function(identifier)
         }
@@ -163,9 +161,11 @@ extension ReuseChanges {
             switch self {
             case let .displayName(quoted):
                 return text.contains(quoted)
+
             case let .function(name):
                 let declaration = #"\bfunc\s+"# + NSRegularExpression.escapedPattern(for: name) + #"\b"#
                 return text.range(of: declaration, options: .regularExpression) != nil
+
             case let .type(name):
                 return Self.containsIdentifier(name, in: text)
             }
@@ -176,6 +176,7 @@ extension ReuseChanges {
             switch self {
             case let .displayName(quoted):
                 return text.contains(quoted)
+
             case let .function(name), let .type(name):
                 return Self.containsIdentifier(name, in: text)
             }

@@ -1,5 +1,3 @@
-import Foundation
-
 /// A `--shard` run whose shard holds none of the mutants discovered, as when there are fewer than shards. Not a
 /// failure: SwiftMutator says so and exits with 0, writing no report or results file, so a CI job of a matrix wider
 /// than the change passes. `report` merges the other shards without it.

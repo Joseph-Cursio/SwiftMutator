@@ -13,7 +13,7 @@ struct TurnOffSwiftLintPhases: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         let configuration = state.muterConfiguration
         guard configuration.buildSystem == .xcodebuild, !configuration.keepsSwiftLintPhases else { return [] }
         let copy = state.mutatedProjectDirectoryURL
@@ -26,7 +26,7 @@ struct TurnOffSwiftLintPhases: MutationStep {
         let phases = projectFiles.sorted().reduce(SwiftLintPhases()) { phases, path in
             phases + SwiftLintPhases.turnOff(
                 inProjectFileAt: copy.appendingPathComponent(path),
-                shownAs: (path as NSString).deletingLastPathComponent
+                shownAs: path.deletingLastPathComponent
             )
         }
         if !phases.isEmpty {

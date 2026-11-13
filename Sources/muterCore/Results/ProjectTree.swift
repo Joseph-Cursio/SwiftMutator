@@ -8,15 +8,16 @@ struct ProjectTree: Codable, Equatable {
         case walk
     }
 
-    struct FileChange: Equatable {
-        enum Kind: String {
-            case changed
-            case added
-            case removed
-        }
+    /// How a file differs from the tree it is compared with (`FileChange`).
+    enum FileChangeKind: String {
+        case changed
+        case added
+        case removed
+    }
 
+    struct FileChange: Equatable {
         let path: String
-        let kind: Kind
+        let kind: FileChangeKind
     }
 
     let listedBy: Listing
@@ -29,9 +30,7 @@ struct ProjectTree: Codable, Equatable {
     let excluded: [String]
     /// SHA-256 over every "path\0hash\n", sorted by path.
     let treeSHA256: String
-}
 
-extension ProjectTree {
     /// What a symbolic link's entry in `files` starts with.
     static let linkPrefix = "link:"
     /// Folders no outcome is read from, at any depth: build products, git's own, and Xcode's per-user state.
@@ -64,15 +63,15 @@ extension ProjectTree {
         listingIn listingRoot: URL,
         hashingIn hashingRoot: URL,
         excluding excluded: [String],
-        pruning prunedFolders: Set<String> = [],
-        list: ProjectFileListing
-    ) async -> ProjectTree {
+        list: ProjectFileListing,
+        pruning prunedFolders: Set<String> = []
+    ) async -> Self {
         await fingerprinting(
             listingIn: listingRoot,
             hashingIn: hashingRoot,
             excluding: excluded,
-            pruning: prunedFolders,
-            list: list
+            list: list,
+            pruning: prunedFolders
         ).tree
     }
 
@@ -91,26 +90,26 @@ extension ProjectTree {
         listingIn listingRoot: URL,
         hashingIn hashingRoot: URL,
         excluding excluded: [String],
-        pruning prunedFolders: Set<String> = [],
-        list: ProjectFileListing
+        list: ProjectFileListing,
+        pruning prunedFolders: Set<String> = []
     ) async -> Fingerprinting {
         let listed = await list(listingRoot)
         let paths = self.paths(listed: listed, under: hashingRoot, pruning: prunedFolders).subtracting(excluded)
-        var files: [String: String] = [:]
+        var hashes: [String: String] = [:]
         for path in paths {
-            files[path] = digest(of: hashingRoot.appendingPathComponent(path))
+            hashes[path] = digest(of: hashingRoot.appendingPathComponent(path))
         }
         let localPackages = LocalPackageDependencies.outside(listingRoot, manifests: paths)
         for dependency in localPackages {
             for path in self.paths(listed: await list(dependency.url), under: dependency.url) {
-                files[dependency.relativePath + "/" + path] = digest(of: dependency.url.appendingPathComponent(path))
+                hashes[dependency.relativePath + "/" + path] = digest(of: dependency.url.appendingPathComponent(path))
             }
         }
-        let tree = ProjectTree(
+        let tree = Self(
             listedBy: listed == nil ? .walk : .git,
-            files: files,
+            files: hashes,
             excluded: Set(excluded).sorted(),
-            treeSHA256: treeHash(of: files)
+            treeSHA256: treeHash(of: hashes)
         )
         return Fingerprinting(tree: tree, paths: paths, localPackages: localPackages)
     }
@@ -169,7 +168,7 @@ extension ProjectTree {
         var paths: [String] = []
         while let path = enumerator.nextObject() as? String {
             if enumerator.fileAttributes?[.type] as? FileAttributeType == .typeDirectory {
-                let name = (path as NSString).lastPathComponent
+                let name = path.lastPathComponent
                 if prunedComponents.contains(name) || prunedFolders.contains(path)
                     || skippingCheckouts && exists(root.appendingPathComponent(path).appendingPathComponent(".git")) {
                     // On Darwin, skipping the descendants of anything but a folder skips the next folder.
@@ -188,16 +187,19 @@ extension ProjectTree {
     }
 
     /// What changed from `recorded`, after leaving out both sessions' excluded paths.
-    func changes(since recorded: ProjectTree) -> [FileChange] {
+    func changes(since recorded: Self) -> [FileChange] {
         let paths = Set(files.keys).union(recorded.files.keys).subtracting(excluded).subtracting(recorded.excluded)
         return paths.sorted().compactMap { path in
             switch (recorded.files[path], files[path]) {
             case let (was?, isNow?):
                 return was == isNow ? nil : FileChange(path: path, kind: .changed)
+
             case (nil, _?):
                 return FileChange(path: path, kind: .added)
+
             case (_?, nil):
                 return FileChange(path: path, kind: .removed)
+
             case (nil, nil):
                 return nil
             }
@@ -211,20 +213,20 @@ extension ProjectTree {
     /// only said.
     static func excludedPaths(
         _ options: Run.Options,
-        reports: [ReportRequest] = [],
-        under projectRoot: URL
+        under projectRoot: URL,
+        reports: [ReportRequest] = []
     ) -> [String] {
-        reportPaths(options, reports: reports, under: projectRoot)
+        reportPaths(options, under: projectRoot, reports: reports)
             + relativePaths([LoadConfiguration.configurationPath(options, in: projectRoot.path)], under: projectRoot)
     }
 
-    /// What the run of `state` leaves out of its project's tree, as `excludedPaths(_:reports:under:)` gives it, with
+    /// What the run of `state` leaves out of its project's tree, as `excludedPaths(_:under:reports:)` gives it, with
     /// the reports its configuration saves.
     static func excludedPaths(of state: AnyMutationTestState, under projectRoot: URL) -> [String] {
         excludedPaths(
             state.runOptions,
-            reports: state.muterConfiguration.reportRequests(in: state.projectDirectoryURL),
-            under: projectRoot
+            under: projectRoot,
+            reports: state.muterConfiguration.reportRequests(in: state.projectDirectoryURL)
         )
     }
 
@@ -232,8 +234,8 @@ extension ProjectTree {
     /// inside it.
     static func reportPaths(
         _ options: Run.Options,
-        reports: [ReportRequest] = [],
-        under projectRoot: URL
+        under projectRoot: URL,
+        reports: [ReportRequest] = []
     ) -> [String] {
         let requested = [options.reportOptions.path] + reports.map(\.path)
         return relativePaths(requested.flatMap { [$0, PartialReport.path(besides: $0)] }, under: projectRoot)
@@ -260,36 +262,54 @@ extension ProjectTree {
 
     /// The tree `delta` makes of this one, or nil if `delta` wasn't recorded against it, or doesn't make the tree it
     /// recorded.
-    func applying(_ delta: ProjectTreeDelta) -> ProjectTree? {
+    func applying(_ delta: ProjectTreeDelta) -> Self? {
         guard delta.baseTreeSHA256 == treeSHA256 else { return nil }
-        var files = files.merging(delta.files) { _, recorded in recorded }
+        var merged = files.merging(delta.files) { _, recorded in recorded }
         for path in delta.removed {
-            files.removeValue(forKey: path)
+            merged.removeValue(forKey: path)
         }
-        let tree = ProjectTree(
+        let tree = Self(
             listedBy: delta.listedBy,
-            files: files,
+            files: merged,
             excluded: delta.excluded,
-            treeSHA256: Self.treeHash(of: files)
+            treeSHA256: Self.treeHash(of: merged)
         )
         return tree.treeSHA256 == delta.treeSHA256 ? tree : nil
     }
-}
 
-/// A resumed session's project tree, as what changed since the tree of the session it resumed, whose `treeSHA256` it
-/// names: a project's every hash in each session's header made it about 205 KB longer on SwiftProjectLint, where the
-/// files seldom change between sessions.
-struct ProjectTreeDelta: Codable, Equatable {
-    /// The `treeSHA256` of the tree it was recorded against: the last session's.
-    let baseTreeSHA256: String
-    let listedBy: ProjectTree.Listing
-    let excluded: [String]
-    /// Each file added or changed since, with its SHA-256, as `ProjectTree.files` has it.
-    let files: [String: String]
-    /// The paths of the files removed since, sorted.
-    let removed: [String]
-    /// The `treeSHA256` of the tree it makes.
-    let treeSHA256: String
+    /// A file's SHA-256, or a symbolic link's "link:" + the SHA-256 of where it points; nil for anything else, and
+    /// for something that isn't there.
+    private static func digest(of url: URL) -> String? {
+        switch (try? FileManager.default.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType {
+        case .typeRegular:
+            return FileDigest.sha256(of: url)
+
+        case .typeSymbolicLink:
+            return (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path))
+                .map { FileDigest.sha256(of: Data($0.utf8)) }
+                .map { linkPrefix + $0 }
+
+        default:
+            return nil
+        }
+    }
+
+    /// Whether anything is at `url`, a symbolic link that points nowhere included.
+    private static func exists(_ url: URL) -> Bool {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil
+    }
+
+    /// `path`, absolute, with every symbolic link resolved in the part of it that exists: a report not written yet,
+    /// in a folder not made yet, still compares with the project's path, which `getcwd()` gives resolved.
+    static func resolved(_ path: String) -> String {
+        var existing = URL(fileURLWithPath: path).standardizedFileURL
+        var missing: [String] = []
+        while existing.path != "/", !exists(existing) {
+            missing.insert(existing.lastPathComponent, at: 0)
+            existing.deleteLastPathComponent()
+        }
+        return missing.reduce(existing.path.canonicalPath) { ($0).appendingPathComponent($1) }
+    }
 }
 
 extension ProjectTreeDelta {
@@ -303,42 +323,6 @@ extension ProjectTreeDelta {
             removed: base.files.keys.filter { tree.files[$0] == nil }.sorted(),
             treeSHA256: tree.treeSHA256
         )
-    }
-}
-
-private extension ProjectTree {
-    /// A file's SHA-256, or a symbolic link's "link:" + the SHA-256 of where it points; nil for anything else, and
-    /// for something that isn't there.
-    static func digest(of url: URL) -> String? {
-        switch (try? FileManager.default.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType {
-        case .typeRegular:
-            return FileDigest.sha256(of: url)
-        case .typeSymbolicLink:
-            return (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path))
-                .map { FileDigest.sha256(of: Data($0.utf8)) }
-                .map { linkPrefix + $0 }
-        default:
-            return nil
-        }
-    }
-
-    /// Whether anything is at `url`, a symbolic link that points nowhere included.
-    static func exists(_ url: URL) -> Bool {
-        (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil
-    }
-}
-
-extension ProjectTree {
-    /// `path`, absolute, with every symbolic link resolved in the part of it that exists: a report not written yet,
-    /// in a folder not made yet, still compares with the project's path, which `getcwd()` gives resolved.
-    static func resolved(_ path: String) -> String {
-        var existing = URL(fileURLWithPath: path).standardizedFileURL
-        var missing: [String] = []
-        while existing.path != "/", !exists(existing) {
-            missing.insert(existing.lastPathComponent, at: 0)
-            existing.deleteLastPathComponent()
-        }
-        return missing.reduce(existing.path.canonicalPath) { ($0 as NSString).appendingPathComponent($1) }
     }
 }
 
@@ -362,96 +346,5 @@ extension [ProjectTree.FileChange] {
             }
         }
         return (waived, unwaived)
-    }
-}
-
-/// A project's files as git sees them: tracked, and untracked but not ignored, by the project's own ignore files and
-/// the user's global ones.
-enum GitFileListing {
-    /// How many repositories deep nested ones are listed by their own git; deeper ones are walked.
-    private static let maximumDepth = 4
-
-    /// `git ls-files` on `directory`, or nil if git fails (no repository, git missing, killed), or if `directory` is in
-    /// a folder its repository ignores. A folder entry (a submodule, or an untracked nested repository listed as
-    /// `dir/`) is replaced by its own listing, prefixed; failing that, by a walk. Depth 4 at most.
-    static func list(in directory: URL) async -> [String]? {
-        guard await !isIgnoredByItsRepository(directory) else { return nil }
-        return await list(in: directory, depth: 0)
-    }
-
-    /// The environment git runs in: `environment` without the variables that name a repository, as a hook's does,
-    /// so `-C` alone says which one; without `GIT_DIFF_OPTS`, which would add context to `--since`'s `-U0` diffs; and
-    /// without optional locks, so a listing never refreshes the user's index.
-    static func environment(_ environment: [String: String]) -> [String: String] {
-        var environment = environment.filter { !repositoryVariables.contains($0.key) && $0.key != "GIT_DIFF_OPTS" }
-        environment["GIT_OPTIONAL_LOCKS"] = "0"
-        return environment
-    }
-
-    /// What `git rev-parse --local-env-vars` names.
-    private static let repositoryVariables: Set = [
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
-        "GIT_OBJECT_DIRECTORY", "GIT_DIR", "GIT_WORK_TREE", "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE",
-        "GIT_INDEX_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX", "GIT_SHALLOW_FILE",
-        "GIT_COMMON_DIR",
-    ]
-
-    /// Whether `directory` lies below its repository's top level, in a folder the repository ignores. git lists none of
-    /// the untracked files there, and a listing of only the files forced in would leave out every test fixture.
-    static func isIgnoredByItsRepository(_ directory: URL) async -> Bool {
-        // At the top level `.` reads as ignored when the repository ignores everything, though git lists what it
-        // tracks.
-        guard let prefix = await run(["rev-parse", "--show-prefix"], in: directory), prefix.status == 0,
-              !prefix.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else { return false }
-        // Without --no-index, a folder that holds a file forced in doesn't read as ignored.
-        return await run(["check-ignore", "-q", "--no-index", "."], in: directory)?.status == 0
-    }
-
-    private static func list(in directory: URL, depth: Int) async -> [String]? {
-        guard let entries = await listing(in: directory) else { return nil }
-        var files: [String] = []
-        for entry in entries {
-            let path = entry.hasSuffix("/") ? String(entry.dropLast()) : entry
-            let folder = directory.appendingPathComponent(path)
-            guard entry.hasSuffix("/") || isFolder(folder) else {
-                files.append(entry)
-                continue
-            }
-            let listing = depth < maximumDepth ? await list(in: folder, depth: depth + 1) : nil
-            let inside = listing ?? ProjectTree.walk(folder, keeping: { _ in true }, skippingCheckouts: false)
-            files += inside.map { path + "/" + $0 }
-        }
-        return files
-    }
-
-    private static func listing(in directory: URL) async -> [String]? {
-        guard let git = await run(["ls-files", "-z", "--cached", "--others", "--exclude-standard"], in: directory),
-              git.status == 0
-        else { return nil }
-        let entries = Set(git.output.split(separator: "\0").map(String.init))
-        // The folder is a submodule that isn't checked out: its files aren't git's to list, so it is walked.
-        guard !entries.contains("./"), !entries.contains(".") else { return nil }
-        return entries.sorted()
-    }
-
-    /// git with `arguments`, in `directory`: its exit status and output, or nil if it didn't run or was killed.
-    private static func run(_ arguments: [String], in directory: URL) async -> (status: Int32, output: String)? {
-        await git(arguments, in: directory).map { ($0.status, $0.output) }
-    }
-
-    /// git with `arguments`, in `directory`, in `environment(_:)`: how it ended, or nil if it didn't run or was killed.
-    static func git(_ arguments: [String], in directory: URL) async -> CommandResult? {
-        let git = Foundation.Process()
-        git.environment = environment(ProcessInfo.processInfo.environment)
-        guard let result = await git.runCommand(url: "/usr/bin/git", arguments: ["-C", directory.path] + arguments),
-              !result.endedBySignal
-        else { return nil }
-        return result
-    }
-
-    /// A folder, not a symbolic link to one: git lists a link as a file of its own.
-    private static func isFolder(_ url: URL) -> Bool {
-        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType == .typeDirectory
     }
 }

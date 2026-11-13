@@ -2,11 +2,44 @@ import SwiftDiagnostics
 import SwiftIfConfig
 import SwiftSyntax
 
+/// Finds the `#if` clauses the build leaves out. `SwiftIfConfig`'s own `configuredRegions` has no "don't know": after a
+/// condition it can't evaluate it takes the next clause as active, so the `#else` of one would read as the branch that
+/// compiles, and the branch before it as left out.
+private final class InactiveRegionVisitor: SyntaxVisitor {
+    private let conditions: BuildConditions
+    private(set) var regions: [Range<AbsolutePosition>] = []
+
+    init(conditions: BuildConditions) {
+        self.conditions = conditions
+        super.init(viewMode: .sourceAccurate)
+    }
+
+    override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
+        // Once a clause's condition holds, whichever clause compiles, those after it don't.
+        var anEarlierClauseCompiles = false
+        for clause in node.clauses {
+            let answer = clause.condition.map(conditions.answer(to:)) ?? .holds
+            if anEarlierClauseCompiles || answer == .fails {
+                if let elements = clause.elements {
+                    regions.append(elements.position ..< elements.endPosition)
+                }
+                continue
+            }
+            // A clause that may compile can hold `#if`s that are decided, as an `os(…)` is inside a `canImport(…)`.
+            if let elements = clause.elements {
+                walk(elements)
+            }
+            anEarlierClauseCompiles = answer == .holds
+        }
+        return .skipChildren
+    }
+}
+
 /// What the build a run tests compiles with, as far as SwiftMutator can tell, for working out which `#if` branches it
 /// leaves out. Anything it can't tell is left undecided, and undecided code keeps its mutants: a branch wrongly taken
 /// for inactive would silently lose real mutants, where one wrongly kept gets mutants that only coverage can then
 /// filter out, as it did before this pass.
-struct BuildConditions: Equatable, Sendable {
+struct BuildConditions: Equatable, Sendable, BuildConfiguration {
     /// The platform the build is for; nil if SwiftMutator can't tell, as for a cross-compilation.
     var platform: Platform?
     /// The custom conditions set for each target the code may be in: `-D` flags and the like. A condition is set if
@@ -39,6 +72,32 @@ struct BuildConditions: Equatable, Sendable {
         let architectures: Set<String>?
         /// nil if SwiftMutator couldn't list the SDK's.
         var modules: SDKModules?
+
+        /// The pointer width `_pointerBitWidth(…)` asks for: 64 if every architecture is 64-bit; nil otherwise. A
+        /// 32-bit build is left undecided, as its macros and plugins are built for the host, which is 64-bit, in the
+        /// same build.
+        var pointerBitWidth: Int? {
+            guard let architectures, !architectures.isEmpty else { return nil }
+            return architectures.isSubset(of: Self.sixtyFourBit) ? 64 : nil
+        }
+
+        /// The byte order `_endian(…)` asks for: little if every architecture is one SwiftMutator knows, as all of
+        /// those are; nil otherwise.
+        var endianness: Endianness? {
+            guard let architectures, !architectures.isEmpty else { return nil }
+            return architectures.isSubset(of: Self.sixtyFourBit.union(Self.thirtyTwoBit)) ? .little : nil
+        }
+
+        /// As `arch(…)`, Xcode's `ARCHS` and SwiftPM's host spell them. All are little-endian.
+        private static let sixtyFourBit: Set = ["arm64", "arm64e", "x86_64", "aarch64"]
+        private static let thirtyTwoBit: Set = ["arm64_32", "armv7k", "armv7", "armv7s", "i386"]
+    }
+
+    /// Whether an `#if` condition holds in a build, or that it can't be told.
+    enum ConditionAnswer {
+        case holds
+        case fails
+        case undecided
     }
 
     /// What `canImport` can say from the SDKs. A module in neither set may still be a package's, or a target's in the
@@ -81,23 +140,21 @@ struct BuildConditions: Equatable, Sendable {
         return visitor.regions
     }
 
-    /// Whether `condition` holds in this build; nil if it can't be told.
-    fileprivate func holds(_ condition: ExprSyntax) -> Bool? {
-        let unanswerable = unanswerable
+    /// Whether `condition` holds in this build, or that it can't be told.
+    func answer(to condition: ExprSyntax) -> ConditionAnswer {
+        let unanswerableNames = unanswerable
         // By the identifier's name, so that `` `swift`(>=5) `` is found too.
         let isUnanswerable = condition.tokens(viewMode: .sourceAccurate).contains {
-            unanswerable.contains($0.identifier?.name ?? $0.text)
+            unanswerableNames.contains($0.identifier?.name ?? $0.text)
         }
-        guard !isUnanswerable else { return nil }
+        guard !isUnanswerable else { return .undecided }
 
         let (state, _, diagnostics) = IfConfigRegionState.evaluating(condition, in: self)
         // On an error it gives false, and `!` then makes that true, so its answer means nothing.
-        guard !diagnostics.contains(where: { $0.diagMessage.severity == .error }) else { return nil }
-        return state == .active
+        guard !diagnostics.contains(where: { $0.diagMessage.severity == .error }) else { return .undecided }
+        return state == .active ? .holds : .fails
     }
-}
 
-extension BuildConditions: BuildConfiguration {
     func isCustomConditionSet(name: String) throws -> Bool {
         // `$AsyncAwait` asks whether the compiler has a feature, as `hasFeature(…)` does: it is no condition a build
         // sets, and it holds wherever the feature is on.
@@ -144,10 +201,10 @@ extension BuildConditions: BuildConfiguration {
     }
 
     func isActiveTargetOS(name: String) throws -> Bool {
-        let platform = try knownPlatform()
+        let buildPlatform = try knownPlatform()
         // `os(OSX)` is the old name of `os(macOS)`, and `os(xrOS)` that of `os(visionOS)`.
         let aliases = ["OSX": "macOS", "xrOS": "visionOS"]
-        return (aliases[name] ?? name) == platform.system
+        return (aliases[name] ?? name) == buildPlatform.system
     }
 
     func isActiveTargetArchitecture(name: String) throws -> Bool {
@@ -172,8 +229,8 @@ extension BuildConditions: BuildConfiguration {
     }
 
     func isActiveTargetRuntime(name: String) throws -> Bool {
-        let platform = try knownPlatform()
-        return name == (Self.applePlatforms.contains(platform.system) ? "_ObjC" : "_Native")
+        let buildPlatform = try knownPlatform()
+        return name == (Self.applePlatforms.contains(buildPlatform.system) ? "_ObjC" : "_Native")
     }
 
     func isActiveTargetPointerAuthentication(name: String) throws -> Bool {
@@ -181,8 +238,8 @@ extension BuildConditions: BuildConfiguration {
     }
 
     func isActiveTargetObjectFormat(name: String) throws -> Bool {
-        let platform = try knownPlatform()
-        return name == (Self.applePlatforms.contains(platform.system) ? "MachO" : "ELF")
+        let buildPlatform = try knownPlatform()
+        return name == (Self.applePlatforms.contains(buildPlatform.system) ? "MachO" : "ELF")
     }
 
     // The `unanswerable` functions ask these, and a condition that calls one this build can't answer is never
@@ -200,58 +257,5 @@ extension BuildConditions: BuildConfiguration {
             throw Undecided(description: "which platform the build is for")
         }
         return platform
-    }
-}
-
-extension BuildConditions.Platform {
-    /// The pointer width `_pointerBitWidth(…)` asks for: 64 if every architecture is 64-bit; nil otherwise. A 32-bit
-    /// build is left undecided, as its macros and plugins are built for the host, which is 64-bit, in the same build.
-    var pointerBitWidth: Int? {
-        guard let architectures, !architectures.isEmpty else { return nil }
-        return architectures.isSubset(of: Self.sixtyFourBit) ? 64 : nil
-    }
-
-    /// The byte order `_endian(…)` asks for: little if every architecture is one SwiftMutator knows, as all of those
-    /// are; nil otherwise.
-    var endianness: Endianness? {
-        guard let architectures, !architectures.isEmpty else { return nil }
-        return architectures.isSubset(of: Self.sixtyFourBit.union(Self.thirtyTwoBit)) ? .little : nil
-    }
-
-    /// As `arch(…)`, Xcode's `ARCHS` and SwiftPM's host spell them. All are little-endian.
-    private static let sixtyFourBit: Set = ["arm64", "arm64e", "x86_64", "aarch64"]
-    private static let thirtyTwoBit: Set = ["arm64_32", "armv7k", "armv7", "armv7s", "i386"]
-}
-
-/// Finds the `#if` clauses the build leaves out. `SwiftIfConfig`'s own `configuredRegions` has no "don't know": after a
-/// condition it can't evaluate it takes the next clause as active, so the `#else` of one would read as the branch that
-/// compiles, and the branch before it as left out.
-private final class InactiveRegionVisitor: SyntaxVisitor {
-    private let conditions: BuildConditions
-    private(set) var regions: [Range<AbsolutePosition>] = []
-
-    init(conditions: BuildConditions) {
-        self.conditions = conditions
-        super.init(viewMode: .sourceAccurate)
-    }
-
-    override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
-        // Once a clause's condition holds, whichever clause compiles, those after it don't.
-        var anEarlierClauseCompiles = false
-        for clause in node.clauses {
-            let holds = clause.condition.map(conditions.holds) ?? true
-            if anEarlierClauseCompiles || holds == false {
-                if let elements = clause.elements {
-                    regions.append(elements.position ..< elements.endPosition)
-                }
-                continue
-            }
-            // A clause that may compile can hold `#if`s that are decided, as an `os(…)` is inside a `canImport(…)`.
-            if let elements = clause.elements {
-                walk(elements)
-            }
-            anEarlierClauseCompiles = holds == true
-        }
-        return .skipChildren
     }
 }

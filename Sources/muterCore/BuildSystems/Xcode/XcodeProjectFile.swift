@@ -1,5 +1,3 @@
-import Foundation
-
 /// An Xcode project's `project.pbxproj`, read as the old-style property list Xcode writes, with where each string lies
 /// in the file's bytes: so a change to one string can leave every other byte of the file as it was, comments,
 /// spacing and the order of its objects included. A file in another format, as XML, isn't read.
@@ -49,9 +47,9 @@ struct XcodeProjectFile {
     /// Nil when `bytes` isn't an old-style property list with a dictionary at its root.
     init?(_ bytes: [UInt8]) {
         var parser = Parser(bytes: bytes)
-        guard let root = parser.value(), case .dictionary = root else { return nil }
+        guard let rootValue = parser.value(), case .dictionary = rootValue else { return nil }
         self.bytes = bytes
-        self.root = root
+        self.root = rootValue
     }
 
     /// The project's objects, each by its identifier.
@@ -75,38 +73,65 @@ struct XcodeProjectFile {
             index += 1
             let escaped = bytes[index]
             index += 1
-            switch escaped {
-            case UInt8(ascii: "n"): decoded.append((0x0A, offset))
-            case UInt8(ascii: "t"): decoded.append((0x09, offset))
-            case UInt8(ascii: "r"): decoded.append((0x0D, offset))
-            case UInt8(ascii: "a"): decoded.append((0x07, offset))
-            case UInt8(ascii: "b"): decoded.append((0x08, offset))
-            case UInt8(ascii: "f"): decoded.append((0x0C, offset))
-            case UInt8(ascii: "v"): decoded.append((0x0B, offset))
-            case UInt8(ascii: "U"):
-                var scalar: UInt32 = 0
-                var digits = 0
-                while digits < 4, index < range.upperBound, let digit = hexValue(of: bytes[index]) {
-                    scalar = scalar * 16 + digit
-                    index += 1
-                    digits += 1
-                }
-                let character = Unicode.Scalar(scalar) ?? "\u{FFFD}"
-                decoded += Array(String(character).utf8).map { ($0, offset) }
-            case octalDigits:
-                var value = UInt32(escaped - UInt8(ascii: "0"))
-                var digits = 1
-                while digits < 3, index < range.upperBound, octalDigits.contains(bytes[index]) {
-                    value = value * 8 + UInt32(bytes[index] - UInt8(ascii: "0"))
-                    index += 1
-                    digits += 1
-                }
-                decoded.append((UInt8(truncatingIfNeeded: value), offset))
-            default:
-                decoded.append((escaped, offset))
-            }
+            decoded += decodedEscape(escaped, at: &index, in: bytes, upTo: range.upperBound).map { ($0, offset) }
         }
         return decoded
+    }
+
+    /// The escapes a backslash and one letter write, by the letter, and the byte each stands for.
+    private static let simpleEscapes: [UInt8: UInt8] = [
+        UInt8(ascii: "n"): 0x0A,
+        UInt8(ascii: "t"): 0x09,
+        UInt8(ascii: "r"): 0x0D,
+        UInt8(ascii: "a"): 0x07,
+        UInt8(ascii: "b"): 0x08,
+        UInt8(ascii: "f"): 0x0C,
+        UInt8(ascii: "v"): 0x0B,
+    ]
+
+    /// The bytes the escape of `escaped` after a backslash stands for, reading the digits that follow it from `index`,
+    /// up to `end`.
+    private static func decodedEscape(
+        _ escaped: UInt8,
+        at index: inout Int,
+        in bytes: [UInt8],
+        upTo end: Int
+    ) -> [UInt8] {
+        if let byte = simpleEscapes[escaped] {
+            return [byte]
+        }
+        if escaped == UInt8(ascii: "U") {
+            return unicodeEscape(at: &index, in: bytes, upTo: end)
+        }
+        if octalDigits.contains(escaped) {
+            return [octalEscape(escaped, at: &index, in: bytes, upTo: end)]
+        }
+        return [escaped]
+    }
+
+    /// The UTF-8 bytes of the character a `\U` escape's up to four hex digits at `index` write.
+    private static func unicodeEscape(at index: inout Int, in bytes: [UInt8], upTo end: Int) -> [UInt8] {
+        var scalar: UInt32 = 0
+        var digits = 0
+        while digits < 4, index < end, let digit = hexValue(of: bytes[index]) {
+            scalar = scalar * 16 + digit
+            index += 1
+            digits += 1
+        }
+        let character = Unicode.Scalar(scalar) ?? "\u{FFFD}"
+        return Array(String(character).utf8)
+    }
+
+    /// The byte an octal escape writes, from its first digit, `escaped`, and up to two more at `index`.
+    private static func octalEscape(_ escaped: UInt8, at index: inout Int, in bytes: [UInt8], upTo end: Int) -> UInt8 {
+        var value = UInt32(escaped - UInt8(ascii: "0"))
+        var digits = 1
+        while digits < 3, index < end, octalDigits.contains(bytes[index]) {
+            value = value * 8 + UInt32(bytes[index] - UInt8(ascii: "0"))
+            index += 1
+            digits += 1
+        }
+        return UInt8(truncatingIfNeeded: value)
     }
 
     private static let octalDigits = UInt8(ascii: "0") ... UInt8(ascii: "7")
@@ -119,11 +144,9 @@ struct XcodeProjectFile {
         default: nil
         }
     }
-}
 
-private extension XcodeProjectFile {
     /// Reads one value at a time, skipping the comments and spaces between them.
-    struct Parser {
+    private struct Parser {
         let bytes: [UInt8]
         var index = 0
 
@@ -134,11 +157,14 @@ private extension XcodeProjectFile {
             case UInt8(ascii: "{"):
                 index += 1
                 return dictionary()
+
             case UInt8(ascii: "("):
                 index += 1
                 return array()
+
             case UInt8(ascii: "\""):
                 return quotedText().map(Value.text)
+
             default:
                 return unquotedText().map(Value.text)
             }
@@ -189,7 +215,7 @@ private extension XcodeProjectFile {
             let range = start ..< index
             index += 1
             let decoded = XcodeProjectFile.decodedBytes(of: range, in: bytes).map(\.byte)
-            return Text(value: String(decoding: decoded, as: UTF8.self), range: range, isQuoted: true)
+            return Text(value: String(lossyUTF8: decoded), range: range, isQuoted: true)
         }
 
         private mutating func unquotedText() -> Text? {
@@ -199,7 +225,7 @@ private extension XcodeProjectFile {
             }
             guard index > start else { return nil }
             let range = start ..< index
-            return Text(value: String(decoding: bytes[range], as: UTF8.self), range: range, isQuoted: false)
+            return Text(value: String(lossyUTF8: bytes[range]), range: range, isQuoted: false)
         }
 
         private static func endsUnquotedText(_ byte: UInt8) -> Bool {

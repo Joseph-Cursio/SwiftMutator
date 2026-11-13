@@ -1,39 +1,24 @@
 @testable import muterCore
-import SwiftParser
 import XCTest
 
 /// A mutant's place as the Stryker and SARIF reports give it: the code it changes, found from where its operator
 /// places it, with columns in UTF-16 code units, where SwiftSyntax gives UTF-8 bytes, and an end just past that code.
 final class SourceSpanTests: MuterTestCase {
-    private func span(
-        _ text: String,
-        line: Int = 1,
-        utf8Column: Int,
-        before: String = "==",
-        by operatorId: MutationOperator.Id = .ror,
-        after: String = ""
-    ) -> SourceSpan? {
-        SourceLines(text).span(of: before, placedAt: line, utf8Column: utf8Column, by: operatorId, after: after)
-    }
-
-    private func position(_ line: Int, _ column: Int) -> SourceSpan.Position {
-        SourceSpan.Position(line: line, column: column)
-    }
 
     // é is two bytes and one unit; an emoji four bytes and two units; each of 日 and 本 three bytes and one unit; a tab
     // one of each.
     func test_aColumn_countsUTF16CodeUnits() {
-        let cases: [(text: String, utf8Column: Int, utf16Column: Int)] = [
-            ("    return a == b", 14, 14),
-            ("    let café = 1; if a == b {", 25, 24),
-            ("    let s = \"🎉\"; if a == b {", 26, 24),
-            ("    let s = \"日本\"; if a == b {", 28, 24),
-            ("\tif a == b {", 7, 7),
+        let cases: [(text: String, columns: (utf8: Int, utf16: Int))] = [
+            ("    return a == b", (14, 14)),
+            ("    let café = 1; if a == b {", (25, 24)),
+            ("    let s = \"🎉\"; if a == b {", (26, 24)),
+            ("    let s = \"日本\"; if a == b {", (28, 24)),
+            ("\tif a == b {", (7, 7)),
         ]
-        for (text, utf8Column, utf16Column) in cases {
+        for (text, columns) in cases {
             XCTAssertEqual(
-                span(text, utf8Column: utf8Column),
-                SourceSpan(start: position(1, utf16Column), end: position(1, utf16Column + 2)),
+                span(text, utf8Column: columns.utf8),
+                SourceSpan(start: position(1, columns.utf16), end: position(1, columns.utf16 + 2)),
                 text
             )
         }
@@ -53,7 +38,7 @@ final class SourceSpanTests: MuterTestCase {
         let text = "let x = flag\n    ? café\n    : b\n"
 
         XCTAssertEqual(
-            span(text, line: 3, utf8Column: 8, before: "flag ? café : b", by: .swapTernary),
+            span(text, utf8Column: 8, line: 3, before: "flag ? café : b", by: .swapTernary),
             SourceSpan(start: position(1, 9), end: position(3, 8))
         )
     }
@@ -105,7 +90,7 @@ final class SourceSpanTests: MuterTestCase {
         )
         let save = "    save(a,\u{00A0}\n        b)"
         XCTAssertEqual(
-            span(save, line: 2, utf8Column: 11, before: "save(a, b)", by: .removeSideEffects),
+            span(save, utf8Column: 11, line: 2, before: "save(a, b)", by: .removeSideEffects),
             SourceSpan(start: position(1, 5), end: position(2, 11))
         )
         XCTAssertEqual(
@@ -123,8 +108,8 @@ final class SourceSpanTests: MuterTestCase {
         XCTAssertEqual(
             span(
                 "    foo(\n        a: 1\n    ) // why\n",
-                line: 3,
                 utf8Column: 13,
+                line: 3,
                 before: "foo( a: 1 ) // why",
                 by: .removeSideEffects
             ),
@@ -135,7 +120,7 @@ final class SourceSpanTests: MuterTestCase {
     // A later link of a ternary chain is placed at its `?`, inside the code it changes.
     func test_aLaterLinkOfATernaryChain_startsBeforeItsPlace() {
         XCTAssertEqual(
-            span("x = a ? b : c\n    ? d : e", line: 2, utf8Column: 5, before: "c ? d : e", by: .swapTernary),
+            span("x = a ? b : c\n    ? d : e", utf8Column: 5, line: 2, before: "c ? d : e", by: .swapTernary),
             SourceSpan(start: position(1, 13), end: position(2, 12))
         )
     }
@@ -207,28 +192,7 @@ final class SourceSpanTests: MuterTestCase {
     // Every operator's place finds the code it changes, as discovery gives both, and the fixture's mutants are at
     // the places discovery gives them.
     func test_eachOperatorsPlace_findsItsCode() throws {
-        let code = """
-        func f(_ a: Bool, _ b: Bool, _ items: inout [Int]) -> Int {
-            guard a
-                && b else { return 0 }
-            guard a
-                // both must hold
-                && b, a <  // why
-                b else { return 0 }
-            if a &&
-                b {
-                items.append(
-                    1
-                ) // one
-            }
-            let x = a ? 1 : b ? 2 : 3
-            let y = x
-                == 1
-            return a
-                ? x
-                : x + 1 * (y ? 1 : 0)
-        }
-        """
+        let code = codeForEveryOperator
         let found = try spans(of: code)
         let operators = Set(found.map(\.schema.mutationOperatorId))
         XCTAssertTrue(
@@ -261,26 +225,6 @@ final class SourceSpanTests: MuterTestCase {
         }
         XCTAssertTrue(fixture.contains { $0.snapshot.before == ToolReportFixture.ternary })
         XCTAssertTrue(fixture.contains { $0.snapshot.before == "items.append(1)" })
-    }
-
-    /// Each mutant discovery finds in `code`, with the text of the span found for it.
-    private func spans(of code: String) throws -> [(schema: MutationSchema, text: String?)] {
-        let source = SourceCodeInfo(path: "/path/to/Sample.swift", code: Parser.parse(source: code))
-        let lines = SourceLines(code)
-        return try generateSchemataMappings(for: source).flatMap(\.mutationSchemata).map { schema in
-            let position = schema.position
-            let span = try XCTUnwrap(
-                lines.span(
-                    of: schema.snapshot.before,
-                    placedAt: position.line,
-                    utf8Column: position.column,
-                    by: schema.mutationOperatorId,
-                    after: schema.snapshot.after
-                ),
-                "\(schema.mutationOperatorId) \(schema.snapshot.before) at \(position.line):\(position.column)"
-            )
-            return (schema, lines.text(of: span))
-        }
     }
 
     // A lone `\r` breaks a line as SwiftSyntax numbers lines, so a `\r\r\n` is two breaks, and the code after them is

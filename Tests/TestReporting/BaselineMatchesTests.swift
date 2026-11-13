@@ -4,38 +4,6 @@ import XCTest
 /// Which of a run's survivors a baseline file records: by what each changes and its line, never by its key alone, and
 /// identical twins counted as a multiset.
 final class BaselineMatchesTests: XCTestCase {
-    private typealias Tested = BaselineMatches.TestedMutant
-
-    private func key(
-        _ line: Int,
-        column: Int = 17,
-        path: String = "Sources/Rules.swift",
-        operator id: MutationOperator.Id = .ror,
-        occurrence: Int = 0
-    ) -> MutantKey {
-        MutantKey(path: path, mutationOperatorId: id, line: line, column: column, occurrence: occurrence)
-    }
-
-    private func entry(
-        _ key: MutantKey,
-        _ outcome: BaselineSurvivor.Outcome = .survived,
-        before: String = "<",
-        after: String = "<=",
-        line: String? = "if count < limit {"
-    ) -> BaselineSurvivor {
-        BaselineSurvivor(mutant: key, outcome: outcome, before: before, after: after, line: line)
-    }
-
-    private func tested(
-        _ key: MutantKey,
-        _ kind: Tested.Kind = .survivor(.survived),
-        before: String = "<",
-        after: String = "<=",
-        line: String? = "if count < limit {",
-        lineUnread: Bool? = nil
-    ) -> Tested {
-        Tested(key: key, kind: kind, before: before, after: after, line: line, lineUnread: lineUnread)
-    }
 
     func test_aSurvivorAtItsKey_stillSurvives() {
         let matches = BaselineMatches([entry(key(42))], against: [tested(key(42))])

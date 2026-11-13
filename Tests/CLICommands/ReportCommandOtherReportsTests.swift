@@ -31,11 +31,11 @@ final class ReportCommandOtherReportsTests: MuterTestCase {
     }
 
     // Each in its own format, never on standard output, which holds -f's report alone; each said on standard error.
-    func test_eachOtherReport_isSavedInItsFormat_andSaid() async throws {
+    func test_eachOtherReport_isSavedInItsFormat_andSaid() throws {
         let markdown = "\(directory)/summary.md"
         let html = "\(directory)/report.html"
 
-        try await report(resultsPath, "-f", "json", "--report", "markdown:\(markdown)", "--report", "html:\(html)")
+        try report(resultsPath, "-f", "json", "--report", "markdown:\(markdown)", "--report", "html:\(html)")
 
         let saved = try String(contentsOfFile: markdown, encoding: .utf8)
         XCTAssertTrue(saved.hasPrefix("## Mutation testing\n\n**Mutation score: 50% (1 killed, 1 survived)**"), saved)
@@ -53,12 +53,12 @@ final class ReportCommandOtherReportsTests: MuterTestCase {
     }
 
     // -o's report and its score line first, then the others; the summary lists the others apart.
-    func test_withOutput_andASummary_theOthersFollow_andTheSummaryListsThem() async throws {
+    func test_withOutput_andASummary_theOthersFollow_andTheSummaryListsThem() throws {
         let output = "\(directory)/report.txt"
         let markdown = "\(directory)/summary.md"
         let summaryPath = "\(directory)/summary.json"
 
-        try await report(resultsPath, "-o", output, "--report", "markdown:\(markdown)", "--summary", summaryPath)
+        try report(resultsPath, "-o", output, "--report", "markdown:\(markdown)", "--summary", summaryPath)
 
         XCTAssertEqual(printer.linesPassed, [])
         XCTAssertEqual(standardError.linesPassed.suffix(4), [
@@ -76,13 +76,13 @@ final class ReportCommandOtherReportsTests: MuterTestCase {
     // As for -o, before anything is printed: saving replaces whatever is there.
     func test_anOtherReportOverTheResultsFile_orAFolder_isRefused() async throws {
         await assertRefused(
-            try await report(resultsPath, "--report", "markdown:\(resultsPath)"),
+            try report(resultsPath, "--report", "markdown:\(resultsPath)"),
             MuterError.literal(
                 reason: "\(resultsPath) is the results file the report is made from: choose another --report path"
             )
         )
         await assertRefused(
-            try await report(resultsPath, "--report", "markdown:\(directory)"),
+            try report(resultsPath, "--report", "markdown:\(directory)"),
             MuterError.literal(reason: "\(directory) is a folder: name the file to save the report to")
         )
         XCTAssertTrue(try String(contentsOfFile: resultsPath, encoding: .utf8).contains(#""kind":"end""#))
@@ -96,13 +96,13 @@ final class ReportCommandOtherReportsTests: MuterTestCase {
         try FileManager.default.linkItem(atPath: output, toPath: "\(directory)/link.txt")
 
         await assertRefused(
-            try await report(resultsPath, "-o", output, "--report", "markdown:\(directory)/link.txt"),
+            try report(resultsPath, "-o", output, "--report", "markdown:\(directory)/link.txt"),
             MuterError.literal(
                 reason: "The report and --report markdown:\(directory)/link.txt can't both be saved to \(output)"
             )
         )
         await assertRefused(
-            try await report(resultsPath, "--report", "markdown:\(output)", "--summary", "\(directory)/link.txt"),
+            try report(resultsPath, "--report", "markdown:\(output)", "--summary", "\(directory)/link.txt"),
             MuterError.literal(reason: "--report markdown:\(output) and the summary can't both be saved to \(output)")
         )
     }
@@ -114,24 +114,23 @@ final class ReportCommandOtherReportsTests: MuterTestCase {
         let missing = "\(directory)/notAFolder/summary.md"
 
         await assertRefused(
-            try await report(resultsPath, "-o", "\(directory)/report.txt", "--report", "markdown:\(missing)"),
+            try report(resultsPath, "-o", "\(directory)/report.txt", "--report", "markdown:\(missing)"),
             MuterError.literal(reason: "SwiftMutator could not save the report to \(missing)")
         )
     }
-}
 
-private extension ReportCommandOtherReportsTests {
     /// Runs `swift-mutator report` with `arguments`.
-    func report(_ arguments: String...) async throws {
+    private func report(_ arguments: String...) throws {
         let command = try MuterCommand.parseAsRoot(["report"] + arguments)
         guard let report = command as? Report else {
-            return XCTFail("Expected the report command, got \(command)")
+            XCTFail("Expected the report command, got \(command)")
+            return
         }
-        try await report.run()
+        try report.run()
     }
 
     /// Checks that `expression` throws `expected`, and that nothing is printed on either output.
-    func assertRefused(
+    private func assertRefused(
         _ expression: @autoclosure () async throws -> Void,
         _ expected: MuterError,
         file: StaticString = #filePath,
@@ -144,7 +143,7 @@ private extension ReportCommandOtherReportsTests {
         XCTAssertEqual(standardError.linesPassed, [], file: file, line: line)
     }
 
-    func write(_ records: any Encodable..., to path: String) throws {
+    private func write(_ records: any Encodable..., to path: String) throws {
         let data = try records.reduce(into: Data()) { data, record in
             data += try ResultsCoding.encoder.encode(record) + Data("\n".utf8)
         }

@@ -32,22 +32,8 @@ struct CheckTestPlanSources: MutationStep {
         let tested = Set(state.mutationMapping.map { RepoRelativePath.of($0.filePath, under: copy) })
             .filter { !$0.hasPrefix("/") }
         let planned = plan.mutatedPaths
-        let isInTheProject = { (path: String) in
-            FileManager.default.fileExists(atPath: project.appendingPathComponent(path).path)
-        }
         // Before the project is fingerprinted, which in some other folder could list a great many files.
-        let folders = Set(planned.compactMap(Self.topFolder(of:)))
-        let beside = sources.files.keys.lazy.filter { Self.topFolder(of: $0).map(folders.contains) ?? false }
-        if !planned.isEmpty, !planned.contains(where: isInTheProject), !beside.contains(where: isInTheProject) {
-            throw TestPlanRefused(
-                path: plan.path,
-                reason: .notThisProject(
-                    folder: project.path,
-                    files: planned.count,
-                    mutatedProject: RelativePath.from(project, to: copy)
-                )
-            )
-        }
+        try Self.refuseUnlessInTheProject(plan, recording: sources, state: state)
 
         let tree = await ProjectTree.fingerprint(
             listingIn: project,
@@ -82,6 +68,31 @@ struct CheckTestPlanSources: MutationStep {
         return []
     }
 
+    /// Refuses `plan` when none of the files it mutates, nor any of those beside them that `sources` records, is in
+    /// the project: it was made for another one.
+    private static func refuseUnlessInTheProject(
+        _ plan: LoadedTestPlan,
+        recording sources: ProjectTree,
+        state: AnyMutationTestState
+    ) throws {
+        let (project, copy) = (state.projectDirectoryURL, state.mutatedProjectDirectoryURL)
+        let planned = plan.mutatedPaths
+        let isInTheProject = { (path: String) in
+            FileManager.default.fileExists(atPath: project.appendingPathComponent(path).path)
+        }
+        let folders = Set(planned.compactMap(topFolder(of:)))
+        let beside = sources.files.keys.lazy.filter { topFolder(of: $0).map(folders.contains) ?? false }
+        if !planned.isEmpty, !planned.contains(where: isInTheProject), !beside.contains(where: isInTheProject) {
+            throw TestPlanRefused(
+                path: plan.path,
+                reason: .notThisProject(
+                    folder: project.path,
+                    files: planned.count,
+                    mutatedProject: RelativePath.from(project, to: copy)
+                )
+            )
+        }
+    }
     /// The folder at the top of the project that `path` is in, as `Sources`; nil for a file at the top.
     private static func topFolder(of path: String) -> String? {
         let components = path.split(separator: "/", maxSplits: 1)
@@ -105,8 +116,10 @@ struct CheckTestPlanSources: MutationStep {
             switch FileDigest.sha256(of: project.appendingPathComponent(path)) {
             case linkedFiles[path]:
                 return nil
+
             case nil:
                 return ProjectTree.FileChange(path: path, kind: .removed)
+
             default:
                 return ProjectTree.FileChange(path: path, kind: .changed)
             }

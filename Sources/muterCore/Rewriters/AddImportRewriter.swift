@@ -1,5 +1,29 @@
 import SwiftSyntax
 
+final class AddImportVisitior: SyntaxAnyVisitor {
+    private(set) var isImportingFoundation = false
+
+    init() {
+        super.init(viewMode: .all)
+    }
+
+    override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
+        if isImportingProcessInfo(node) || isImportingFoundation(node) {
+            isImportingFoundation = true
+        }
+
+        return super.visit(node)
+    }
+
+    private func isImportingFoundation(_ node: ImportDeclSyntax) -> Bool {
+        node.path.count == 1 && node.path.first?.name.text == "Foundation"
+    }
+
+    private func isImportingProcessInfo(_ node: ImportDeclSyntax) -> Bool {
+        node.description.contains("Foundation.ProcessInfo")
+    }
+}
+
 final class AddImportRewriter: SyntaxRewriter {
     private let visitor = AddImportVisitior()
     private let accessLevel: String?
@@ -84,29 +108,5 @@ final class AddImportRewriter: SyntaxRewriter {
         }
 
         return CodeBlockItemListSyntax(items)
-    }
-}
-
-final class AddImportVisitior: SyntaxAnyVisitor {
-    private(set) var isImportingFoundation = false
-
-    init() {
-        super.init(viewMode: .all)
-    }
-
-    override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
-        if isImportingProcessInfo(node) || isImportingFoundation(node) {
-            isImportingFoundation = true
-        }
-
-        return super.visit(node)
-    }
-
-    private func isImportingFoundation(_ node: ImportDeclSyntax) -> Bool {
-        node.path.count == 1 && node.path.first?.name.text == "Foundation"
-    }
-
-    private func isImportingProcessInfo(_ node: ImportDeclSyntax) -> Bool {
-        node.description.contains("Foundation.ProcessInfo")
     }
 }

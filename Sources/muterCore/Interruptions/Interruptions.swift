@@ -131,7 +131,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
             if signal == SIGTSTP {
                 suspendUnlessStopping()
             } else {
-                received(signal, stopping: { task.cancel() })
+                received(signal) { task.cancel() }
             }
         }
         let result = await task.result
@@ -166,7 +166,10 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
         // run that stopping ended is recorded as a mutant's result. A worker that wasn't cancelled would also start its
         // next mutant's tests as soon as this one's are killed, and exiting would leave those running.
         cancel()
-        guard signal != SIGQUIT else { return stopAtOnce(by: signal) }
+        guard signal != SIGQUIT else {
+            stopAtOnce(by: signal)
+            return
+        }
         // Then what no cancellation reaches, now and every `sweepInterval` until the work ends: coverage, `cp`, `find`,
         // `which` and the steps' later processes, which a step starts one after another.
         killDescendants()

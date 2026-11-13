@@ -1,16 +1,15 @@
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 /// `--changed-lines`: which of a changed file's mutants discovery keeps.
 final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
-    private let state = MutationTestState()
+    let state = MutationTestState()
 
     // Line 2 holds `<`, which RelationalOperatorReplacement and RelationalBoundary each mutate, and whose right-hand
     // operand is on line 3, where the first's constant is placed, as the comparison ends there; lines 8 and 9
     // statements RemoveSideEffects removes; line 13 `==`, which RelationalOperatorReplacement replaces with each
     // constant, and ReplaceBooleanValue leaves to it, as NegateConditional does the condition on line 2.
-    private let source = """
+    let source = """
     func check(index: Int, items: [Int]) -> Bool {
         guard index <
             items.count - 1 else { return false }
@@ -100,42 +99,6 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
                 NothingToMutate(reason: .noMutantInChangedFiles(count: 1), selection: selection)
             )
         }
-    }
-}
-
-private extension DiscoverMutationPointsChangedLinesTests {
-    func mutants(
-        changing lines: [LineRange]? = nil,
-        removingAfter deletions: [Int]? = nil,
-        changedLines: Bool = true
-    ) async throws -> [MutationSchema] {
-        try prepare(changing: lines ?? [], removingAfter: deletions, changedLines: changedLines)
-        let changes = try await DiscoverMutationPoints().run(with: state)
-        guard case let .mutationMappingsDiscovered(mappings)? = changes.first else {
-            XCTFail("Expected mappings, got \(changes)")
-            return []
-        }
-        return mappings.flatMap(\.mutationSchemata).sorted { $0.position.line < $1.position.line }
-    }
-
-    @discardableResult
-    func prepare(
-        changing lines: [LineRange]?,
-        removingAfter deletions: [Int]? = nil,
-        changedLines: Bool = true,
-        source: String? = nil
-    ) throws -> ChangeSelection {
-        let project = try makeTemporaryDirectory()
-        let path = "\(project)/Check.swift"
-        try (source ?? self.source).write(toFile: path, atomically: true, encoding: .utf8)
-        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
-        state.sourceFileCandidates = [path]
-        let selection = ChangeSelection.make(
-            changedLines: changedLines,
-            files: [ChangedFile(path: "Check.swift", lines: lines, deletionsAfter: deletions, sha256: "")]
-        )
-        state.apply([.changesSelected(selection)])
-        return selection
     }
 }
 

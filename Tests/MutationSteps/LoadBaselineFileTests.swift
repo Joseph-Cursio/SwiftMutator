@@ -2,6 +2,13 @@ import ArgumentParser
 @testable import muterCore
 import XCTest
 
+/// What a run command prints for an error, as `RunCommand.message(showing:)` gives it.
+private enum RunCommandTestsMessage {
+    static func message(_ error: Error) -> String {
+        Run.message(showing: error)
+    }
+}
+
 /// `--baseline`'s file, loaded as the run starts: refused at once when it can't be read or records another scope.
 final class LoadBaselineFileTests: MuterTestCase {
     private var directory = ""
@@ -33,29 +40,29 @@ final class LoadBaselineFileTests: MuterTestCase {
         XCTAssertTrue(file.save(using: FileManager.default))
     }
 
-    func test_withoutBaseline_loadsNothing() async throws {
+    func test_withoutBaseline_loadsNothing() throws {
         state.runOptions = .make()
 
-        let changes = try await sut.run(with: state)
+        let changes = try sut.run(with: state)
 
         XCTAssertEqual(changes, [])
     }
 
-    func test_aFileOfTheRunsScope_isLoaded() async throws {
+    func test_aFileOfTheRunsScope_isLoaded() throws {
         writeBaseline()
         state.runOptions = .make(baseline: path)
 
-        let changes = try await sut.run(with: state)
+        let changes = try sut.run(with: state)
 
         XCTAssertEqual(changes, [.baselineFileLoaded(try BaselineFile.load(at: path, using: FileManager.default))])
     }
 
-    func test_aFileOfAnotherScope_isRefused_beforeAnyMutantIsTested() async throws {
+    func test_aFileOfAnotherScope_isRefused_beforeAnyMutantIsTested() throws {
         writeBaseline(operators: [.ror])
         state.runOptions = .make(baseline: path)
 
         do {
-            _ = try await sut.run(with: state)
+            _ = try sut.run(with: state)
             XCTFail("Expected a refusal")
         } catch let refused as BaselineRefused {
             XCTAssertEqual(refused.reasons, [
@@ -68,13 +75,13 @@ final class LoadBaselineFileTests: MuterTestCase {
     }
 
     // An `--exclude` adds to `exclude`, so a run with one is another scope.
-    func test_anExtraExclude_isRefused() async throws {
+    func test_anExtraExclude_isRefused() throws {
         writeBaseline()
         state.runOptions = .make(baseline: path)
         state.muterConfiguration = state.muterConfiguration.overriding(workers: nil, timeout: nil, exclude: ["/Gen/"])
 
         do {
-            _ = try await sut.run(with: state)
+            _ = try sut.run(with: state)
             XCTFail("Expected a refusal")
         } catch let refused as BaselineRefused {
             XCTAssertEqual(refused.reasons, [#"exclude is [] in the baseline file, and ["/Gen/"] in this run."#])
@@ -82,16 +89,16 @@ final class LoadBaselineFileTests: MuterTestCase {
     }
 
     // `--mutant` discovers with every operator, and compares nothing, so only its file is checked.
-    func test_aOneMutantRun_onlyChecksTheFile() async throws {
+    func test_aOneMutantRun_onlyChecksTheFile() throws {
         writeBaseline(operators: [.ror])
         state.runOptions = .make(baseline: path, mutant: MutantReference(path: "A.swift", line: 3, column: 9))
 
-        let changes = try await sut.run(with: state)
+        let changes = try sut.run(with: state)
         XCTAssertEqual(changes.count, 1)
 
         try FileManager.default.removeItem(atPath: path)
         do {
-            _ = try await sut.run(with: state)
+            _ = try sut.run(with: state)
             XCTFail("Expected a refusal")
         } catch {
             XCTAssertTrue(error is BaselineRefused, "\(error)")
@@ -112,12 +119,5 @@ final class LoadBaselineFileTests: MuterTestCase {
         )
 
         XCTAssertFalse(MutationTestHandler(options: .make()).steps.contains { $0 is LoadBaselineFile })
-    }
-}
-
-/// What a run command prints for an error, as `RunCommand.message(showing:)` gives it.
-private enum RunCommandTestsMessage {
-    static func message(_ error: Error) -> String {
-        Run.message(showing: error)
     }
 }

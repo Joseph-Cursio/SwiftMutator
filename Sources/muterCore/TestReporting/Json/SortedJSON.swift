@@ -8,6 +8,6 @@ enum SortedJSON {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         guard let encoded = try? encoder.encode(value) else { return "" }
-        return String(decoding: encoded, as: UTF8.self)
+        return String(lossyUTF8: encoded)
     }
 }

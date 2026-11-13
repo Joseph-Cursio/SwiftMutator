@@ -4,7 +4,7 @@ import Foundation
 /// `swift-mutator report`: a run's report in any format, made from its results file, or from its shards' results files
 /// merged. A plain command, not a `RunCommand`: it mutates nothing, so it prints no banner, makes no log folder, and
 /// handles no signals.
-struct Report: AsyncParsableCommand {
+struct Report: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "report",
         abstract: "Builds a report from a run's results file, or from its shards' results files merged."
@@ -61,7 +61,9 @@ struct Report: AsyncParsableCommand {
     )
     var triage: String?
 
-    init() {}
+    init() {
+        // ArgumentParser sets the properties from the command line.
+    }
 
     /// Makes the report, then exits with the status `ResultsReport.make` gives once it is made: for a run that
     /// stopped on an error, the one the run itself exited with (`RunCommand.run(with:)`), 4 or 255, so a script that
@@ -72,7 +74,7 @@ struct Report: AsyncParsableCommand {
     /// `--max-new-survivors` allows, a score more than `--max-score-drop` points below the file's, or more doubtful
     /// kills than `--max-doubtful-kills` allows; and 8 for a baseline file it refuses (`BaselineRefused`), said as it
     /// is, before any report. A run that finished, was interrupted, or has no end line yet otherwise exits 0.
-    func run() async throws {
+    func run() throws {
         let report = ResultsReport(
             format: reportOptions.reportFormat,
             outputPath: reportOptions.reportURL?.path,

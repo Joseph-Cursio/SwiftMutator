@@ -31,7 +31,7 @@ final class WorkerTemporaryFolderTests: MuterTestCase {
 
     // A test that writes a fixed name in the temporary directory would otherwise fail another worker's test. SwiftPM
     // keys its manifest cache on the whole environment, so a baseline and a mutant's run in a folder get the same one.
-    func test_eachSwiftPMWorker_hasATemporaryFolderOfItsOwn_forEveryRun() async throws {
+    func test_eachSwiftPMWorker_hasATemporaryFolderOfItsOwn_forEveryRun() throws {
         let configuration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         let schemata = try MutationSchema.make()
         process.environment = [:]
@@ -43,7 +43,7 @@ final class WorkerTemporaryFolderTests: MuterTestCase {
             let worker = URL(fileURLWithPath: folder)
             let own = WorkerTemporaryFolder(forWorkerIn: worker, under: FileManager.default.temporaryDirectory)
             for ranMutant in [MutationSchema.null, schemata] {
-                let testProcess = try await MutationTestingDelegate().testProcess(
+                let testProcess = try MutationTestingDelegate().testProcess(
                     with: configuration,
                     schemata: ranMutant,
                     and: FileHandle(fileDescriptor: 0),
@@ -60,11 +60,11 @@ final class WorkerTemporaryFolderTests: MuterTestCase {
     }
 
     // An xcodebuild worker tests on a simulator of its own, with its own temporary directory.
-    func test_anotherBuildSystem_keepsTheTemporaryDirectory() async throws {
+    func test_anotherBuildSystem_keepsTheTemporaryDirectory() throws {
         process.environment = ["TMPDIR": "/inherited/"]
         let configuration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
 
-        let testProcess = try await MutationTestingDelegate().testProcess(
+        let testProcess = try MutationTestingDelegate().testProcess(
             with: configuration,
             schemata: try MutationSchema.make(),
             and: FileHandle(fileDescriptor: 0)
@@ -86,45 +86,3 @@ final class WorkerTemporaryFolderTests: MuterTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: left))
     }
 }
-
-#if os(macOS)
-/// What a test bundle sees, as a program compiled with the real compiler. Not `getconf`: macOS ignores the variable for
-/// its own programs, so `/bin/sh` and `swift` keep the `TMPDIR` they are given.
-final class WorkerTemporaryFolderVariableTests: GeneratedCodeTestCase {
-    // Foundation's temporary directory comes from `confstr`, and doesn't follow TMPDIR. The variable that moves it is
-    // undocumented: if this fails, workers' tests that use Foundation's temporary directory share it again, so the
-    // README's "Tests that share state across workers" no longer holds.
-    func test_theVariableMovesFoundationsTemporaryDirectory() throws {
-        let source = directory.appendingPathComponent("main.swift")
-        let program = directory.appendingPathComponent("program")
-        try write(
-            """
-            import Foundation
-            print(NSTemporaryDirectory())
-            print(FileManager.default.temporaryDirectory.path)
-            """,
-            to: source
-        )
-        let compiled = try execute(
-            URL(fileURLWithPath: xcrun),
-            arguments: ["swiftc", source.path, "-o", program.path],
-            environment: compilerEnvironment,
-            timeLimit: 120
-        )
-        XCTAssertEqual(compiled.status, 0, compiled.errors)
-        let folder = WorkerTemporaryFolder(
-            forWorkerIn: URL(fileURLWithPath: "/runs/variable-check"),
-            under: FileManager.default.temporaryDirectory
-        )
-
-        let moved = try run(program, adding: folder.environment)
-
-        // Compared from the folder's name: `run` gives the program nothing else, and this process's own may be moved.
-        let lines = moved.output.split(separator: "\n").map(String.init)
-        XCTAssertEqual(lines.count, 2, moved.output)
-        for line in lines {
-            XCTAssertTrue(line.hasSuffix("/" + folder.name) || line.hasSuffix("/" + folder.name + "/"), line)
-        }
-    }
-}
-#endif

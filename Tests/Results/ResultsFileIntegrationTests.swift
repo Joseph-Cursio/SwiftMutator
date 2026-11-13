@@ -44,16 +44,13 @@ final class ResultsFileIntegrationTests: MuterTestCase {
         defer { close(descriptor) }
         XCTAssertEqual(flock(descriptor, LOCK_EX | LOCK_NB), 0)
     }
-}
 
-private extension ResultsFileIntegrationTests {
-    func key(line: Int) -> MutantKey {
+    private func key(line: Int) -> MutantKey {
         MutantKey(path: "Sources/File\(line).swift", mutationOperatorId: .ror, line: line, column: 5, occurrence: 0)
     }
 
-    func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
+    private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/project_mutated/Sources/File\(line).swift",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -65,7 +62,8 @@ private extension ResultsFileIntegrationTests {
                         snapshot: .make(before: ">", after: "<", description: "changed > to <")
                     ),
                 ]
-            )
+            ),
+            filePath: "/project_mutated/Sources/File\(line).swift"
         )
     }
 }

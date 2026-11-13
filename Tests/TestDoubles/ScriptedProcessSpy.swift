@@ -17,6 +17,16 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
         case dieOf(signal: Int32, after: TimeInterval)
     }
 
+    /// Where it was at the first kill of its group.
+    enum FirstGroupKill {
+        /// No kill of its group has come.
+        case notYet
+        /// It came while the script was still playing.
+        case beforeItEnded
+        /// It came once the script had played.
+        case afterItEnded
+    }
+
     var processIdentifier: Int32 { 0 }
     var terminationStatus: Int32 { lock.withLock { status } }
     var terminationReason: Foundation.Process.TerminationReason { lock.withLock { reason } }
@@ -40,7 +50,7 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
     private var killCount = 0
     private var groupKillCount = 0
     private var ended = false
-    private var endedAtGroupKill: Bool?
+    private var groupKill = FirstGroupKill.notYet
 
     init(_ script: [Step], deadline: TimeInterval = 5) {
         self.script = script
@@ -60,7 +70,7 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
     var terminateTreeCallCount: Int { lock.withLock { killCount } }
     /// How many kills of its group came, and whether it had ended by the first of them.
     var killProcessGroupCallCount: Int { lock.withLock { groupKillCount } }
-    var hadEndedAtTheGroupKill: Bool? { lock.withLock { endedAtGroupKill } }
+    var firstGroupKill: FirstGroupKill { lock.withLock { groupKill } }
 
     func run() throws {
         lock.withLock { started = true }
@@ -80,8 +90,10 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
             case let .write(text, after: delay):
                 guard !isKilled(within: delay) else { return }
                 try? (standardOutput as? FileHandle)?.write(contentsOf: Data(text.utf8))
+
             case .runUntilKilled:
                 guard !isKilled(within: deadline) else { return }
+
             case let .dieOf(signal, after: delay):
                 guard !isKilled(within: delay) else { return }
                 lock.withLock {
@@ -111,13 +123,12 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
     func killProcessGroup() {
         lock.withLock {
             groupKillCount += 1
-            if endedAtGroupKill == nil { endedAtGroupKill = ended }
+            if groupKill == .notYet { groupKill = ended ? .afterItEnded : .beforeItEnded }
         }
     }
 
     func runProcess(url _: String, arguments _: [String]) -> Data? { nil }
 
-    func terminate() {}
-
-    func interrupt() {}
+    /// Never runs a command this way: as if it couldn't be started.
+    func runCommand(url _: String, arguments _: [String], timeLimit _: TimeInterval?) -> CommandResult? { nil }
 }

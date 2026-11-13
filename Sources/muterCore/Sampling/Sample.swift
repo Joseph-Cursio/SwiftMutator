@@ -5,6 +5,144 @@ import Crypto
 #endif
 import Foundation
 
+/// What a session run with `--sample` records of it in the results file's header: the sample asked for, and how many
+/// mutants it held of how many discovered. `mutantsDiscovered` and `mutantsToTest` count the sample's.
+struct SampleSelection: Codable, Equatable, Sendable {
+    /// `--sample`'s N.
+    let size: Int
+    let seed: UInt64
+    /// How many mutants were discovered, after the excludes, the coverage filter and `--since`, before the sample.
+    let mutantsSampledFrom: Int
+    /// How many the sample holds: `size`, or a few more when the last place it took has repeats; every mutant when
+    /// fewer were discovered.
+    let mutantsSampled: Int
+
+    /// Whether the sample left any mutant out. One that didn't is the whole run, which the reports say nothing of.
+    var isPartial: Bool {
+        mutantsSampled < mutantsSampledFrom
+    }
+}
+
+/// What `[SchemataMutationMapping].keepingSample(_:under:)` gives: the mappings of the mutants a sample holds, what it
+/// recorded of them, and the keys of the mutants it leaves out.
+struct SampledMappings {
+    /// The mappings of the sample's mutants; a file left with none is left out.
+    let mappings: [SchemataMutationMapping]
+    /// What the sample recorded: its size and seed, and how many mutants it held of how many.
+    let selection: SampleSelection
+    /// The keys of the mutants it leaves out, which a resume or a reuse tells from mutants no longer discovered.
+    let leftOut: Set<MutantKey>
+}
+
+/// A sample's report: how many mutants it tested of how many, and how far its score may be from a whole run's.
+struct SampleScope: Codable, Equatable {
+    let mutantsSampled: Int
+    let mutantsSampledFrom: Int
+    /// How many of the sample's mutants the report has a result for: fewer than `mutantsSampled` for a run stopped
+    /// early, or for some shards of a sampled split.
+    let mutantsTested: Int
+    let seed: UInt64
+    /// Half the width, in points, of the score's 95% confidence interval. nil, and left out of the JSON, when the
+    /// results are cut short: a run stopped early has the first files' results, which are no random part of the sample.
+    /// A shard's results are a random part of it, as its hash doesn't depend on the seed, so a shard's report, and a
+    /// merge of some of the shards, have one.
+    let marginOfError: Double?
+    /// True when no mutant of the sample was scored, as when none compiled, so there is no score to give a margin of.
+    /// The JSON has it only when it is true.
+    var noneScored = false
+
+    private enum CodingKeys: String, CodingKey {
+        case mutantsSampled
+        case mutantsSampledFrom
+        case mutantsTested
+        case seed
+        case marginOfError
+        case noneScored
+    }
+
+    /// `selection`'s sample, of which a report has `tested` results; those that counted toward the score (all but build
+    /// errors) number `scored`, and `killed` of them were killed. The results are `cutShort` when a run, or a shard's,
+    /// stopped before every mutant it set out to test had one. nil when the sample held every mutant.
+    init?(_ selection: SampleSelection?, killed: Int, scored: Int, tested: Int, cutShort: Bool) {
+        guard let selection, selection.isPartial else { return nil }
+        mutantsSampled = selection.mutantsSampled
+        mutantsSampledFrom = selection.mutantsSampledFrom
+        mutantsTested = tested
+        seed = selection.seed
+        noneScored = scored == 0 && tested > 0
+        marginOfError = cutShort || noneScored ? nil : Self.marginOfError(
+            killed: killed,
+            scored: scored,
+            sampled: tested,
+            from: selection.mutantsSampledFrom
+        )
+    }
+
+    init(mutantsSampled: Int, mutantsSampledFrom: Int, mutantsTested: Int, seed: UInt64, marginOfError: Double?) {
+        self.mutantsSampled = mutantsSampled
+        self.mutantsSampledFrom = mutantsSampledFrom
+        self.mutantsTested = mutantsTested
+        self.seed = seed
+        self.marginOfError = marginOfError
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mutantsSampled = try container.decode(Int.self, forKey: .mutantsSampled)
+        mutantsSampledFrom = try container.decode(Int.self, forKey: .mutantsSampledFrom)
+        mutantsTested = try container.decode(Int.self, forKey: .mutantsTested)
+        seed = try container.decode(UInt64.self, forKey: .seed)
+        marginOfError = try container.decodeIfPresent(Double.self, forKey: .marginOfError)
+        noneScored = try container.decodeIfPresent(Bool.self, forKey: .noneScored) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(mutantsSampled, forKey: .mutantsSampled)
+        try container.encode(mutantsSampledFrom, forKey: .mutantsSampledFrom)
+        try container.encode(mutantsTested, forKey: .mutantsTested)
+        try container.encode(seed, forKey: .seed)
+        try container.encodeIfPresent(marginOfError, forKey: .marginOfError)
+        if noneScored {
+            try container.encode(true, forKey: .noneScored)
+        }
+    }
+
+    /// The 95% margin, in points, of a score of `killed` in `scored`, for a sample of `sampled` mutants drawn from
+    /// `from`: the Agresti–Coull interval, which adds 2 kills and 2 survivors so a sample that killed all or none still
+    /// has a margin, narrowed by the finite-population correction, as the sample is drawn without replacement.
+    static func marginOfError(killed: Int, scored: Int, sampled: Int, from population: Int) -> Double {
+        guard population > 1, sampled < population else { return 0 }
+        let trials = Double(scored) + 4
+        let proportion = (Double(killed) + 2) / trials
+        let correction = Double(population - sampled) / Double(population - 1)
+        return 1.96 * (proportion * (1 - proportion) / trials * correction).squareRoot() * 100
+    }
+
+    /// "3.4": the margin, to one decimal. nil when there is none.
+    var margin: String? {
+        marginOfError.map { String(format: "%.1f", $0) }
+    }
+
+    /// "Only a sample of 500 of the 2463 mutants discovered was tested (seed 1234): a whole run's score is within 3.4
+    /// points of this one, at 95% confidence." Without a margin, how many of the sample have a result instead.
+    var sentence: String {
+        let tested = "Only a sample of \(mutantsSampled) of the \(mutantsSampledFrom) mutants discovered was tested "
+            + "(seed \(seed))"
+        guard !noneScored else {
+            return "Only a sample of \(mutantsSampled) of the \(mutantsSampledFrom) mutants discovered was chosen "
+                + "(seed \(seed)), and every one with a result was a build error, so there is no score and no margin."
+        }
+        guard let margin else {
+            return tested + ", and \(mutantsTested) of them have a result, so no margin is given: the others have none "
+                + "yet, so these are the first ones tested, not a random part of the sample."
+        }
+        // A shard's results, or some shards', are a random part of the sample too.
+        let part = mutantsTested < mutantsSampled ? ", and the margin is from the \(mutantsTested) of them here" : ""
+        return tested + part + ": a whole run's score is within \(margin) points of this one, at 95% confidence."
+    }
+}
+
 /// `--sample N --seed S`: of the mutants discovered, a sample of about `size` that the seed chooses, so a trend check,
 /// such as a nightly score, needn't test every mutant. The same seed chooses the same mutants on every machine, and,
 /// after a small change, mostly the same ones, which keeps a trend line steady.
@@ -32,24 +170,6 @@ struct Sample: Hashable, Sendable {
     }
 }
 
-/// What a session run with `--sample` records of it in the results file's header: the sample asked for, and how many
-/// mutants it held of how many discovered. `mutantsDiscovered` and `mutantsToTest` count the sample's.
-struct SampleSelection: Codable, Equatable, Sendable {
-    /// `--sample`'s N.
-    let size: Int
-    let seed: UInt64
-    /// How many mutants were discovered, after the excludes, the coverage filter and `--since`, before the sample.
-    let mutantsSampledFrom: Int
-    /// How many the sample holds: `size`, or a few more when the last place it took has repeats; every mutant when
-    /// fewer were discovered.
-    let mutantsSampled: Int
-
-    /// Whether the sample left any mutant out. One that didn't is the whole run, which the reports say nothing of.
-    var isPartial: Bool {
-        mutantsSampled < mutantsSampledFrom
-    }
-}
-
 extension [SchemataMutationMapping] {
     /// Of these mappings, every discovered mutant in the mutated project at `projectRoot`, only the ones `sample`
     /// holds; what it recorded of them; and the keys of the mutants it leaves out, which a resume or a reuse tells from
@@ -63,7 +183,7 @@ extension [SchemataMutationMapping] {
     func keepingSample(
         _ sample: Sample,
         under projectRoot: URL
-    ) -> (mappings: Self, selection: SampleSelection, leftOut: Set<MutantKey>) {
+    ) -> SampledMappings {
         let places = flatMap(\.mutationSchemata).map { Self.place(of: $0, under: projectRoot) }
         let mutantsAt = Dictionary(places.map { ($0, 1) }, uniquingKeysWith: +)
         let ranked = mutantsAt.keys
@@ -96,7 +216,7 @@ extension [SchemataMutationMapping] {
                 occurrence: 0
             ))
         }
-        return (mappings, selection, Set(leftOut))
+        return SampledMappings(mappings: mappings, selection: selection, leftOut: Set(leftOut))
     }
 
     private static func place(of schema: MutationSchema, under projectRoot: URL) -> MutantKey {
@@ -107,82 +227,5 @@ extension [SchemataMutationMapping] {
             column: schema.position.column,
             occurrence: 0
         )
-    }
-}
-
-/// A sample's report: how many mutants it tested of how many, and how far its score may be from a whole run's.
-struct SampleScope: Codable, Equatable {
-    let mutantsSampled: Int
-    let mutantsSampledFrom: Int
-    /// How many of the sample's mutants the report has a result for: fewer than `mutantsSampled` for a run stopped
-    /// early, or for some shards of a sampled split.
-    let mutantsTested: Int
-    let seed: UInt64
-    /// Half the width, in points, of the score's 95% confidence interval. nil, and left out of the JSON, when the
-    /// results are cut short: a run stopped early has the first files' results, which are no random part of the sample.
-    /// A shard's results are a random part of it, as its hash doesn't depend on the seed, so a shard's report, and a
-    /// merge of some of the shards, have one.
-    let marginOfError: Double?
-    /// True when no mutant of the sample was scored, as when none compiled, so there is no score to give a margin of.
-    var noneScored: Bool?
-
-    /// `selection`'s sample, of which a report has `tested` results; those that counted toward the score (all but build
-    /// errors) number `scored`, and `killed` of them were killed. The results are `cutShort` when a run, or a shard's,
-    /// stopped before every mutant it set out to test had one. nil when the sample held every mutant.
-    init?(_ selection: SampleSelection?, killed: Int, scored: Int, tested: Int, cutShort: Bool) {
-        guard let selection, selection.isPartial else { return nil }
-        mutantsSampled = selection.mutantsSampled
-        mutantsSampledFrom = selection.mutantsSampledFrom
-        mutantsTested = tested
-        seed = selection.seed
-        noneScored = scored == 0 && tested > 0 ? true : nil
-        marginOfError = cutShort || noneScored == true ? nil : Self.marginOfError(
-            killed: killed,
-            scored: scored,
-            sampled: tested,
-            from: selection.mutantsSampledFrom
-        )
-    }
-
-    init(mutantsSampled: Int, mutantsSampledFrom: Int, mutantsTested: Int, seed: UInt64, marginOfError: Double?) {
-        self.mutantsSampled = mutantsSampled
-        self.mutantsSampledFrom = mutantsSampledFrom
-        self.mutantsTested = mutantsTested
-        self.seed = seed
-        self.marginOfError = marginOfError
-    }
-
-    /// The 95% margin, in points, of a score of `killed` in `scored`, for a sample of `sampled` mutants drawn from
-    /// `from`: the Agresti–Coull interval, which adds 2 kills and 2 survivors so a sample that killed all or none still
-    /// has a margin, narrowed by the finite-population correction, as the sample is drawn without replacement.
-    static func marginOfError(killed: Int, scored: Int, sampled: Int, from population: Int) -> Double {
-        guard population > 1, sampled < population else { return 0 }
-        let trials = Double(scored) + 4
-        let proportion = (Double(killed) + 2) / trials
-        let correction = Double(population - sampled) / Double(population - 1)
-        return 1.96 * (proportion * (1 - proportion) / trials * correction).squareRoot() * 100
-    }
-
-    /// "3.4": the margin, to one decimal. nil when there is none.
-    var margin: String? {
-        marginOfError.map { String(format: "%.1f", $0) }
-    }
-
-    /// "Only a sample of 500 of the 2463 mutants discovered was tested (seed 1234): a whole run's score is within 3.4
-    /// points of this one, at 95% confidence." Without a margin, how many of the sample have a result instead.
-    var sentence: String {
-        let tested = "Only a sample of \(mutantsSampled) of the \(mutantsSampledFrom) mutants discovered was tested "
-            + "(seed \(seed))"
-        guard noneScored != true else {
-            return "Only a sample of \(mutantsSampled) of the \(mutantsSampledFrom) mutants discovered was chosen "
-                + "(seed \(seed)), and every one with a result was a build error, so there is no score and no margin."
-        }
-        guard let margin else {
-            return tested + ", and \(mutantsTested) of them have a result, so no margin is given: the others have none "
-                + "yet, so these are the first ones tested, not a random part of the sample."
-        }
-        // A shard's results, or some shards', are a random part of the sample too.
-        let part = mutantsTested < mutantsSampled ? ", and the margin is from the \(mutantsTested) of them here" : ""
-        return tested + part + ": a whole run's score is within \(margin) points of this one, at 95% confidence."
     }
 }

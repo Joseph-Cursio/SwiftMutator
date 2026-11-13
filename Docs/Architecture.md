@@ -112,7 +112,7 @@ switch, and the copy is built once.
   creates that marker the first time a switch's condition holds, as each mutant's `if` reads it after
   its own check, and reading `environment` creates `<marker>.reached`
   ([`MutationTesting/ActivationMarker.swift`](../Sources/muterCore/MutationTesting/ActivationMarker.swift)).
-- [`MutationTesting/MutationTestingIODelegate.swift`](../Sources/muterCore/MutationTesting/MutationTestingIODelegate.swift)
+- [`MutationTesting/MutationTestingDelegate+TestProcess.swift`](../Sources/muterCore/MutationTesting/MutationTestingDelegate+TestProcess.swift)
   switches a mutant on for a test run. For SwiftPM it writes the ID to the worker's
   `<project>_mutated.active-mutant` file, beside its folder, and names that file in the
   variable: SwiftPM keys its manifest cache on the whole environment, so a variable per mutant
@@ -185,7 +185,9 @@ Each result is written as it finishes, as a line of JSON in `results.jsonl` in t
 folder, `<project>_muter_logs/<run>/`
 ([`Results/ResultsFile.swift`](../Sources/muterCore/Results/ResultsFile.swift)). Its lines are of
 six kinds: `header`, `retired`, `mutant`, `control`, `propertyRerun` and `end`
-([`Results/ResultsRecords.swift`](../Sources/muterCore/Results/ResultsRecords.swift),
+([`Results/ResultsCoding.swift`](../Sources/muterCore/Results/ResultsCoding.swift) for how they are
+written, `ResultsHeader.swift`, `ResultsRetired.swift`, `MutantResult.swift` and `ResultsEnd.swift` in
+[`Results`](../Sources/muterCore/Results) for `header`, `retired`, `mutant` and `end`,
 [`Results/ControlRunResult.swift`](../Sources/muterCore/Results/ControlRunResult.swift) for
 `control`, and
 [`Results/PropertyRerunResult.swift`](../Sources/muterCore/Results/PropertyRerunResult.swift) for
@@ -246,5 +248,5 @@ loads it as a run starts.
   the Mac awake while a run goes on.
 - [`Sampling`](../Sources/muterCore/Sampling) and [`Sharding`](../Sources/muterCore/Sharding):
   `--sample`, and `--shard` with merging shards' results.
-- [`CLICommands/ExitStatus.swift`](../Sources/muterCore/CLICommands/ExitStatus.swift): the exit
+- [`CLICommands/ExitCode+ExitStatus.swift`](../Sources/muterCore/CLICommands/ExitCode+ExitStatus.swift): the exit
   statuses.

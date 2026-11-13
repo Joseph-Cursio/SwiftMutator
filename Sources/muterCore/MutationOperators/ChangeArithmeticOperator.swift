@@ -11,15 +11,15 @@ import SwiftSyntax
 enum ChangeArithmeticOperator {
     final class Visitor: TokenAwareVisitor {
         convenience init(
-            configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
+            configuration: MuterConfiguration? = nil,
             coverage: FileCoverage = .empty
         ) {
             self.init(
-                configuration: configuration,
                 sourceCodeInfo: sourceCodeInfo,
                 mutationOperatorId: .arithmeticOperator,
-                coverage: coverage
+                coverage: coverage,
+                configuration: configuration
             )
 
             oppositeOperatorMapping = Self.changes
@@ -64,10 +64,13 @@ enum ChangeArithmeticOperator {
             switch name {
             case "+", "-", "+=", "-=":
                 return value == 0
+
             case "*", "*=":
                 return abs(value) == 1 || (value == 0 && rightOperand.isAnIntegerLiteral)
+
             case "/", "/=":
                 return abs(value) == 1
+
             default:
                 return false
             }
@@ -79,6 +82,7 @@ enum ChangeArithmeticOperator {
             switch token.trailingTrivia.first {
             case .lineComment, .blockComment, .docLineComment, .docBlockComment:
                 return true
+
             default:
                 return false
             }

@@ -35,39 +35,11 @@ struct FingerprintProjectTree: MutationStep {
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         let lastSession = state.resumeState?.lastHeader.project
         let copyListing = state.testPlan.flatMap { Self.copyListing(of: $0, lastSession: lastSession) }
-        let fingerprinting = await ProjectTree.fingerprinting(
-            listingIn: state.projectDirectoryURL,
-            hashingIn: state.mutatedProjectDirectoryURL,
-            // The last session's too: its report may still be in the project, under another name.
-            excluding: ProjectTree.excludedPaths(of: state, under: state.projectDirectoryURL)
-                + (lastSession?.excluded ?? [])
-                + ProjectTree.relativePaths([state.testPlan?.path], under: state.projectDirectoryURL),
-            pruning: state.testPlan == nil
-                ? []
-                : Self.foldersWritten(in: state.mutatedProjectDirectoryURL, by: state.muterConfiguration),
-            list: { [listProjectFiles, project = state.projectDirectoryURL] directory in
-                guard let copyListing, directory == project else { return await listProjectFiles(directory) }
-                return copyListing.paths
-            }
-        )
+        let fingerprinting = await fingerprinting(state, lastSession: lastSession, copyListing: copyListing)
         // A git that stopping the run killed reads as no repository, and the walk in its place lists what git ignores.
         try Task.checkCancellation()
         let fingerprinted = fingerprinting.tree
-        let outside = OutsideProjectCode.paths(
-            in: state.projectDirectoryURL,
-            listed: fingerprinting.paths,
-            localPackages: fingerprinting.localPackages
-        )
-        if !outside.isEmpty {
-            events.send(.codeOutsideTheProjectBuilt(outside))
-        }
-        let namedByAbsolutePath = OutsideProjectCode.namedByAbsolutePath(
-            in: state.projectDirectoryURL,
-            listed: fingerprinting.paths
-        )
-        if !namedByAbsolutePath.isEmpty {
-            events.send(.projectCodeNamedByAbsolutePath(namedByAbsolutePath))
-        }
+        sayWhatIsBuiltFromOutside(fingerprinting, state: state)
         let tree = copyListing.map { listing in
             ProjectTree(
                 listedBy: listing.listedBy,
@@ -86,30 +58,97 @@ struct FingerprintProjectTree: MutationStep {
             return [.projectTreeFingerprinted(tree)]
         }
         if resume.isReuse {
-            var sources: [String: String?] = [:]
-            let readSource = { (path: String) -> String? in
-                if let read = sources[path] {
-                    return read
-                }
-                // A local package outside the project isn't copied: its files were hashed where they are.
-                let root = path.hasPrefix("../") ? state.projectDirectoryURL : state.mutatedProjectDirectoryURL
-                let read = try? String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
-                sources[path] = read
+            return Self.reuseChanges(to: tree, since: resume, state: state)
+        }
+        return try resumeChanges(to: tree, since: recorded, of: resume, state: state)
+    }
+
+    /// The project's files, listed in the project, or, for a run of a test plan, as `copyListing` has them, and hashed
+    /// in the copy, but those a report, the last session's, `lastSession`, or the plan file may be, and, for a run of a
+    /// plan, the folders its build writes in the copy.
+    private func fingerprinting(
+        _ state: AnyMutationTestState,
+        lastSession: ProjectTree?,
+        copyListing: (paths: [String], listedBy: ProjectTree.Listing)?
+    ) async -> ProjectTree.Fingerprinting {
+        await ProjectTree.fingerprinting(
+            listingIn: state.projectDirectoryURL,
+            hashingIn: state.mutatedProjectDirectoryURL,
+            // The last session's too: its report may still be in the project, under another name.
+            excluding: ProjectTree.excludedPaths(of: state, under: state.projectDirectoryURL)
+                + (lastSession?.excluded ?? [])
+                + ProjectTree.relativePaths([state.testPlan?.path], under: state.projectDirectoryURL),
+            list: { [listFiles = listProjectFiles, project = state.projectDirectoryURL] directory in
+                guard let copyListing, directory == project else { return await listFiles(directory) }
+                return copyListing.paths
+            },
+            pruning: state.testPlan == nil
+                ? []
+                : Self.foldersWritten(in: state.mutatedProjectDirectoryURL, by: state.muterConfiguration)
+        )
+    }
+
+    /// Says what the build uses from outside the project, and the code in it that a workspace or manifest names by an
+    /// absolute path, from what `fingerprinting` listed.
+    private func sayWhatIsBuiltFromOutside(_ fingerprinting: ProjectTree.Fingerprinting, state: AnyMutationTestState) {
+        let outside = OutsideProjectCode.paths(
+            in: state.projectDirectoryURL,
+            listed: fingerprinting.paths,
+            localPackages: fingerprinting.localPackages
+        )
+        if !outside.isEmpty {
+            events.send(.codeOutsideTheProjectBuilt(outside))
+        }
+        let namedByAbsolutePath = OutsideProjectCode.namedByAbsolutePath(
+            in: state.projectDirectoryURL,
+            listed: fingerprinting.paths
+        )
+        if !namedByAbsolutePath.isEmpty {
+            events.send(.projectCodeNamedByAbsolutePath(namedByAbsolutePath))
+        }
+    }
+
+    /// For a reuse of `resume`'s results, every change from each of its sessions' files to `tree`, the copy's, split by
+    /// what it can make wrong (`ReuseChanges`), with those `--resume-ignoring` lets through.
+    private static func reuseChanges(
+        to tree: ProjectTree,
+        since resume: ResumeState,
+        state: AnyMutationTestState
+    ) -> [MutationTestState.Change] {
+        var sources: [String: String?] = [:]
+        let readSource = { (path: String) -> String? in
+            if let read = sources[path] {
                 return read
             }
-            var changes: [Int: ReuseChanges] = [:]
-            for header in resume.recorded.headers {
-                guard let sessionTree = header.project else { continue }
-                changes[header.session] = ReuseChanges(
-                    from: sessionTree,
-                    to: tree,
-                    waiving: state.runOptions.resumeIgnoring,
-                    readSource: readSource
-                )
-            }
-            let waived = Set(changes.values.flatMap(\.waived)).sorted()
-            return [.projectTreeFingerprinted(tree), .projectChangesWaived(waived), .reuseChangesFound(changes)]
+            // A local package outside the project isn't copied: its files were hashed where they are.
+            let root = path.hasPrefix("../") ? state.projectDirectoryURL : state.mutatedProjectDirectoryURL
+            let read = try? String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+            sources[path] = read
+            return read
         }
+        var changes: [Int: ReuseChanges] = [:]
+        for header in resume.recorded.headers {
+            guard let sessionTree = header.project else { continue }
+            changes[header.session] = ReuseChanges(
+                from: sessionTree,
+                to: tree,
+                waiving: state.runOptions.resumeIgnoring,
+                readSource: readSource
+            )
+        }
+        let waived = Set(changes.values.flatMap(\.waived)).sorted()
+        return [.projectTreeFingerprinted(tree), .projectChangesWaived(waived), .reuseChangesFound(changes)]
+    }
+
+    /// For a resume of `resume`, the changes from `recorded`, its last session's files, to `tree`, the copy's, that
+    /// `--resume-ignoring` lets through; any other refuses the resume, but a test plan's copy's resolution file that
+    /// its build wrote, which is only said.
+    private func resumeChanges(
+        to tree: ProjectTree,
+        since recorded: ProjectTree,
+        of resume: ResumeState,
+        state: AnyMutationTestState
+    ) throws -> [MutationTestState.Change] {
         let split = tree.changes(since: recorded).partition(by: state.runOptions.resumeIgnoring)
         let resolved = state.testPlan?.sources.map { Self.resolutionsWritten(in: split.unwaived, since: $0) } ?? []
         let unwaived = split.unwaived.filter { !resolved.contains($0) }
@@ -166,7 +205,7 @@ struct FingerprintProjectTree: MutationStep {
         since sources: ProjectTree
     ) -> [ProjectTree.FileChange] {
         changes.filter { change in
-            (change.path as NSString).lastPathComponent == "Package.resolved"
+            change.path.lastPathComponent == "Package.resolved"
                 && ProjectTree.isAlwaysIncluded(change.path)
                 && sources.files[change.path] == nil
         }

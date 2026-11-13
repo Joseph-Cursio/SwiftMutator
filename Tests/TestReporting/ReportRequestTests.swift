@@ -31,7 +31,10 @@ final class ReportRequestTests: MuterTestCase {
             ("xcode:report.txt", "save the Xcode format with -f xcode"),
         ]
         for (text, problem) in refused {
-            guard case let .failure(found) = ReportRequest.parse(text) else { return XCTFail(text) }
+            guard case let .failure(found) = ReportRequest.parse(text) else {
+                XCTFail(text)
+                return
+            }
             XCTAssertTrue(found.description.hasPrefix(problem), "\(text): \(found)")
             XCTAssertTrue(found.description.hasSuffix("such as markdown:summary.md"), "\(text): \(found)")
         }
@@ -41,7 +44,7 @@ final class ReportRequestTests: MuterTestCase {
     func test_isCodedAsItsText() throws {
         let request = ReportRequest(format: .json, path: "/out/a:b.json")
 
-        let written = String(decoding: try JSONEncoder().encode([request]), as: UTF8.self)
+        let written = String(lossyUTF8: try JSONEncoder().encode([request]))
         XCTAssertEqual(written, #"["json:\/out\/a:b.json"]"#)
         XCTAssertEqual(try JSONDecoder().decode([ReportRequest].self, from: JSONEncoder().encode([request])), [request])
         XCTAssertThrowsError(try JSONDecoder().decode([ReportRequest].self, from: Data(#"["xcode:r.txt"]"#.utf8)))

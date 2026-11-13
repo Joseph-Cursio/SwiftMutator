@@ -42,7 +42,7 @@ final class MutationTestObserverOtherReportsTests: MuterTestCase {
         // As JSON, whose dictionaries' keys come in no set order.
         let json = try JSONSerialization.jsonObject(with: XCTUnwrap(fileManager.createdFiles["/out/report.json"]))
         let expected = try JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8))
-        XCTAssertEqual(json as? NSDictionary, expected as? NSDictionary)
+        XCTAssertEqual(json as? [String: AnyHashable], expected as? [String: AnyHashable])
         XCTAssertEqual(printer.linesPassed.suffix(4), [
             "📝 Report generated: \("/out/report.txt".bold)",
             "📝 Report generated: \("/out/summary.md".bold)",
@@ -78,7 +78,7 @@ final class MutationTestObserverOtherReportsTests: MuterTestCase {
         XCTAssertTrue(printer.linesPassed.contains("⚠️ Could not save the report to /out/summary.md"))
         let summary = try JSONDecoder().decode(RunSummary.self, from: Data((writeFile.contentPassed ?? "").utf8))
         XCTAssertNil(summary.reports)
-        XCTAssertFalse(String(decoding: summary.json, as: UTF8.self).contains("\"reports\""))
+        XCTAssertFalse(String(lossyUTF8: summary.json).contains("\"reports\""))
     }
 
     // Two paths the checks before the run take for two files, but that are one, as two that differ only in case are

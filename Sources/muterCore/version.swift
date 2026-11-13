@@ -1,2 +1,2 @@
-/// SwiftMutator's version: what `--version` prints, and what a test plan records it was made by.
+/// SwiftMutator's version, which `--version` prints and the results and baseline files record.
 public let version = "0.1.0"

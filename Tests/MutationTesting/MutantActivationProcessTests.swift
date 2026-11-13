@@ -8,12 +8,13 @@ import XCTest
 /// environment, and each must still read its own mutant from the worker's active-mutant file.
 final class MutantActivationProcessTests: MuterTestCase {
     private let sut = MutationTestingDelegate()
-    private var directory: URL!
+    private let directory = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
 
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        directory = try URL(fileURLWithPath: makeTemporaryDirectory())
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { [directory] in try? FileManager.default.removeItem(at: directory) }
         // Test logs are written to the current directory; keep them in the folder removed afterwards.
         fileManager.currentDirectoryPathToReturn = directory.path
     }
@@ -72,7 +73,7 @@ final class MutantActivationProcessTests: MuterTestCase {
         try FileManager.default.createDirectory(at: worker, withIntermediateDirectories: true)
         let mutant = try MutationSchema.make(filePath: "/path/Sample.swift", position: .init(line: 1))
 
-        func run(_ script: String) async -> Bool? {
+        func run(_ script: String) async -> TestRun {
             let configuration = MuterConfiguration(
                 executable: "/bin/sh", arguments: ["-c", script], testSuiteTimeOut: 60, buildSystem: .swift
             )
@@ -81,16 +82,16 @@ final class MutantActivationProcessTests: MuterTestCase {
                 using: configuration,
                 savingResultsIntoFileNamed: "\(UUID().uuidString).log",
                 workingDirectory: worker
-            ).activated
+            )
         }
         let marker = #"marker=$(sed -n 2p "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE"); "#
 
-        let ran = await run(marker + #"touch "$marker" "$marker.reached""#)
-        XCTAssertTrue(ran)
-        let didntRun = await run(marker + #"touch "$marker.reached""#)
-        XCTAssertFalse(didntRun, "the marker of the run before doesn't count")
-        let showsNothing = await run("true")
-        XCTAssertNil(showsNothing, "the file of the run before doesn't count")
+        let ran = await run(marker + #"touch "$marker" "$marker.reached""#).activated
+        XCTAssertEqual(ran, .ran)
+        let didntRun = await run(marker + #"touch "$marker.reached""#).activated
+        XCTAssertEqual(didntRun, .didNotRun, "the marker of the run before doesn't count")
+        let showsNothing = await run("true").activated
+        XCTAssertEqual(showsNothing, .unknown, "the file of the run before doesn't count")
     }
 
     // MARK: - Helpers

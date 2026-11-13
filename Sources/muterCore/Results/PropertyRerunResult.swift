@@ -5,7 +5,7 @@ import Foundation
 /// own line, which it never replaces: the reports read it to tell "only by examples" from "by both". A later `mutant`
 /// line of the same key, a new result, sets it aside. A reader that doesn't know the kind skips the line.
 struct PropertyRerunResult: Codable, Equatable {
-    var kind = "propertyRerun"
+    var kind = "propertyRerun" // swiftlint:disable:this unused_declaration - results file key; Codable writes it
     let session: Int
     /// The mutant's key's fields (`MutantKey`), as its `mutant` line records them.
     let path: String
@@ -17,18 +17,18 @@ struct PropertyRerunResult: Codable, Equatable {
     let outcome: TestSuiteOutcome
     let endedBy: TestRun.Ending
     /// Only for an `exited` run: its exit code, or the signal that ended it.
-    let exitStatus: Int32?
+    let exitStatus: Int32? // swiftlint:disable:this unused_declaration - results file key; Codable writes it
     /// From launch to classification, to the millisecond.
-    let durationSeconds: Double
+    let durationSeconds: Double // swiftlint:disable:this unused_declaration - results file key; Codable writes it
     /// Where it ran, as a mutant's `worker` says.
-    let worker: Int
+    let worker: Int // swiftlint:disable:this unused_declaration - results file key; Codable writes it
     let finishedAt: Date
     /// The tests its log shows failing, as a mutant's `killedBy` names them.
     let killedBy: [FailedTestLine.FailedTest]?
     /// How many distinct tests its log shows failing, uncapped.
     let failedTestCount: Int?
     /// The first line that shows one, without colour codes, capped.
-    let firstFailedTestLine: String?
+    let firstFailedTestLine: String? // swiftlint:disable:this unused_declaration - results file key; Codable writes it
     /// The kept log's file name in the session's `logDirectory`, when it was kept (`PropertyReruns.keepsLog`).
     let log: String?
 
@@ -39,47 +39,6 @@ struct PropertyRerunResult: Codable, Equatable {
             line: line,
             column: column,
             occurrence: occurrence
-        )
-    }
-}
-
-extension PropertyRerunResult {
-    /// The record of `finished`, the property tests' run with `key`'s mutant on, in session `session`, whose log showed
-    /// `failures` failing (`MutantResult.failedTests(of:ignoring:)`).
-    init(
-        key: MutantKey,
-        finished: FinishedRun,
-        failures: FailedTestLine.FailedTests?,
-        session: Int,
-        finishedAt: Date,
-        log: String?
-    ) {
-        let run = finished.run
-        self.init(
-            session: session,
-            path: key.path,
-            line: key.line,
-            column: key.column,
-            occurrence: key.occurrence,
-            mutationOperatorId: key.mutationOperatorId,
-            outcome: run.outcome,
-            endedBy: run.ending,
-            exitStatus: run.ending == .exited ? run.exitStatus : nil,
-            durationSeconds: MutantResult.recordedSeconds(finished.seconds),
-            worker: finished.worker,
-            finishedAt: finishedAt,
-            killedBy: failures?.tests,
-            failedTestCount: failures?.count,
-            firstFailedTestLine: failures?.firstLine,
-            log: log
-        )
-    }
-
-    /// What the reports read of it.
-    var rerun: MutationTestOutcome.PropertyRerun {
-        MutationTestOutcome.PropertyRerun(
-            outcome: outcome,
-            killingTests: .init(killedBy: killedBy, failedTestCount: failedTestCount, endedBy: endedBy)
         )
     }
 }

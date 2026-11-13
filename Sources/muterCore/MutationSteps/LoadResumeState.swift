@@ -100,19 +100,8 @@ struct LoadResumeState: MutationStep {
         }
         // Asked in the project, where swiftly finds the same `.swift-version` as in the copy.
         let current = await provenance(state.muterConfiguration)
-        // Only a resume refuses changed files, so only a resume fingerprints the project here. Neither a run of a test
-        // plan nor one that resumes a run of a plan does: a plan run's header records its copy, not the project, and a
-        // run that resumes another kind of run is refused for that alone (`ResumeRefusal.testPlanRun`).
-        var tree: ProjectTree?
-        if file != nil, !options.isUsingTestPlan, !lastHeader.usingTestPlan {
-            tree = await ProjectTree.fingerprint(
-                listingIn: state.projectDirectoryURL,
-                hashingIn: state.projectDirectoryURL,
-                excluding: ProjectTree.excludedPaths(of: state, under: state.projectDirectoryURL)
-                    + (lastHeader.project?.excluded ?? []),
-                list: listProjectFiles
-            )
-        }
+        // Only a resume refuses changed files, so only a resume fingerprints the project here.
+        let tree = file == nil ? nil : await projectTree(after: lastHeader, state: state)
         // A probe or a git that stopping the run killed would read as a changed toolchain, or as removed files.
         try Task.checkCancellation()
 
@@ -123,17 +112,7 @@ struct LoadResumeState: MutationStep {
             for: file == nil ? .reuse : .resume,
             longestLimit: Self.longestLimit(of: recorded)
         )
-        var reasons = verdict.refusals
-        if let reportPath = options.reportOptions.path, ResultsFile.isSameFile(reportPath, path) {
-            reasons.append(.reportWouldReplaceTheResultsFile(reportPath))
-        }
-        for request in state.muterConfiguration.reportRequests(in: state.projectDirectoryURL)
-            where ResultsFile.isSameFile(request.path, path) {
-            reasons.append(.otherReportWouldReplaceTheResultsFile(request, isTheFlags: options.reports != nil))
-        }
-        if let baselinePath = options.writeBaseline, ResultsFile.isSameFile(URL.expandingTilde(baselinePath), path) {
-            reasons.append(.baselineFileWouldReplaceTheResultsFile(baselinePath))
-        }
+        var reasons = verdict.refusals + Self.filesReplacing(path, state: state)
         if let recordedTree = lastHeader.project, let tree {
             let unwaived = tree.changes(since: recordedTree).partition(by: options.resumeIgnoring).unwaived
             if !unwaived.isEmpty {
@@ -153,15 +132,46 @@ struct LoadResumeState: MutationStep {
             notices: verdict.notices,
             reusedFolders: file == nil
                 ? ReusedFolders(
-                    holding: [(path as NSString).deletingLastPathComponent] + recorded.headers.map(\.logDirectory),
+                    holding: [path.deletingLastPathComponent] + recorded.headers.map(\.logDirectory),
                     resultsFile: path
                 )
                 : nil
         )
     }
-}
 
-extension LoadResumeState {
+    /// The project's files as a resume of the run whose last header is `lastHeader` compares them, fingerprinted in the
+    /// project itself. Neither a run of a test plan nor one that resumes a run of a plan does: a plan run's header
+    /// records its copy, not the project, and a run that resumes another kind of run is refused for that alone
+    /// (`ResumeRefusal.testPlanRun`).
+    private func projectTree(after lastHeader: ResultsHeader, state: AnyMutationTestState) async -> ProjectTree? {
+        guard !state.runOptions.isUsingTestPlan, !lastHeader.usingTestPlan else { return nil }
+        return await ProjectTree.fingerprint(
+            listingIn: state.projectDirectoryURL,
+            hashingIn: state.projectDirectoryURL,
+            excluding: ProjectTree.excludedPaths(of: state, under: state.projectDirectoryURL)
+                + (lastHeader.project?.excluded ?? []),
+            list: listProjectFiles
+        )
+    }
+
+    /// Why this run would replace the results file at `path` it continues: its `-o` report, a report it is asked for,
+    /// or the baseline file it writes.
+    private static func filesReplacing(_ path: String, state: AnyMutationTestState) -> [ResumeRefusal] {
+        let options = state.runOptions
+        var reasons: [ResumeRefusal] = []
+        if let reportPath = options.reportOptions.path, ResultsFile.isSameFile(reportPath, path) {
+            reasons.append(.reportWouldReplaceTheResultsFile(reportPath))
+        }
+        for request in state.muterConfiguration.reportRequests(in: state.projectDirectoryURL)
+            where ResultsFile.isSameFile(request.path, path) {
+            reasons.append(.otherReportWouldReplaceTheResultsFile(request, isTheFlags: options.reports != nil))
+        }
+        if let baselinePath = options.writeBaseline, ResultsFile.isSameFile(URL.expandingTilde(baselinePath), path) {
+            reasons.append(.baselineFileWouldReplaceTheResultsFile(baselinePath))
+        }
+        return reasons
+    }
+
     /// The longest time limit any of `recorded`'s results was tested under: the longest of its sessions that tested
     /// any. A session that tested none, as with nothing left to test or none that compiled, can have a limit no result
     /// ran under; with no other, any limit holds. nil when that isn't known: no session that tested any recorded one,

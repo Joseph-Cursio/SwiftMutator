@@ -1,5 +1,66 @@
 import Foundation
 
+/// Why `--mutant` tests nothing: the mutant it names isn't one the run has, or can't be tested on its own. The run
+/// stops with an error's status, and its message lists what can be given instead.
+struct MutantRefused: Error, Equatable, CustomStringConvertible {
+    /// As given.
+    let reference: MutantReference
+    let reason: Reason
+
+    enum Reason: Equatable {
+        /// No mutant is at the place given. `nearby` are the places nearest to its line, at most
+        /// `SelectMutant.nearbyListed`, in the `files` files whose path its path names; none when no file does.
+        case notFound(nearby: [Listed], files: Int)
+        /// The reference matches mutants at more than one place: these.
+        case ambiguous([Listed])
+        /// The mutant is one of `count` that one operator makes at one place, which share one switch.
+        case repeated(MutantKey, count: Int)
+    }
+
+    /// A place a refusal lists: its key, and how many mutants one operator makes there, which share one switch. Only
+    /// a place with one can be tested on its own.
+    struct Listed: Equatable {
+        let key: MutantKey
+        let sharing: Int
+    }
+
+    var description: String {
+        switch reason {
+        case let .notFound(nearby, files):
+            guard !nearby.isEmpty else {
+                return "No mutant is at \(reference): no file with mutants matches \(reference.path). "
+                    + "Nothing was tested."
+            }
+            let inFiles = files == 1 ? "the file" : "the \(files) files"
+            return "No mutant is at \(reference). Mutants near line \(reference.line) in \(inFiles) it names:\n"
+                + Self.options(nearby) + "\nNothing was tested."
+
+        case let .ambiguous(places):
+            let count = places.map(\.sharing).reduce(0, +)
+            let choice = places.contains { $0.sharing == 1 }
+                ? "give one of these:" : "none of them can be tested on its own:"
+            return "\(reference) names \(count) mutants; \(choice)\n" + Self.options(places) + "\nNothing was tested."
+
+        case let .repeated(key, count):
+            return "\(Logger.shellQuoted(key.description)) is one of \(count) \(key.mutationOperatorId.rawValue) "
+                + "mutants at the same place. They share one switch, so none of them can be tested on its own. "
+                + "Nothing was tested."
+        }
+    }
+
+    /// Each place on a line of its own: as the option that names it, quoted for a shell, when it can be tested on its
+    /// own, and otherwise as a note that it can't, which isn't an option to paste.
+    private static func options(_ places: [Listed]) -> String {
+        places.map { place in
+            place.sharing == 1
+                ? "  --mutant " + Logger.shellQuoted(place.key.description)
+                : "  " + Logger.shellQuoted(place.key.description) + ": one of \(place.sharing) "
+                    + "\(place.key.mutationOperatorId.rawValue) mutants that share one switch, so can't be tested alone"
+        }
+        .joined(separator: "\n")
+    }
+}
+
 /// Narrows the run's mutants to the one `--mutant` names, before anything is rewritten or tested: in a run, after
 /// discovery and before the copy is rewritten, so the copy gets only that mutant's switch; in a run of a test plan,
 /// right after the plan is read, so its checks look only at that mutant's file, and the copy isn't touched. A mutant
@@ -10,7 +71,7 @@ struct SelectMutant: MutationStep {
     /// How many mutants near the place a refused reference names are listed.
     static let nearbyListed = 5
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         guard let reference = state.runOptions.mutant else { return [] }
         let root = state.mutatedProjectDirectoryURL
         // As `PerformMutationTesting.jobs(of:)` lists them, so the keys and their occurrences are the run's.
@@ -89,64 +150,5 @@ struct SelectMutant: MutationStep {
             column: schema.position.column,
             occurrence: 0
         )
-    }
-}
-
-/// Why `--mutant` tests nothing: the mutant it names isn't one the run has, or can't be tested on its own. The run
-/// stops with an error's status, and its message lists what can be given instead.
-struct MutantRefused: Error, Equatable, CustomStringConvertible {
-    /// As given.
-    let reference: MutantReference
-    let reason: Reason
-
-    enum Reason: Equatable {
-        /// No mutant is at the place given. `nearby` are the places nearest to its line, at most
-        /// `SelectMutant.nearbyListed`, in the `files` files whose path its path names; none when no file does.
-        case notFound(nearby: [Listed], files: Int)
-        /// The reference matches mutants at more than one place: these.
-        case ambiguous([Listed])
-        /// The mutant is one of `count` that one operator makes at one place, which share one switch.
-        case repeated(MutantKey, count: Int)
-    }
-
-    /// A place a refusal lists: its key, and how many mutants one operator makes there, which share one switch. Only
-    /// a place with one can be tested on its own.
-    struct Listed: Equatable {
-        let key: MutantKey
-        let sharing: Int
-    }
-
-    var description: String {
-        switch reason {
-        case let .notFound(nearby, files):
-            guard !nearby.isEmpty else {
-                return "No mutant is at \(reference): no file with mutants matches \(reference.path). "
-                    + "Nothing was tested."
-            }
-            let inFiles = files == 1 ? "the file" : "the \(files) files"
-            return "No mutant is at \(reference). Mutants near line \(reference.line) in \(inFiles) it names:\n"
-                + Self.options(nearby) + "\nNothing was tested."
-        case let .ambiguous(places):
-            let count = places.map(\.sharing).reduce(0, +)
-            let choice = places.contains { $0.sharing == 1 }
-                ? "give one of these:" : "none of them can be tested on its own:"
-            return "\(reference) names \(count) mutants; \(choice)\n" + Self.options(places) + "\nNothing was tested."
-        case let .repeated(key, count):
-            return "\(Logger.shellQuoted(key.description)) is one of \(count) \(key.mutationOperatorId.rawValue) "
-                + "mutants at the same place. They share one switch, so none of them can be tested on its own. "
-                + "Nothing was tested."
-        }
-    }
-
-    /// Each place on a line of its own: as the option that names it, quoted for a shell, when it can be tested on its
-    /// own, and otherwise as a note that it can't, which isn't an option to paste.
-    private static func options(_ places: [Listed]) -> String {
-        places.map { place in
-            place.sharing == 1
-                ? "  --mutant " + Logger.shellQuoted(place.key.description)
-                : "  " + Logger.shellQuoted(place.key.description) + ": one of \(place.sharing) "
-                    + "\(place.key.mutationOperatorId.rawValue) mutants that share one switch, so can't be tested alone"
-        }
-        .joined(separator: "\n")
     }
 }

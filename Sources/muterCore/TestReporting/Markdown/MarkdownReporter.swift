@@ -1,5 +1,3 @@
-import Foundation
-
 /// A short report in Markdown, for a GitHub job summary or a pull request's comment: the score, the verdicts of the
 /// checks the run was asked for, the counts, the scores of up to `mostFiles` files, and the mutants to act on, up to
 /// `mostListed` of each kind, as the JSON report lists them all. GitHub keeps at most 1 MiB of a step's summary. Every
@@ -63,43 +61,41 @@ struct MarkdownReporter: Reporter {
         guard let checks = outcome.checks else { return [] }
         var blocks: [String] = []
         if let gate = checks.scoreGate, let line = gate.line {
-            blocks.append(Self.mark(gate.passed) + " " + MarkdownText.plain(line))
+            blocks.append(gate.result.mark + " " + MarkdownText.plain(line))
         }
         if let check = checks.newSurvivors, let line = check.line {
             if let notice = check.versionNotice {
                 blocks.append("⚠️ " + MarkdownText.plain(notice))
             }
-            blocks.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
+            blocks.append(check.result.mark + " " + MarkdownText.plain(line))
             if case let .checked(comparison) = check.verdict {
                 blocks += Self.table(
                     of: comparison.newSurvivors,
-                    header: ["New survivor", "Change"],
-                    row: { survivor in
-                        [
-                            MarkdownText.codeInCell(survivor.mutant),
-                            MarkdownText.codeInCell(survivor.before) + " → " + MarkdownText.codeInCell(survivor.after)
-                                + (survivor.notCovered ? NewSurvivorsCheck.NewSurvivor.notCoveredNote : ""),
-                        ]
-                    }
-                )
+                    header: ["New survivor", "Change"]
+                ) { survivor in
+                    [
+                        MarkdownText.codeInCell(survivor.mutant),
+                        MarkdownText.codeInCell(survivor.before) + " → " + MarkdownText.codeInCell(survivor.after)
+                            + (survivor.notCovered ? NewSurvivorsCheck.NewSurvivor.notCoveredNote : ""),
+                    ]
+                }
             }
         }
         if let check = checks.scoreDrop, let line = check.line {
-            blocks.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
+            blocks.append(check.result.mark + " " + MarkdownText.plain(line))
         }
         if let check = checks.doubtfulKills, let line = check.line {
-            blocks.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
+            blocks.append(check.result.mark + " " + MarkdownText.plain(line))
             blocks += Self.table(
                 of: check.doubtfulKills,
-                header: ["Doubtful kill", "Change", "Why"],
-                row: { kill in
-                    [
-                        MarkdownText.codeInCell(kill.mutant),
-                        MarkdownText.codeInCell(kill.before) + " → " + MarkdownText.codeInCell(kill.after),
-                        MarkdownText.plain(kill.why),
-                    ]
-                }
-            )
+                header: ["Doubtful kill", "Change", "Why"]
+            ) { kill in
+                [
+                    MarkdownText.codeInCell(kill.mutant),
+                    MarkdownText.codeInCell(kill.before) + " → " + MarkdownText.codeInCell(kill.after),
+                    MarkdownText.plain(kill.why),
+                ]
+            }
         }
         guard !blocks.isEmpty else { return [] }
         return ["### Checks"] + blocks
@@ -115,15 +111,6 @@ struct MarkdownReporter: Reporter {
         let alignments = Array(repeating: false, count: header.count)
         return [MarkdownText.table(header: header, alignments: alignments, rows: items.prefix(mostListed).map(row))]
             + (more > 0 ? [rest] : [])
-    }
-
-    /// ✅ for a check that passed, ❌ for one that failed, ⚠️ for one that wasn't checked.
-    private static func mark(_ passed: Bool?) -> String {
-        switch passed {
-        case .some(true): "✅"
-        case .some(false): "❌"
-        case .none: "⚠️"
-        }
     }
 
     /// One row of how many mutants came to each verdict some came to, and their total; none without mutants.
@@ -178,7 +165,7 @@ struct MarkdownReporter: Reporter {
     /// The first `mostListed` of `mutants`, grouped by file, each by its place in it, its operator and what it
     /// changes, whether it timed out, and its triage label; then how many more there are.
     private static func listed(
-        _ mutants: [(relativePath: String, appliedOperator: MuterTestReport.AppliedMutationOperator)]
+        _ mutants: [(relativePath: String, appliedOperator: AppliedMutationOperator)]
     ) -> [String] {
         var lines: [String] = []
         var file: String?
@@ -195,7 +182,7 @@ struct MarkdownReporter: Reporter {
     }
 
     /// "`42:17` RelationalOperatorReplacement: changed == to != (timed out) — Triaged: equivalent".
-    private static func line(of mutant: MuterTestReport.AppliedMutationOperator) -> String {
+    private static func line(of mutant: AppliedMutationOperator) -> String {
         let position = mutant.mutationPoint.position
         let description = mutant.mutationSnapshot.description
         let change = description.isEmpty ? "" : ": " + MarkdownText.plain(description)

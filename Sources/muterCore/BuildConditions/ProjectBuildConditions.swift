@@ -1,6 +1,12 @@
 import Foundation
 import SwiftIfConfig
 
+/// Why SwiftMutator couldn't tell what a project's build compiles with.
+struct BuildConditionsUnavailable: Error, Equatable {
+    /// To follow "SwiftMutator couldn't tell which `#if` branches the build compiles: ".
+    let reason: String
+}
+
 /// What a project's build compiles with, for each file where the build system says which targets hold it.
 struct ProjectBuildConditions: Equatable, Sendable {
     /// For any file, by every target's conditions: an `#if` is decided only where they all agree.
@@ -23,110 +29,6 @@ struct ProjectBuildConditions: Equatable, Sendable {
             }
         }
         return conditions
-    }
-}
-
-/// Why SwiftMutator couldn't tell what a project's build compiles with.
-struct BuildConditionsUnavailable: Error, Equatable {
-    /// To follow "SwiftMutator couldn't tell which `#if` branches the build compiles: ".
-    let reason: String
-}
-
-extension BuildConditions.SDKModules {
-    /// The modules of the SDK at `sdk`, and the ones only the other SDKs of its Xcode have. Nil if `sdk` lists none,
-    /// so that nothing would read as absent because the SDK couldn't be read.
-    init?(sdk: FilePath, fileManager: FileSystemManager) {
-        let present = Self.modules(ofSDK: sdk, fileManager: fileManager)
-        guard !present.isEmpty else { return nil }
-
-        self.present = present
-        absent = Self.otherSDKs(than: sdk, fileManager: fileManager)
-            .reduce(into: Set<String>()) { $0.formUnion(Self.modules(ofSDK: $1, fileManager: fileManager)) }
-            .subtracting(present)
-    }
-
-    /// The Apple frameworks a Swift build elsewhere can't import, for a platform with no SDK folders to read. The rest
-    /// of what `canImport` asks there is undecided: Foundation and Glibc come with the toolchain or the system.
-    static let withoutAnSDK = Self(
-        present: [],
-        absent: [
-            "AppKit", "Cocoa", "Combine", "CoreGraphics", "Darwin", "ObjectiveC", "SwiftUI", "TVUIKit", "UIKit",
-            "WatchKit",
-        ]
-    )
-
-    private static func modules(ofSDK sdk: FilePath, fileManager: FileSystemManager) -> Set<String> {
-        var modules: Set<String> = []
-        let frameworks = sdk + "/System/Library/Frameworks"
-        for entry in (try? fileManager.contentsOfDirectory(atPath: frameworks)) ?? []
-        where entry.hasSuffix(".framework") && fileManager.fileExists(atPath: "\(frameworks)/\(entry)/Modules") {
-            modules.insert(String(entry.dropLast(".framework".count)))
-        }
-        for entry in (try? fileManager.contentsOfDirectory(atPath: sdk + "/usr/lib/swift")) ?? []
-        where entry.hasSuffix(".swiftmodule") {
-            modules.insert(String(entry.dropLast(".swiftmodule".count)))
-        }
-        return modules
-    }
-
-    /// The SDKs in `<Developer>/Platforms/<platform>.platform/Developer/SDKs`, where `sdk` is one, without `sdk`. A
-    /// macOS SDK from the Command Line Tools has none beside it.
-    private static func otherSDKs(than sdk: FilePath, fileManager: FileSystemManager) -> [FilePath] {
-        let platforms = URL(fileURLWithPath: sdk)
-            .deletingLastPathComponent() // SDKs
-            .deletingLastPathComponent() // Developer
-            .deletingLastPathComponent() // <platform>.platform
-            .deletingLastPathComponent().path
-        guard platforms.hasSuffix("/Platforms") else { return [] }
-
-        return ((try? fileManager.contentsOfDirectory(atPath: platforms)) ?? []).flatMap { platform -> [FilePath] in
-            let sdks = "\(platforms)/\(platform)/Developer/SDKs"
-            return ((try? fileManager.contentsOfDirectory(atPath: sdks)) ?? [])
-                .filter { $0.hasSuffix(".sdk") }
-                .map { "\(sdks)/\($0)" }
-                .filter { $0 != sdk }
-        }
-    }
-}
-
-/// A Swift language mode, as `-swift-version` takes it, and SwiftPM's `swiftLanguageModes` and Xcode's `SWIFT_VERSION`
-/// write it.
-enum LanguageMode: Comparable, Sendable {
-    case swift4, swift4dot2, swift5, swift6
-
-    /// `4`, `4.0`, `4.2`, `5`, `5.0`, `6` or `6.0`; nil for any other.
-    init?(_ written: String) {
-        switch written.trimmingCharacters(in: CharacterSet(charactersIn: "\"' ")) {
-        case "4", "4.0": self = .swift4
-        case "4.2": self = .swift4dot2
-        case "5", "5.0": self = .swift5
-        case "6", "6.0": self = .swift6
-        default: return nil
-        }
-    }
-
-    /// The version `swift(…)` compares with in this mode, as a Swift 6 compiler at `compiler` sets it: 4.1.50, 4.2,
-    /// 5.10, or the compiler's own version. Nil for another compiler, which may set others.
-    func languageVersion(compiler: VersionTuple?) -> VersionTuple? {
-        guard let compiler, compiler.components.first == 6 else { return nil }
-        switch self {
-        case .swift4: return VersionTuple(4, 1, 50)
-        case .swift4dot2: return VersionTuple(4, 2)
-        case .swift5: return VersionTuple(5, 10)
-        case .swift6: return compiler
-        }
-    }
-
-    /// The language version of a build whose targets have `modes`: theirs if they all have one, and the same one; nil
-    /// if any can't be told, or two differ.
-    static func languageVersion(of modes: [Self?], compiler: VersionTuple?) -> VersionTuple? {
-        guard let first = modes.first, let mode = first, modes.allSatisfy({ $0 == mode }) else { return nil }
-        return mode.languageVersion(compiler: compiler)
-    }
-
-    /// Whether `flags` set the mode themselves, which SwiftMutator doesn't follow.
-    static func isSet(inFlags flags: [String]) -> Bool {
-        flags.contains { $0 == "-swift-version" || $0 == "-language-mode" || $0.hasPrefix("-language-mode=") }
     }
 }
 

@@ -5,15 +5,15 @@ import XCTest
 /// A real project and results file in a temporary folder, the file opened and locked by the real opener. The project is
 /// listed by a walk, as outside a repository, and the build and toolchain are injected.
 final class LoadResumeStateTests: MuterTestCase {
-    private let state = MutationTestState()
-    private let sut = LoadResumeState()
-    private let configuration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
-    private var project = ""
-    private var logs = ""
+    let state = MutationTestState()
+    let sut = LoadResumeState()
+    let configuration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+    var project = ""
+    var logs = ""
     /// The folders the project's files were listed in.
-    private let listed = Locked<[URL]>([])
+    let listed = Locked<[URL]>([])
 
-    private var resultsPath: String {
+    var resultsPath: String {
         "\(logs)/results.jsonl"
     }
 
@@ -188,67 +188,6 @@ final class LoadResumeStateTests: MuterTestCase {
         XCTAssertNoThrow(try ResultsFile.Opener().openForResume(at: resultsPath), "the refused resume holds no lock")
     }
 
-    // Against the longest limit of every session, not only the last's: a result of a session with a longer one may
-    // need it.
-    func test_aLongerTimeLimit_goesAhead_onlyIfNoSessionHadALongerOne() async throws {
-        let timed = { (seconds: Double) in
-            MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], testSuiteTimeOut: seconds)
-        }
-        try await writeResults(
-            ResultsHeader.make(project: projectTree(), timeoutSeconds: 120),
-            ResultsEnd.make(reason: .interrupted),
-            ResultsHeader.make(session: 2, project: projectTree(), timeoutSeconds: 96.5),
-            ResultsEnd.make()
-        )
-        resume(resultsPath)
-        state.muterConfiguration = timed(100)
-
-        await assertRefused(
-            ResumeRefused(
-                path: resultsPath,
-                reasons: [.configurationChanged(.init(name: "mutationTestTimeout", was: nil, isNow: "100"))],
-                beforeTheCopy: true
-            )
-        )
-
-        state.muterConfiguration = timed(120)
-        let changes = try await sut.run(with: state)
-        state.apply(changes)
-
-        XCTAssertEqual(
-            try XCTUnwrap(state.resumeState).notices,
-            [
-                "mutationTestTimeout was not set and is 120 now, no shorter than any session's limit: the timeouts "
-                    + "under a shorter one are tested again.",
-            ]
-        )
-    }
-
-    // A result that --reuse kept was tested under the earlier run's limit, which the file doesn't record.
-    func test_aLongerTimeLimit_isRefused_forAFileThatHoldsAReusedResult() async throws {
-        let tree = await projectTree()
-        let reused = MutantResult.make(
-            path: "Sources/Sum.swift",
-            fileSHA256: tree.files["Sources/Sum.swift"],
-            reusedFrom: ReusedFrom(resultsFile: "/earlier/results.jsonl", session: 1, despiteChanges: false)
-        )
-        try writeResults(ResultsHeader.make(project: tree, timeoutSeconds: 20), reused, ResultsEnd.make())
-        resume(resultsPath)
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift",
-            arguments: ["test"],
-            testSuiteTimeOut: 120
-        )
-
-        await assertRefused(
-            ResumeRefused(
-                path: resultsPath,
-                reasons: [.timeLimitUnknown(.init(name: "mutationTestTimeout", was: nil, isNow: "120"))],
-                beforeTheCopy: true
-            )
-        )
-    }
-
     func test_aToolchainChange_isLetThroughByForce_andRecordedAsForced() async throws {
         try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
         let changed = provenance(toolchain: "Apple Swift version 6.5")
@@ -277,75 +216,9 @@ final class LoadResumeStateTests: MuterTestCase {
 
         XCTAssertEqual(changes.count, 1)
         guard case .resumeStateLoaded? = changes.first else {
-            return XCTFail("Expected the resume to be loaded, got \(changes)")
+            XCTFail("Expected the resume to be loaded, got \(changes)")
+            return
         }
-    }
-
-    // A plan run's last session recorded the copy as it tested it, rewritten and perhaps fixed by hand, which differs
-    // from the project. FingerprintProjectTree compares the copy once it is locked, and CheckTestPlanSources has
-    // checked the project against the plan, so nothing here lists or hashes the project.
-    func test_aTestPlanRun_doesNotCompareTheProjectWithTheRecordedCopy() async throws {
-        let copy = state.mutatedProjectDirectoryURL.path
-        try write(["README.md": "readme", "Sources/Sum.swift": "func sum() { if __SWIFTMUTATOR_ACTIVE {} }"], in: copy)
-        let copyTree = await ProjectTree.fingerprint(
-            listingIn: URL(fileURLWithPath: copy),
-            hashingIn: URL(fileURLWithPath: copy),
-            excluding: [],
-            list: { _ in nil }
-        )
-        let projectTree = await projectTree()
-        XCTAssertNotEqual(copyTree.files, projectTree.files, "the copy differs from the project")
-        try writeResults(
-            ResultsHeader.make(project: copyTree, usingTestPlan: true, testPlan: planRecord(sha256: "91a")),
-            ResultsEnd.make()
-        )
-        resumePlan(sha256: "91a")
-
-        let changes = try await sut.run(with: state)
-
-        guard case .resumeStateLoaded? = changes.first, changes.count == 1 else {
-            return XCTFail("Expected the resume to be loaded, got \(changes)")
-        }
-        XCTAssertEqual(listed.value, [], "the project was listed")
-    }
-
-    // `run` can't resume a run of a plan, whose header records the plan's copy, rewritten: that alone refuses it. The
-    // project isn't compared with the copy, which would name every rewritten file as changed, with --resume-ignoring
-    // flags that can't let the run through.
-    func test_aRunWithoutAPlan_resumingATestPlanRun_isRefusedForThatAlone() async throws {
-        let copy = state.mutatedProjectDirectoryURL.path
-        try write(["README.md": "readme", "Sources/Sum.swift": "func sum() { if __SWIFTMUTATOR_ACTIVE {} }"], in: copy)
-        let copyTree = await ProjectTree.fingerprint(
-            listingIn: URL(fileURLWithPath: copy),
-            hashingIn: URL(fileURLWithPath: copy),
-            excluding: [],
-            list: { _ in nil }
-        )
-        try writeResults(
-            ResultsHeader.make(project: copyTree, usingTestPlan: true, testPlan: planRecord(sha256: "91a")),
-            ResultsEnd.make()
-        )
-
-        await assertRefused(
-            ResumeRefused(path: resultsPath, reasons: [.testPlanRun(recordedUsedOne: true)], beforeTheCopy: true)
-        )
-        XCTAssertEqual(listed.value, [], "the project was listed")
-    }
-
-    func test_aTestPlanRun_withAnotherPlan_isRefusedBeforeTheCopy() async throws {
-        try await writeResults(
-            ResultsHeader.make(project: projectTree(), usingTestPlan: true, testPlan: planRecord(sha256: "91a")),
-            ResultsEnd.make()
-        )
-        resumePlan(sha256: "b07")
-
-        await assertRefused(
-            ResumeRefused(
-                path: resultsPath,
-                reasons: [.testPlanChanged(.init(name: "testPlan.sha256", was: #""91a""#, isNow: #""b07""#))],
-                beforeTheCopy: true
-            )
-        )
     }
 
     // muter.conf.yml is in the project, but its settings are in the header, and compared one by one: a change that no
@@ -375,73 +248,6 @@ final class LoadResumeStateTests: MuterTestCase {
         XCTAssertEqual(
             try XCTUnwrap(state.resumeState).notices,
             ["mutationTestWorkers was 1 and is 2 now, which no result depends on."]
-        )
-    }
-
-    // Saving the report there would replace every result the resume keeps.
-    func test_aReportPathThatIsTheResultsFile_isRefused() async throws {
-        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
-        resume(resultsPath, reportURL: URL(fileURLWithPath: resultsPath))
-
-        await assertRefused(
-            ResumeRefused(
-                path: resultsPath,
-                reasons: [.reportWouldReplaceTheResultsFile(resultsPath)],
-                beforeTheCopy: true
-            )
-        )
-    }
-
-    // Saving the baseline file at the end would replace it too.
-    func test_aBaselineFilePathThatIsTheResultsFile_isRefused() async throws {
-        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
-        state.runOptions = .make(
-            mutationOperatorsList: [.ror],
-            skipCoverage: true,
-            writeBaseline: resultsPath,
-            resumeURL: URL(fileURLWithPath: resultsPath)
-        )
-
-        await assertRefused(
-            ResumeRefused(
-                path: resultsPath,
-                reasons: [.baselineFileWouldReplaceTheResultsFile(resultsPath)],
-                beforeTheCopy: true
-            )
-        )
-    }
-
-    // As for -o, naming the flag or the key that asked for it. The key's path is the project's, resolved.
-    func test_anOtherReportPathThatIsTheResultsFile_isRefused() async throws {
-        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
-        let request = ReportRequest(format: .markdown, path: resultsPath)
-        let relative = ReportRequest(format: .json, path: "../project_muter_logs/Oct 6, 2026 at 9:12 AM/results.jsonl")
-        state.muterConfiguration = configuration.overriding(workers: nil, timeout: nil, reports: [relative, request])
-
-        await assertRefused(
-            ResumeRefused(
-                path: resultsPath,
-                reasons: [
-                    .otherReportWouldReplaceTheResultsFile(relative.resolved(in: project), isTheFlags: false),
-                    .otherReportWouldReplaceTheResultsFile(request, isTheFlags: false),
-                ],
-                beforeTheCopy: true
-            )
-        )
-
-        state.runOptions = .make(
-            reports: [request],
-            mutationOperatorsList: [.ror],
-            skipCoverage: true,
-            resumeURL: URL(fileURLWithPath: resultsPath)
-        )
-        state.muterConfiguration = configuration.overriding(workers: nil, timeout: nil, reports: [request])
-        await assertRefused(
-            ResumeRefused(
-                path: resultsPath,
-                reasons: [.otherReportWouldReplaceTheResultsFile(request, isTheFlags: true)],
-                beforeTheCopy: true
-            )
         )
     }
 
@@ -481,208 +287,5 @@ final class LoadResumeStateTests: MuterTestCase {
         XCTAssertEqual(state.changeSelection?.ref, "origin/main")
         XCTAssertEqual(state.changeSelection?.commit, recorded.commit)
         XCTAssertEqual(state.changeSelection?.mergeBase, recorded.mergeBase)
-    }
-}
-
-extension LoadResumeStateTests {
-    // A reuse writes a file of its own, so it neither opens the earlier one to append nor locks it: a run still writing
-    // it doesn't stop it. Changed files don't refuse it, but decide what it keeps once the copy is fingerprinted, so
-    // the project isn't listed here.
-    func test_aReuse_readsTheFileWithoutLockingIt_andChangedFilesDontRefuseIt() async throws {
-        let header = ResultsHeader.make(project: await projectTree())
-        try writeResults(header, ResultsEnd.make())
-        try write(["README.md": "a changed readme"], in: project)
-        let running = try ResultsFile.Opener().openForResume(at: resultsPath)
-        defer { running.close() }
-        reuse(logs)
-
-        let changes = try await sut.run(with: state)
-        state.apply(changes)
-
-        let loaded = try XCTUnwrap(state.resumeState)
-        XCTAssertTrue(loaded.isReuse)
-        XCTAssertNil(loaded.file)
-        XCTAssertEqual(loaded.path, resultsPath)
-        XCTAssertEqual(loaded.lastHeader, header)
-        XCTAssertEqual(listed.value, [])
-    }
-
-    // Its logs are copied long after the file is read, so the reuse holds a shared lock on the earlier run's folders
-    // until it ends, which a run that prunes log folders in another lock domain sees as in use.
-    func test_aReuse_holdsTheEarlierRunsFolders_soNoRunPrunesThem() async throws {
-        let header = ResultsHeader.make(project: await projectTree(), logDirectory: logs)
-        try writeResults(header, ResultsEnd.make())
-        RunMarker.hold(in: logs)?.release()
-        let marker = logs + "/" + RunMarker.fileName
-        reuse(logs)
-
-        state.apply(try await sut.run(with: state))
-
-        XCTAssertNotNil(state.resumeState?.reusedFolders)
-        XCTAssertEqual(ResultsFile.probeLock(marker), .inUse)
-        state.resumeState = nil
-        guard case let .held(probe) = ResultsFile.probeLock(marker) else { return XCTFail("still locked") }
-        close(probe)
-    }
-
-    func test_aReuse_ofAResumedSessionsLogFolder_readsTheFileItsNoteNames() async throws {
-        let header = ResultsHeader.make(project: await projectTree())
-        try writeResults(header, ResultsEnd.make())
-        reuse(try makeAResumedSessionsLogFolder())
-
-        let changes = try await sut.run(with: state)
-        state.apply(changes)
-
-        let loaded = try XCTUnwrap(state.resumeState)
-        XCTAssertTrue(loaded.isReuse)
-        XCTAssertEqual(loaded.path, resultsPath)
-        XCTAssertEqual(loaded.lastHeader, header)
-    }
-
-    // What a reuse can't take, it refuses as a resume does, naming its own flags.
-    func test_aReuse_isRefusedAsAResumeIs_namingForceReuse() async throws {
-        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
-        let changed = provenance(toolchain: "Apple Swift version 6.5")
-        current.provenance = { _ in changed }
-        reuse(resultsPath, reportURL: URL(fileURLWithPath: resultsPath))
-
-        await AssertThrowsError(try await sut.run(with: state)) { error in
-            let refused = error as? ResumeRefused
-            XCTAssertEqual(refused?.isReuse, true)
-            XCTAssertEqual(refused?.reasons.count, 2)
-            let message = refused.map { "\($0)" } ?? ""
-            XCTAssertTrue(message.hasPrefix("SwiftMutator won't reuse the results in "), message)
-            XCTAssertTrue(message.contains("--force-reuse reuses the results anyway."), message)
-            XCTAssertFalse(message.contains("--force-resume"), message)
-            XCTAssertTrue(message.contains("is the results file itself"), message)
-        }
-        XCTAssertNil(state.resumeState)
-
-        current.provenance = { _ in .fixture }
-        reuse(resultsPath, forcing: true)
-        current.provenance = { _ in changed }
-        let changes = try await sut.run(with: state)
-        state.apply(changes)
-        XCTAssertEqual(state.resumeState?.forced, ["toolchain.testCommandVersion"])
-    }
-}
-
-private extension LoadResumeStateTests {
-    /// Resumes the run whose results `target` names: the file itself, or its log folder.
-    func reuse(_ target: String, ignoring globs: [String] = [], forcing: Bool = false, reportURL: URL? = nil) {
-        state.runOptions = .make(
-            reportURL: reportURL,
-            mutationOperatorsList: [.ror],
-            skipCoverage: true,
-            reuseURL: URL(fileURLWithPath: target),
-            resumeIgnoring: globs,
-            forceResume: forcing
-        )
-    }
-
-    func resume(_ target: String, ignoring globs: [String] = [], forcing: Bool = false, reportURL: URL? = nil) {
-        state.runOptions = .make(
-            reportURL: reportURL,
-            mutationOperatorsList: [.ror],
-            skipCoverage: true,
-            resumeURL: URL(fileURLWithPath: target),
-            resumeIgnoring: globs,
-            forceResume: forcing
-        )
-    }
-
-    /// Resumes the run in the results file, as a run of a test plan whose bytes have `sha256`, loaded.
-    func resumePlan(sha256: String) {
-        let planPath = "\(project)/muter-mappings.json"
-        state.runOptions = .make(
-            mutationOperatorsList: [.ror],
-            skipCoverage: true,
-            testPlanURL: URL(fileURLWithPath: planPath),
-            resumeURL: URL(fileURLWithPath: resultsPath)
-        )
-        state.testPlan = LoadedTestPlan(
-            path: planPath,
-            sha256: sha256,
-            formatVersion: TestPlanCoding.formatVersion,
-            swiftMutatorVersion: "16",
-            scope: nil,
-            sources: nil,
-            mutatedFiles: nil,
-            linkedFiles: nil,
-            mutatedPaths: []
-        )
-    }
-
-    func planRecord(sha256: String) -> TestPlanRecord {
-        TestPlanRecord(
-            path: "\(project)/muter-mappings.json",
-            sha256: sha256,
-            formatVersion: TestPlanCoding.formatVersion,
-            swiftMutatorVersion: "16"
-        )
-    }
-
-    /// The log folder of a session that resumed the run in `logs`, beside it: it holds only its note naming the file.
-    func makeAResumedSessionsLogFolder() throws -> String {
-        let folder = (logs as NSString).deletingLastPathComponent + "/Oct 6, 2026 at 9:40 AM"
-        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
-        let note = Data(ResultsFile.note(pointingTo: resultsPath, session: 2).utf8)
-        try note.write(to: URL(fileURLWithPath: "\(folder)/\(ResultsFile.noteFileName)"))
-        return folder
-    }
-
-    /// Checks that the step refuses with `expected`.
-    func assertRefused(_ expected: ResumeRefused, file: StaticString = #filePath, line: UInt = #line) async {
-        await AssertThrowsError(try await sut.run(with: state), file: file, line: line) { error in
-            XCTAssertEqual(error as? ResumeRefused, expected, file: file, line: line)
-        }
-        XCTAssertNil(state.resumeState, file: file, line: line)
-    }
-
-    /// The project's files as they are now.
-    func projectTree() async -> ProjectTree {
-        await ProjectTree.fingerprint(
-            listingIn: URL(fileURLWithPath: project),
-            hashingIn: URL(fileURLWithPath: project),
-            excluding: [],
-            list: { _ in nil }
-        )
-    }
-
-    /// `Provenance.fixture`, written by another process, or with another toolchain.
-    func provenance(
-        process: Int32 = Provenance.fixture.processIdentifier,
-        host: String = Provenance.fixture.host,
-        toolchain: String? = Provenance.fixture.toolchain.testCommandVersion
-    ) -> Provenance {
-        let fixture = Provenance.fixture
-        return Provenance(
-            swiftMutator: fixture.swiftMutator,
-            toolchain: .init(
-                testCommandVersion: toolchain,
-                testExecutableSHA256: fixture.toolchain.testExecutableSHA256,
-                environment: fixture.toolchain.environment
-            ),
-            processIdentifier: process,
-            host: host,
-            arguments: fixture.arguments
-        )
-    }
-
-    /// Writes `lines` as the results file, each on a line of its own.
-    func writeResults(_ lines: any Encodable...) throws {
-        try resultsFileData(lines).write(to: URL(fileURLWithPath: resultsPath))
-    }
-
-    /// Writes each file, relative to `root`, making its folders.
-    func write(_ files: [String: String], in root: String) throws {
-        for (path, contents) in files {
-            let file = URL(fileURLWithPath: "\(root)/\(path)")
-            try FileManager.default.createDirectory(
-                at: file.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try Data(contents.utf8).write(to: file)
-        }
     }
 }

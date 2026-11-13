@@ -58,7 +58,8 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
         )
         XCTAssertEqual(try resultsFiles.records(ResultsEnd.self).map(\.recorded), [5])
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertFalse(outcome.mutations.contains { $0.testSuiteOutcome == .timeout })
         XCTAssertEqual(outcome.mutations.count, 4)
@@ -71,17 +72,7 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
             Array(names.suffix(3)),
             [.timeoutRerunsStarted, .timeoutRerunFinished, .timeoutRerunsFinished]
         )
-        let reruns = try XCTUnwrap(sent().compactMap { $0.object as? TimeoutReruns }.first)
-        XCTAssertEqual(reruns.count, 1)
-        XCTAssertEqual(reruns.workers, 1)
-        XCTAssertEqual(reruns.limitSeconds, ioDelegate.configurations.first?.testSuiteTimeout)
-        let finished = try XCTUnwrap(sent().compactMap { $0.object as? TimeoutRerun }.first)
-        XCTAssertEqual(finished.rerun.testSuiteOutcome, .failed)
-        XCTAssertEqual(finished.log.keptFileName, rerun.log)
-        XCTAssertEqual([finished.number, finished.count], [1, 1])
-        XCTAssertTrue(finished.changed)
-        let tally = try XCTUnwrap(sent().compactMap { $0.object as? TimeoutRerunTally }.first)
-        XCTAssertEqual([tally.rerun, tally.killed, tally.changed], [1, 1, 1])
+        try assertOneTimeoutRerunAndKilled(in: sent(), rerun: rerun)
     }
 
     // A rerun killed by a test its line names keeps no ` (rerun)` log, as any such kill keeps none; the first run's
@@ -125,7 +116,8 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
         XCTAssertEqual(records.map(\.outcome).filter { $0 == .timeout }.count, 2)
         XCTAssertNotNil(records.last?.rerun)
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.filter { $0.testSuiteOutcome == .timeout }.count, 1)
         XCTAssertEqual(tallies.map(\.timedOutAgain), [1])
@@ -232,6 +224,22 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
     }
 
     /// The events sent with any of `names` so far, in order.
+    /// Asserts that `events` say one timeout was run again, on one worker under the first run's limit, and that the
+    /// rerun, whose line is `rerun`, killed the mutant.
+    private func assertOneTimeoutRerunAndKilled(in events: [RunEvent], rerun: MutantResult) throws {
+        let reruns = try XCTUnwrap(events.compactMap { $0.object as? TimeoutReruns }.first)
+        XCTAssertEqual(reruns.count, 1)
+        XCTAssertEqual(reruns.workers, 1)
+        XCTAssertEqual(reruns.limitSeconds, ioDelegate.configurations.first?.testSuiteTimeout)
+        let finished = try XCTUnwrap(events.compactMap { $0.object as? TimeoutRerun }.first)
+        XCTAssertEqual(finished.rerun.testSuiteOutcome, .failed)
+        XCTAssertEqual(finished.log.keptFileName, rerun.log)
+        XCTAssertEqual([finished.number, finished.count], [1, 1])
+        XCTAssertTrue(finished.changed)
+        let tally = try XCTUnwrap(events.compactMap { $0.object as? TimeoutRerunTally }.first)
+        XCTAssertEqual([tally.rerun, tally.killed, tally.changed], [1, 1, 1])
+    }
+
     private func recordEvents(named names: [RunEvent.Name]) -> () -> [RunEvent] {
         var sent: [RunEvent] = []
         let observer = runEvents.observe { event in
@@ -250,7 +258,6 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
     /// Sum.swift in the mutated project, with a mutant at each of `lines`, column 5.
     private func makeSchemataMapping(lines: [Int]) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/project_mutated/Sources/Sum.swift",
             (
                 source: "func bar() { }",
                 schemata: lines.map { line in
@@ -262,7 +269,8 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
                         snapshot: .make(before: ">", after: "<", description: "changed > to <")
                     )
                 }
-            )
+            ),
+            filePath: "/project_mutated/Sources/Sum.swift"
         )
     }
 }

@@ -123,7 +123,7 @@ final class XcodeReporterTests: ReporterTestCase {
         )
 
         XcodeReporter().newMutationTestOutcomeAvailable(
-            outcomeWithFlush: MutationOutcomeWithFlush(mutation: mutation, fflush: {})
+            outcomeWithFlush: MutationOutcomeWithFlush(mutation: mutation) {}
         )
 
         XCTAssertEqual(printer.linesPassed.count, 1)

@@ -13,7 +13,7 @@ final class SimulatorDestinationTests: XCTestCase {
     private let visionPro = "39440E5C-D840-4955-83D4-FA319A1F1CC9"
     private let unavailable = "5A1F3C0E-2B7D-4E8A-9C61-0D4B8E2F7A93"
 
-    private lazy var list: SimctlDeviceList! = FileManager.default
+    private lazy var list: SimctlDeviceList? = FileManager.default
         .contents(atPath: "\(fixturesDirectory)/Simctl/devices.json")
         .flatMap(SimctlDeviceList.init(json:))
 
@@ -110,10 +110,10 @@ final class SimulatorDestinationTests: XCTestCase {
     // MARK: - Reading simctl's list
 
     func test_readsEachDevice_withItsRuntime() throws {
-        let list = try XCTUnwrap(list)
+        let deviceList = try XCTUnwrap(list)
 
-        XCTAssertEqual(list.devices.count, 9)
-        XCTAssertEqual(list.devices.first { $0.udid == bootedTwin }, SimctlDevice(
+        XCTAssertEqual(deviceList.devices.count, 9)
+        XCTAssertEqual(deviceList.devices.first { $0.udid == bootedTwin }, SimctlDevice(
             udid: bootedTwin,
             name: "swiftmutator-probe-twin",
             state: "Booted",
@@ -121,8 +121,8 @@ final class SimulatorDestinationTests: XCTestCase {
             deviceTypeIdentifier: "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
             runtimeIdentifier: "com.apple.CoreSimulator.SimRuntime.iOS-26-5"
         ))
-        XCTAssertEqual(list.devices.filter { !$0.isShutdown }.map(\.udid), [bootedTwin])
-        XCTAssertEqual(list.devices.filter { !$0.isAvailable }.map(\.udid), [unavailable])
+        XCTAssertEqual(deviceList.devices.filter { !$0.isShutdown }.map(\.udid), [bootedTwin])
+        XCTAssertEqual(deviceList.devices.filter { !$0.isAvailable }.map(\.udid), [unavailable])
     }
 
     func test_readsARuntimesPlatformAndVersion() {
@@ -172,12 +172,12 @@ final class SimulatorDestinationTests: XCTestCase {
         }
         """
 
-        let list = try XCTUnwrap(SimctlDeviceList(json: Data(json.utf8)))
+        let deviceList = try XCTUnwrap(SimctlDeviceList(json: Data(json.utf8)))
 
-        XCTAssertEqual(list.devices.map(\.udid), ["D", "A"])
-        XCTAssertNil(list.devices.first?.runtime)
-        XCTAssertEqual(SimulatorDestination(destination: "id=D")?.resolve(in: list)?.name, "Kept too")
-        XCTAssertNil(SimulatorDestination(destination: "name=Kept too")?.resolve(in: list))
+        XCTAssertEqual(deviceList.devices.map(\.udid), ["D", "A"])
+        XCTAssertNil(deviceList.devices.first?.runtime)
+        XCTAssertEqual(SimulatorDestination(destination: "id=D")?.resolve(in: deviceList)?.name, "Kept too")
+        XCTAssertNil(SimulatorDestination(destination: "name=Kept too")?.resolve(in: deviceList))
     }
 
     func test_readsNoListWithoutADevicesObject() {
@@ -188,7 +188,11 @@ final class SimulatorDestinationTests: XCTestCase {
     }
 
     private func resolve(_ value: String) -> String? {
-        SimulatorDestination(destination: value)?.resolve(in: list)?.udid
+        guard let list else {
+            XCTFail("Unable to read the simctl fixture")
+            return nil
+        }
+        return SimulatorDestination(destination: value)?.resolve(in: list)?.udid
     }
 
     /// The destination's platform, id, name and OS, or nothing when there is no destination.

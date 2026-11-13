@@ -1,5 +1,3 @@
-import Foundation
-
 /// Removes earlier runs' log folders beyond the newest `keepLogFolders:` runs, this one included, and says what it
 /// removed and left (see `LogFolderPruning`). Without the key, or without a log folder, it removes nothing. A run of
 /// one mutant (`--mutant`) doesn't have the step: it is a short probe, the run most likely to go alongside another.
@@ -26,15 +24,15 @@ struct PruneLogFolders: MutationStep {
         self.prune = prune
     }
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         guard let keeping = state.muterConfiguration.keepLogFolders, !state.loggingDirectory.isEmpty else {
             return []
         }
-        let root = (state.loggingDirectory as NSString).deletingLastPathComponent
+        let root = state.loggingDirectory.deletingLastPathComponent
         // A resumed run's earlier sessions are this run, and the run a reuse reads is copied from much later, with no
         // lock held on it.
         let earlier = state.resumeState.map { resume in
-            [(resume.path as NSString).deletingLastPathComponent] + resume.recorded.headers.map(\.logDirectory)
+            [resume.path.deletingLastPathComponent] + resume.recorded.headers.map(\.logDirectory)
         } ?? []
         let isReuse = state.resumeState?.isReuse ?? false
         let pruning = prune(

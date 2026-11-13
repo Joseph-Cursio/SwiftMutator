@@ -16,15 +16,15 @@ enum ReplaceBooleanValueOperator {
         var leavesComparisonsAlone = false
 
         convenience init(
-            configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
+            configuration: MuterConfiguration? = nil,
             coverage: FileCoverage = .empty
         ) {
             self.init(
-                configuration: configuration,
                 sourceCodeInfo: sourceCodeInfo,
                 mutationOperatorId: .replaceBooleanValue,
-                coverage: coverage
+                coverage: coverage,
+                configuration: configuration
             )
         }
 
@@ -73,7 +73,7 @@ enum ReplaceBooleanValueOperator {
                 return false
             }
             let places = placesOfTheMutants(ofTheComparisonWith: comparison)
-            return !places.contains(where: { isLeftOutByADirective($0, in: value.root) })
+            return !places.contains { isLeftOutByADirective($0, in: value.root) }
         }
 
         /// The literal in place of `value`, kept apart from a name or keyword it would otherwise touch

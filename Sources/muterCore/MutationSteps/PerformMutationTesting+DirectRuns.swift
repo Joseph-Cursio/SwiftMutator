@@ -25,7 +25,7 @@ extension PerformMutationTesting {
             configuration,
             baselineLog: baselineLog,
             timeLimit: timeLimit,
-            watchingFiles: configuration.workersShareBuild != false
+            watchingFiles: configuration.workersShareBuild != .disabled
                 && configuration.workerCount(testing: plan.toRun.count, sharingBuild: true) > 1,
             state: state
         )
@@ -53,6 +53,7 @@ extension PerformMutationTesting {
         switch await directTestRun(configuration, state.mutatedProjectDirectoryURL) {
         case let .success(probed):
             direct = probed
+
         case let .failure(unavailable):
             try Task.checkCancellation()
             return unavailable.reason.map(notDirect) ?? notRunDirectly
@@ -76,17 +77,9 @@ extension PerformMutationTesting {
         try Task.checkCancellation()
         let seconds = seconds(since: start)
         let filesAfter = watchingFiles ? projectFiles(state.mutatedProjectDirectoryURL) : nil
-        let whyNot = run.ending == .timedOut
-            ? "the run of the test bundles with no mutant on didn't end within "
-                + "\(String(format: "%g", timeLimit ?? 0)) s, so SwiftMutator stopped it"
-            : DirectTestRun.whyNot(baselineLog: baselineLog, outcome: run.outcome, log: testLog)
-        fileManager.keepLog(
-            testLog,
-            writtenTo: output,
-            by: ioDelegate,
-            named: whyNot == nil ? TimedTestRun.logName : "direct test run.log",
-            state: state
-        )
+        let whyNot = Self.whyNotRunDirectly(after: run, timeLimit: timeLimit, baselineLog: baselineLog)
+        let logName = whyNot == nil ? TimedTestRun.logName : "direct test run.log"
+        fileManager.keepLog(testLog, writtenTo: output, by: ioDelegate, named: logName, state: state)
         if let whyNot {
             return notDirect(whyNot + " (its log is direct test run.log)")
         }
@@ -99,6 +92,16 @@ extension PerformMutationTesting {
             seconds: seconds,
             wroteNothing: filesBefore != nil && filesAfter != nil && firstChange == nil
         )
+    }
+
+    /// Why `run`, of the test bundles with no mutant on, fails the check for direct runs: it was stopped at
+    /// `timeLimit`, or it didn't pass and run the tests `baselineLog` shows (`DirectTestRun.whyNot`). nil when it
+    /// passes the check.
+    static func whyNotRunDirectly(after run: TestRun, timeLimit: TimeInterval?, baselineLog: String) -> String? {
+        run.ending == .timedOut
+            ? "the run of the test bundles with no mutant on didn't end within "
+                + "\(String(format: "%g", timeLimit ?? 0)) s, so SwiftMutator stopped it"
+            : DirectTestRun.whyNot(baselineLog: baselineLog, outcome: run.outcome, log: run.testLog)
     }
 
     /// The seconds from `start` to now, on the monotonic clock.

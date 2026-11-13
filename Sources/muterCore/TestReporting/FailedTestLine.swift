@@ -22,7 +22,7 @@ enum FailedTestLine {
     /// The first line of `log` that shows a failed test, without colour codes.
     static func first(inLog log: String) -> String? {
         // "\r\n" is a single Character, so a log with those line breaks isn't split at "\n" alone.
-        log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+        log.split { $0 == "\n" || $0 == "\r\n" }
             .first(where: matches)
             .map(withoutColours)
     }
@@ -70,9 +70,7 @@ enum FailedTestLine {
     private static func match(_ regex: NSRegularExpression, in text: String) -> NSTextCheckingResult? {
         regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text))
     }
-}
 
-extension FailedTestLine {
     /// A failed test as its line names it: Swift Testing's `sum()`, `"Adds two numbers"`, `add(_:_:)`, or
     /// `Suite "Parsing"` for a suite's own issue, with the issue's location (`SumTests.swift:12:5`); XCTest's
     /// `-[Module.Class testA]`, without one. Swift Testing's names can repeat across suites; the location's file
@@ -80,6 +78,11 @@ extension FailedTestLine {
     struct FailedTest: Codable, Equatable {
         let name: String
         let location: String?
+
+        /// Its name, then its location if it has one: `sum() at SumTests.swift:12:5`.
+        var nameAndLocation: String {
+            location.map { "\(name) at \($0)" } ?? name
+        }
     }
 
     /// The tests a log shows failing.
@@ -87,9 +90,15 @@ extension FailedTestLine {
         /// Each failed test once, in the order it first failed, at most the limit.
         let tests: [FailedTest]
         /// How many distinct tests the log shows failing, uncapped.
-        let count: Int
+        let total: Int
         /// The first line that shows one, without colour codes, at most `lineLengthLimit` characters.
         let firstLine: String?
+
+        /// The first `limit` tests, each by its name and location, and how many more failed.
+        func named(upTo limit: Int) -> (names: [String], more: Int) {
+            let names = tests.prefix(limit).map(\.nameAndLocation)
+            return (names, total - names.count)
+        }
     }
 
     /// How many failed tests a mutant's results line names.
@@ -119,7 +128,7 @@ extension FailedTestLine {
         var tests: [FailedTest] = []
         var firstLine: String?
         // "\r\n" is a single Character, so a log with those line breaks isn't split at "\n" alone.
-        let lines = log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+        let lines = log.split { $0 == "\n" || $0 == "\r\n" }
         for (index, line) in lines.enumerated() {
             guard let found = failure(in: line) else { continue }
             let test = found.locationMayFollow
@@ -134,7 +143,7 @@ extension FailedTestLine {
                 tests.append(test)
             }
         }
-        return FailedTests(tests: tests, count: seen.count, firstLine: firstLine)
+        return FailedTests(tests: tests, total: seen.count, firstLine: firstLine)
     }
 
     /// Every test `log` shows failing.
@@ -228,9 +237,11 @@ extension FailedTestLine {
         switch text[separator] {
         case ": ":
             return nil
+
         case " at ":
             // Right there, so a location the issue's description mentions is never taken for it.
             (options, start) = (.anchored, separator.lowerBound)
+
         default:
             // " with 2 arguments ": the location follows the arguments.
             (options, start) = ([], separator.upperBound)
@@ -243,20 +254,5 @@ extension FailedTestLine {
 
     private static func capped(_ name: some StringProtocol) -> String {
         String(name.prefix(nameLengthLimit))
-    }
-}
-
-extension FailedTestLine.FailedTest {
-    /// Its name, then its location if it has one: `sum() at SumTests.swift:12:5`.
-    var nameAndLocation: String {
-        location.map { "\(name) at \($0)" } ?? name
-    }
-}
-
-extension FailedTestLine.FailedTests {
-    /// The first `limit` tests, each by its name and location, and how many more failed.
-    func named(upTo limit: Int) -> (names: [String], more: Int) {
-        let names = tests.prefix(limit).map(\.nameAndLocation)
-        return (names, count - names.count)
     }
 }

@@ -53,6 +53,7 @@ enum XcodebuildTrustCheck: CaseIterable, Equatable {
             case .packagePlugins:
                 projects.contains { $0.contains(#"productName = "plugin:"#) }
                     || manifests.contains { $0.contains(".plugin(") }
+
             case .macros:
                 resolvedPackages.contains { $0.contains("swift-syntax") }
                     || manifests.contains { $0.contains(".macro(") }

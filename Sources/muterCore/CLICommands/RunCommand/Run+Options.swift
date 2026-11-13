@@ -1,0 +1,239 @@
+import Foundation
+
+typealias ReportOptions = (reporter: Reporter, path: String?)
+
+extension Run {
+    /// Sendable: the command makes them, and the run's work reads them in a task of its own (`Interruptions.run`).
+    struct Options: Sendable, Equatable {
+        let reportOptions: ReportOptions
+        /// `--report`: the reports saved besides `-f`'s, each in its own format, with their paths resolved, in place
+        /// of `reports`; nil when none was given.
+        let reports: [ReportRequest]?
+        let filesToMutate: [String]
+        /// `--exclude`: entries added to the configuration's `exclude` for this run.
+        let exclude: [String]
+        /// `--since`'s git ref: only the Swift files changed since its merge base with HEAD are mutated.
+        let since: String?
+        /// `--changed-lines`: of those, only the code on the lines the change added or changed.
+        let changedLinesOnly: Bool
+        /// `--shard`: of the mutants discovered, only those in this shard are tested.
+        let shard: Shard?
+        /// `--sample` and `--seed`: of the mutants discovered, before any shard is taken, only this sample is tested.
+        let sample: Sample?
+        let mutationOperatorsList: MutationOperatorList
+        /// Whether `mutationOperatorsList` is what `--operators` named, which wins over the configuration's keys.
+        let operatorsAreNamed: Bool
+        /// `--skip-operators`: the operators to leave out, in place of `skipOperators`; nil when it wasn't given.
+        let skipOperators: [MutationOperator.Id]?
+        let skipCoverage: Bool
+        let skipUpdateCheck: Bool
+        /// `--verbose`: the run lists how many mutants are in each file that has any, and the Swift files it found, if
+        /// it looks for them.
+        let verbose: Bool
+        let configurationURL: URL?
+        let testPlanURL: URL?
+        /// `--workers`: how many mutants to test at once, in place of `mutationTestWorkers`.
+        let workers: Int?
+        /// `--timeout`: seconds before a mutant's test run is stopped, in place of `mutationTestTimeout`.
+        let timeout: Double?
+        /// `--build-timeout`: seconds before each step that builds and tests ahead of the first mutant is stopped, in
+        /// place of `buildTimeout`.
+        let buildTimeout: Double?
+        /// `--fail-under`: the percent below which a finished run's score fails it, in place of `failUnder`.
+        let failUnder: Double?
+        /// `--baseline`: the baseline file, as given, whose survivors a finished run's are compared with
+        /// (`NewSurvivorsCheck`); nil without it.
+        let baseline: String?
+        /// `--max-new-survivors`: how many new survivors the comparison with `baseline` lets pass, 0 unless given; nil
+        /// without `baseline`.
+        let maxNewSurvivors: Int?
+        /// `--max-score-drop`: how many points a finished whole run's score may fall below `baseline`'s file's
+        /// (`ScoreDropCheck`); nil without it, and without `baseline`.
+        let maxScoreDrop: Double?
+        /// `--max-doubtful-kills`: how many kills a finished run's evidence may leave in doubt
+        /// (`DoubtfulKillsCheck`); nil without it.
+        let maxDoubtfulKills: Int?
+        /// `--write-baseline`: where a finished whole run saves its survivors as a baseline file (`BaselineFile`),
+        /// made absolute as the flags are read, as the run saves it from the project's copy; nil without it.
+        let writeBaseline: String?
+        /// `--property-tests`: the globs that pick out property tests, in place of `propertyTests`; nil when none was
+        /// given.
+        let propertyTests: [String]?
+        let createTestPlan: Bool
+        /// The results file, or the log folder of one of its sessions, of the run that `--resume` continues.
+        let resumeURL: URL?
+        /// The results file, or the log folder of one of its sessions, of the earlier run whose results `--reuse`
+        /// starts from.
+        let reuseURL: URL?
+        /// `--resume-ignoring`'s globs, or `--reuse-ignoring`'s: project files that changed, whose changes a resume or
+        /// a reuse lets through. A reuse never lets a test file's through.
+        let resumeIgnoring: [String]
+        /// `--force-resume`, or `--force-reuse`: a resume or a reuse lets a changed SwiftMutator build, toolchain or
+        /// SDK through.
+        let forceResume: Bool
+        /// `--plan-ignoring`'s globs: files a test plan mutates that changed in the project since the plan was made,
+        /// whose changes a run of the plan lets through.
+        let planIgnoring: [String]
+        /// `--mutant`: the one mutant the run tests, on its own (`SelectMutant`).
+        let mutant: MutantReference?
+        var isUsingTestPlan: Bool {
+            testPlanURL != nil
+        }
+
+        /// The results file, or its log folder, whose results this run starts from: the one it resumes or reuses.
+        var continuedFrom: URL? {
+            resumeURL ?? reuseURL
+        }
+
+        /// Whether the run starts a results file of its own from an earlier run's (`--reuse`).
+        var isReuse: Bool {
+            resumeURL == nil && reuseURL != nil
+        }
+
+        init(
+            skipCoverage: Bool,
+            skipUpdateCheck: Bool,
+            configurationURL: URL?,
+            filesToMutate: [String] = [],
+            exclude: [String] = [],
+            since: String? = nil,
+            changedLinesOnly: Bool = false,
+            shard: Shard? = nil,
+            sample: Sample? = nil,
+            reportFormat: ReportFormat = .plain,
+            reportURL: URL? = nil,
+            reports: [ReportRequest]? = nil,
+            mutationOperatorsList: MutationOperatorList = .allOperators,
+            operatorsAreNamed: Bool = false,
+            skipOperators: [MutationOperator.Id]? = nil,
+            verbose: Bool = false,
+            testPlanURL: URL? = nil,
+            workers: Int? = nil,
+            timeout: Double? = nil,
+            buildTimeout: Double? = nil,
+            failUnder: Double? = nil,
+            baseline: String? = nil,
+            maxNewSurvivors: Int? = nil,
+            maxScoreDrop: Double? = nil,
+            maxDoubtfulKills: Int? = nil,
+            writeBaseline: String? = nil,
+            propertyTests: [String]? = nil,
+            createTestPlan: Bool = false,
+            resumeURL: URL? = nil,
+            reuseURL: URL? = nil,
+            resumeIgnoring: [String] = [],
+            forceResume: Bool = false,
+            planIgnoring: [String] = [],
+            mutant: MutantReference? = nil
+        ) {
+            self.exclude = exclude
+            self.since = since
+            self.changedLinesOnly = changedLinesOnly
+            self.shard = shard
+            self.sample = sample
+            self.skipCoverage = skipCoverage
+            self.skipUpdateCheck = skipUpdateCheck
+            self.verbose = verbose
+            self.createTestPlan = createTestPlan
+            self.mutationOperatorsList = mutationOperatorsList
+            self.operatorsAreNamed = operatorsAreNamed
+            self.skipOperators = skipOperators
+            self.configurationURL = configurationURL
+            self.testPlanURL = testPlanURL
+            self.workers = workers
+            self.timeout = timeout
+            self.buildTimeout = buildTimeout
+            self.failUnder = failUnder
+            self.baseline = baseline
+            self.maxNewSurvivors = baseline == nil ? nil : maxNewSurvivors ?? 0
+            self.maxScoreDrop = baseline == nil ? nil : maxScoreDrop
+            self.maxDoubtfulKills = maxDoubtfulKills
+            self.writeBaseline = writeBaseline
+            self.propertyTests = propertyTests
+            self.resumeURL = resumeURL
+            self.reuseURL = reuseURL
+            self.resumeIgnoring = resumeIgnoring
+            self.forceResume = forceResume
+            self.planIgnoring = planIgnoring
+            self.mutant = mutant
+            self.reports = reports
+
+            self.filesToMutate = filesToMutate.reduce(into: []) { accum, next in
+                accum.append(
+                    contentsOf: next.components(separatedBy: ",")
+                        .exclude { $0.isEmpty }
+                )
+            }
+
+            reportOptions = ReportOptions(
+                reporter: reportFormat.reporter,
+                path: reportURL?.path
+            )
+        }
+
+        static func == (lhs: Run.Options, rhs: Run.Options) -> Bool {
+            lhs.filesToMutate == rhs.filesToMutate &&
+                lhs.exclude == rhs.exclude &&
+                lhs.since == rhs.since &&
+                lhs.changedLinesOnly == rhs.changedLinesOnly &&
+                lhs.shard == rhs.shard &&
+                lhs.sample == rhs.sample &&
+                lhs.mutationOperatorsList == rhs.mutationOperatorsList &&
+                lhs.operatorsAreNamed == rhs.operatorsAreNamed &&
+                lhs.skipOperators == rhs.skipOperators &&
+                lhs.skipCoverage == rhs.skipCoverage &&
+                lhs.skipUpdateCheck == rhs.skipUpdateCheck &&
+                lhs.verbose == rhs.verbose &&
+                lhs.configurationURL == rhs.configurationURL &&
+                lhs.testPlanURL == rhs.testPlanURL &&
+                lhs.workers == rhs.workers &&
+                lhs.timeout == rhs.timeout &&
+                lhs.buildTimeout == rhs.buildTimeout &&
+                lhs.failUnder == rhs.failUnder &&
+                lhs.baseline == rhs.baseline &&
+                lhs.maxNewSurvivors == rhs.maxNewSurvivors &&
+                lhs.maxScoreDrop == rhs.maxScoreDrop &&
+                lhs.maxDoubtfulKills == rhs.maxDoubtfulKills &&
+                lhs.writeBaseline == rhs.writeBaseline &&
+                lhs.propertyTests == rhs.propertyTests &&
+                lhs.createTestPlan == rhs.createTestPlan &&
+                lhs.resumeURL == rhs.resumeURL &&
+                lhs.reuseURL == rhs.reuseURL &&
+                lhs.resumeIgnoring == rhs.resumeIgnoring &&
+                lhs.forceResume == rhs.forceResume &&
+                lhs.planIgnoring == rhs.planIgnoring &&
+                lhs.mutant == rhs.mutant &&
+                lhs.reports == rhs.reports &&
+                lhs.reportOptions.path == rhs.reportOptions.path &&
+                "\(lhs.reportOptions.reporter)" == "\(rhs.reportOptions.reporter)"
+        }
+
+        static var null: Run.Options {
+            .init(
+                skipCoverage: false,
+                skipUpdateCheck: false,
+                configurationURL: nil,
+                filesToMutate: [],
+                since: nil,
+                changedLinesOnly: false,
+                shard: nil,
+                sample: nil,
+                reportFormat: .plain,
+                reportURL: nil,
+                mutationOperatorsList: [],
+                verbose: false,
+                testPlanURL: nil,
+                workers: nil,
+                timeout: nil,
+                failUnder: nil,
+                createTestPlan: false,
+                resumeURL: nil,
+                reuseURL: nil,
+                resumeIgnoring: [],
+                forceResume: false,
+                planIgnoring: [],
+                mutant: nil
+            )
+        }
+    }
+}

@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 extension RecordedResults {
     /// What `swift-mutator report` says on standard error about the results file at `path`: how many mutants its
@@ -126,8 +125,10 @@ extension RecordedResults {
         switch end.reason {
         case .finished:
             return "the run finished"
+
         case .interrupted:
             return "the run was interrupted" + (end.detail.map { " by \($0)" } ?? "")
+
         case .aborted:
             return "the run stopped on an error" + (end.detail.map { " (\($0))" } ?? "")
         }

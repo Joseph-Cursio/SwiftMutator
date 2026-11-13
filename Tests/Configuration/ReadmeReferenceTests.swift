@@ -78,8 +78,8 @@ final class ReadmeReferenceTests: MuterTestCase {
                 XCTFail("README.md's ### \(name) has a row for \(row), which isn't a flag of \(name).")
             }
             for row in namedRunRows where !row.contains(where: flags.contains) {
-                let row = row.joined(separator: ", ")
-                XCTFail("README.md's ### \(name) names run's \(row), which \(name) doesn't take.")
+                let rowText = row.joined(separator: ", ")
+                XCTFail("README.md's ### \(name) names run's \(rowText), which \(name) doesn't take.")
             }
         }
     }
@@ -112,14 +112,15 @@ final class ReadmeReferenceTests: MuterTestCase {
     private static let commandsWithEveryFlagInATable: [ParsableCommand.Type] = [Run.self, Triage.self]
 
     private static var displayedCommands: [ParsableCommand.Type] {
-        // swiftlint:disable:next prefer_key_path - as a key path, a static member of a metatype crashes the compiler
+        // swiftlint:disable:next prefer_key_path - a key path through ParsableCommand.Type crashes Swift 6.4's SILGen
         MuterCommand.configuration.subcommands.filter { $0.configuration.shouldDisplay }
     }
 
     /// The long names on the help's option lines, such as `--configuration` in
     /// `  -c, --configuration <configuration>   The path to the configuration file.`, but not `--help`.
     private static func longFlags(inTheHelpOf arguments: ParsableArguments.Type) -> [String] {
-        arguments.helpMessage(columns: 200).split(separator: "\n")
+        arguments.helpMessage(columns: 200)
+            .split(separator: "\n")
             .filter { $0.hasPrefix("  -") }
             .flatMap { line in
                 let names = line.dropFirst(2).components(separatedBy: "  ").first ?? ""
@@ -136,7 +137,8 @@ final class ReadmeReferenceTests: MuterTestCase {
             .filter { $0.hasPrefix("| `") }
             .map { line in
                 let cell = line.dropFirst(2).components(separatedBy: " |").first ?? ""
-                return cell.components(separatedBy: "`").enumerated()
+                return cell.components(separatedBy: "`")
+                    .enumerated()
                     .filter { !$0.offset.isMultiple(of: 2) }
                     .compactMap { $0.element.split(separator: " ").first.map(String.init) }
                     .filter { $0.hasPrefix("-") }

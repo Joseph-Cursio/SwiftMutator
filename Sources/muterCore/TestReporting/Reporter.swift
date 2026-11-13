@@ -1,5 +1,3 @@
-import Foundation
-
 typealias MutationOutcomeWithFlush = (mutation: MutationTestOutcome.Mutation, fflush: () -> Void)
 
 /// Sendable, as the run's options hold one, and the command's task hands them to the run's work. A reporter keeps no
@@ -10,5 +8,7 @@ protocol Reporter: Sendable {
 }
 
 extension Reporter {
-    func newMutationTestOutcomeAvailable(outcomeWithFlush _: MutationOutcomeWithFlush) {}
+    func newMutationTestOutcomeAvailable(outcomeWithFlush _: MutationOutcomeWithFlush) {
+        // A reporter that writes only at the end ignores each outcome.
+    }
 }

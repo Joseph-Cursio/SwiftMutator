@@ -3,15 +3,15 @@ import SwiftSyntax
 enum ChangeLogicalConnectorOperator {
     class Visitor: TokenAwareVisitor {
         convenience init(
-            configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
+            configuration: MuterConfiguration? = nil,
             coverage: FileCoverage = .empty
         ) {
             self.init(
-                configuration: configuration,
                 sourceCodeInfo: sourceCodeInfo,
                 mutationOperatorId: .logicalOperator,
-                coverage: coverage
+                coverage: coverage,
+                configuration: configuration
             )
 
             tokensToDiscover = [

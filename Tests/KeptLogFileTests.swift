@@ -6,7 +6,7 @@ import XCTest
 /// folder's `running/` is moved to the name the log is kept under, not copied there and removed.
 final class KeptLogFileTests: MuterTestCase {
     private let state = MutationTestState()
-    private var root: URL!
+    private let root = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
     private var logFolder: URL { root.appendingPathComponent("logs") }
     private var mutatedProject: URL { root.appendingPathComponent("project_mutated") }
     private var clone: URL { root.appendingPathComponent("project_mutated_worker1") }
@@ -23,7 +23,8 @@ final class KeptLogFileTests: MuterTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        root = try URL(fileURLWithPath: makeTemporaryDirectory())
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { [root] in try? FileManager.default.removeItem(at: root) }
         for folder in [logFolder, mutatedProject, clone] {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         }
@@ -90,7 +91,6 @@ final class KeptLogFileTests: MuterTestCase {
 
     private func makeSchemataMapping() throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -102,7 +102,8 @@ final class KeptLogFileTests: MuterTestCase {
                         snapshot: .null
                     ),
                 ]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 }

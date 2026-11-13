@@ -20,24 +20,24 @@ struct ReportRequest: Hashable, Sendable, CustomStringConvertible, Codable {
             return .failure(Problem("name the format and then the path, as format:path, such as \(example)"))
         }
         let name = String(text[..<colon])
-        let path = String(text[text.index(after: colon)...])
-        guard let format = ReportFormat(rawValue: name) else {
+        let outputPath = String(text[text.index(after: colon)...])
+        guard let reportFormat = ReportFormat(rawValue: name) else {
             return .failure(Problem(
                 "start with one of the formats \(savedFormats), as format:path, such as \(example)"
             ))
         }
         // Its warnings are printed as each mutant finishes, which only `-f`'s reporter is told of; a saved copy would
         // hold the summary alone.
-        guard format != .xcode else {
+        guard reportFormat != .xcode else {
             return .failure(Problem(
                 "save the Xcode format with -f xcode, as its warnings are printed while the run goes, which only -f's "
                     + "report is; here give another format, such as \(example)"
             ))
         }
-        guard !path.isEmpty else {
+        guard !outputPath.isEmpty else {
             return .failure(Problem("give a path after the format, as format:path, such as \(example)"))
         }
-        return .success(Self(format: format, path: path))
+        return .success(Self(format: reportFormat, path: outputPath))
     }
 
     /// What is wrong with a `format:path`.
@@ -64,9 +64,9 @@ struct ReportRequest: Hashable, Sendable, CustomStringConvertible, Codable {
     /// absolute path is kept. A leading `~` is the home folder: a shell expands it in `-o ~/r.md`, but not after
     /// `markdown:`, and YAML never does, so `markdown:~/r.md` would otherwise be a `~` folder in `folder`.
     func resolved(in folder: String) -> Self {
-        let expanded = (path as NSString).expandingTildeInPath
+        let expanded = path.expandingTildeInPath
         guard !expanded.hasPrefix("/") else { return Self(format: format, path: expanded) }
-        return Self(format: format, path: (folder as NSString).appendingPathComponent(path))
+        return Self(format: format, path: folder.appendingPathComponent(path))
     }
 
     /// This request with a relative path resolved against the current directory, as `-o`'s is.
@@ -80,6 +80,7 @@ struct ReportRequest: Hashable, Sendable, CustomStringConvertible, Codable {
         switch Self.parse(text) {
         case let .success(request):
             self = request
+
         case let .failure(problem):
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "\(problem), not \(text)")
         }
@@ -89,9 +90,7 @@ struct ReportRequest: Hashable, Sendable, CustomStringConvertible, Codable {
         var container = encoder.singleValueContainer()
         try container.encode(description)
     }
-}
 
-extension ReportRequest {
     /// A report a command saves, by what names it in a refusal ("-o report.html", "--report markdown:summary.md") and
     /// the path it is saved at.
     typealias Output = (option: String, path: String)

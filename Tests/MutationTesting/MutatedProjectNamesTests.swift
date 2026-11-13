@@ -141,10 +141,10 @@ final class MutatedProjectNamesTests: XCTestCase {
     }
 
     func test_activationFolders_areBesideTheirWorkersFolders_andAreLeftovers() {
-        let copy = URL(fileURLWithPath: "/runs/p_mutated.noindex")
+        let noindexCopy = URL(fileURLWithPath: "/runs/p_mutated.noindex")
         let clone = URL(fileURLWithPath: "/runs/p_mutated_worker2.noindex")
 
-        XCTAssertEqual(MutatedProjectNames.activationFolder(of: copy).path, "/runs/p_mutated.Activation.noindex")
+        XCTAssertEqual(MutatedProjectNames.activationFolder(of: noindexCopy).path, "/runs/p_mutated.Activation.noindex")
         XCTAssertEqual(
             MutatedProjectNames.activationFolder(of: clone).path,
             "/runs/p_mutated_worker2.Activation.noindex"

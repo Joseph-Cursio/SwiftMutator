@@ -52,10 +52,10 @@ enum ToolReportFixture {
     /// `path` outside it, which has no key.
     static func mutant(
         _ outcome: TestSuiteOutcome,
-        _ operatorId: MutationOperator.Id = .ror,
-        _ path: String = "Sources/Rules.swift",
         line: Int,
         column: Int,
+        operatorId: MutationOperator.Id = .ror,
+        path: String = "Sources/Rules.swift",
         before: String = "==",
         after: String = "!=",
         description: String = "changed == to !=",
@@ -85,9 +85,9 @@ enum ToolReportFixture {
     static var everyOutcome: MutationTestOutcome {
         var leftOut = mutant(
             .buildError,
-            .relationalBoundary,
             line: 3,
             column: 14,
+            operatorId: .relationalBoundary,
             before: "<",
             after: "<=",
             description: "changed < to <="
@@ -103,9 +103,9 @@ enum ToolReportFixture {
         )
         let crash = mutant(
             .runtimeError,
-            .flipBooleanLiteral,
             line: 2,
             column: 39,
+            operatorId: .flipBooleanLiteral,
             before: "true",
             after: "false",
             description: "changed true to false",
@@ -114,28 +114,28 @@ enum ToolReportFixture {
         )
         let timeout = mutant(
             .timeout,
-            .swapTernary,
             line: ternaryEnd.line,
             column: ternaryEnd.column,
+            operatorId: .swapTernary,
             before: ternary,
             after: "flag ? 2 : 1",
             description: "swapped ternary"
         )
         let buildError = mutant(
             .buildError,
-            .logicalOperator,
-            "Sources/Other.swift",
             line: 4,
             column: 9,
+            operatorId: .logicalOperator,
+            path: "Sources/Other.swift",
             before: "&&",
             after: "||",
             description: "changed && to ||"
         )
         let notCovered = mutant(
             .noCoverage,
-            .removeSideEffects,
             line: statementEnd.line,
             column: statementEnd.column,
+            operatorId: .removeSideEffects,
             before: "items.append(1)",
             after: "removed line",
             description: "removed line"
@@ -148,7 +148,7 @@ enum ToolReportFixture {
             timeout,
             buildError,
             notCovered,
-            mutant(.passed, .ror, "/elsewhere/Shared.swift", line: 1, column: 14),
+            mutant(.passed, line: 1, column: 14, operatorId: .ror, path: "/elsewhere/Shared.swift"),
         ])
     }
 

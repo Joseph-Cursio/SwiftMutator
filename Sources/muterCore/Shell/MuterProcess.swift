@@ -62,10 +62,6 @@ protocol MuterProcess: AnyObject, Sendable {
     /// `waitUntilExit()`, which would hold a thread of Swift concurrency's pool until then.
     func run() throws
 
-    func terminate()
-
-    func interrupt()
-
     /// Stop, then SIGKILL, this process and every transitive descendant (default impl: `ProcessTree.terminate`).
     /// Declared here so it dynamically dispatches to conformers/test doubles rather than binding statically.
     func terminateTree()
@@ -79,11 +75,6 @@ protocol MuterProcess: AnyObject, Sendable {
 }
 
 extension MuterProcess {
-    /// For test doubles that never run a command this way: as if it couldn't be started. `Foundation.Process` runs it.
-    func runCommand(url _: String, arguments _: [String], timeLimit _: TimeInterval?) async -> CommandResult? {
-        nil
-    }
-
     /// `run()`, so that the command starts with no signal blocked, as Darwin's Foundation starts it. On Linux a process
     /// keeps the signal mask of the thread that started it, and libdispatch's threads block nearly every signal: a
     /// test command started from one would not end by its own `kill -TERM $$` until it next waited for a child. The

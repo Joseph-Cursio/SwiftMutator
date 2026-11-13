@@ -66,7 +66,7 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
 
         runEvents.send(.mutationTestingFinished(outcome()))
 
-        let report = String(decoding: try XCTUnwrap(fileManager.createdFiles["/out/report.md"]), as: UTF8.self)
+        let report = String(lossyUTF8: try XCTUnwrap(fileManager.createdFiles["/out/report.md"]))
         XCTAssertTrue(report.contains("### Checks"), report)
         XCTAssertTrue(report.contains("❌ Mutation score 33.3% is below the required 80%."), report)
         XCTAssertTrue(
@@ -85,7 +85,7 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
         XCTAssertEqual(sut.checks.exitStatus, .scoreBelowThreshold)
         XCTAssertEqual(summary?.newSurvivors?.new, 1)
         XCTAssertEqual(summary?.newSurvivors?.newMutants, ["Sources/X.swift:5:17 RelationalBoundary"])
-        XCTAssertEqual(summary?.gate?.passed, false)
+        XCTAssertEqual(summary?.gate?.passed, .failed)
     }
 
     // In the order fail-under, new survivors, score drop, doubtful kills, last; the reports show them all.
@@ -106,16 +106,16 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
             "❌ " + scoreDrop,
             "✅ No doubtful kills.",
         ])
-        let report = String(decoding: try XCTUnwrap(fileManager.createdFiles["/out/report.md"]), as: UTF8.self)
+        let report = String(lossyUTF8: try XCTUnwrap(fileManager.createdFiles["/out/report.md"]))
         XCTAssertTrue(report.contains("❌ " + MarkdownText.plain(scoreDrop)), report)
         XCTAssertTrue(report.contains("✅ No doubtful kills."), report)
-        XCTAssertEqual(sut.checks.scoreDrop?.passed, false)
-        XCTAssertEqual(sut.checks.doubtfulKills?.passed, true)
+        XCTAssertEqual(sut.checks.scoreDrop?.result, .failed)
+        XCTAssertEqual(sut.checks.doubtfulKills?.result, .passed)
         XCTAssertEqual(sut.checks.exitStatus, .scoreBelowThreshold)
-        XCTAssertEqual(summary?.scoreDrop?.passed, false)
+        XCTAssertEqual(summary?.scoreDrop?.passed, .failed)
         XCTAssertEqual(summary?.scoreDrop?.baselineScore, 50)
         XCTAssertEqual(summary?.doubtfulKills?.count, 0)
-        XCTAssertEqual(summary?.doubtfulKills?.passed, true)
+        XCTAssertEqual(summary?.doubtfulKills?.passed, .passed)
     }
 
     // Doubtful kills need no baseline file; a failed check exits 2 on its own.
@@ -127,7 +127,7 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
             snapshot: .make(before: "<", after: "<="),
             key: key(3)
         )
-        doubtful.activated = false
+        doubtful.activated = .didNotRun
         var finished = MutationTestOutcome(mutations: [doubtful])
         finished.maxDoubtfulKills = 0
 
@@ -179,7 +179,7 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
 
         let written = fileManager.paths.filter { ["/out/report.md", "/out/muter.baseline.yml"].contains($0) }
         XCTAssertEqual(written, ["/out/report.md", "/out/muter.baseline.yml"])
-        let text = String(decoding: try XCTUnwrap(fileManager.createdFiles["/out/muter.baseline.yml"]), as: UTF8.self)
+        let text = String(lossyUTF8: try XCTUnwrap(fileManager.createdFiles["/out/muter.baseline.yml"]))
         XCTAssertTrue(text.hasPrefix(BaselineFile.introduction), text)
         XCTAssertTrue(text.contains("- mutant: Sources/X.swift:1:17 RelationalBoundary"), text)
         XCTAssertTrue(text.contains("- mutant: Sources/X.swift:5:17 RelationalBoundary"), text)
@@ -265,7 +265,7 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
         )
         XCTAssertEqual(sut.checks, RunChecks())
         XCTAssertEqual(summary?.newSurvivors?.notChecked, .endedEarly)
-        XCTAssertNil(summary?.newSurvivors?.passed)
+        XCTAssertEqual(summary?.newSurvivors?.passed, .notChecked)
     }
 
     // Without the flags, nothing is compared or saved, and the summary has no such key.

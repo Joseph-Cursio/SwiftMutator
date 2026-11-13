@@ -20,7 +20,7 @@ final class LoggerProgressTotalTests: MuterTestCase {
         sut.newMutationTestLogAvailable(
             mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 1)
         )
-        XCTAssertEqual(printer.linesPassed.last?.hasSuffix("0 of 1 (0%) | 1 min left"), true, "\(printer.linesPassed)")
+        XCTAssertTrue(printer.linesPassed.last?.hasSuffix("0 of 1 (0%) | 1 min left"), "\(printer.linesPassed)")
         sut.mutantRunsStarted()
         seconds.change { $0 += 60 }
         sut.newMutationTestOutcomeAvailable(mutation: .make(testSuiteOutcome: .failed))
@@ -51,11 +51,11 @@ final class LoggerProgressTotalTests: MuterTestCase {
     /// A file's mapping with one mutant, as discovery reports it.
     private func discoveredMapping() throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [.make(filePath: "/tmp/project/file.swift", position: .firstPosition)]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 

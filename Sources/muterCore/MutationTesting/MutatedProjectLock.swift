@@ -28,6 +28,7 @@ enum MutatedProjectLockError: Error, Equatable, CustomStringConvertible {
             return "SwiftMutator won't start: another SwiftMutator run\(holder) is using \(mutatedProject), and two "
                 + "runs of a project can't share its copy. Wait for that run to end, or stop it, then run again. "
                 + "Nothing was copied or removed."
+
         case let .cannotLock(path, code):
             return "can't lock \(path): \(String(cString: strerror(code)))"
         }
@@ -70,19 +71,23 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
         }
 
         func lock(_ mutatedProject: URL) throws -> MutatedProjectLock {
-            let path = MutatedProjectLock.path(for: mutatedProject)
-            let (descriptor, readOnlyBecause) = try MutatedProjectLock.openFile(at: path)
-            guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            let lockPath = MutatedProjectLock.path(for: mutatedProject)
+            let (openDescriptor, readOnlyBecause) = try MutatedProjectLock.openFile(at: lockPath)
+            guard flock(openDescriptor, LOCK_EX | LOCK_NB) == 0 else {
                 let code = errno
-                let holder = code == EWOULDBLOCK ? MutatedProjectLock.holder(recordedIn: descriptor) : nil
-                close(descriptor)
+                let lockHolder = code == EWOULDBLOCK ? MutatedProjectLock.holder(recordedIn: openDescriptor) : nil
+                close(openDescriptor)
                 throw code == EWOULDBLOCK
                     ? MutatedProjectLockError.inUse(
-                        mutatedProject: MutatedProjectLock.copy(of: holder, lockedAt: path, refused: mutatedProject),
-                        process: holder?.process
+                        mutatedProject: MutatedProjectLock.copy(
+                            of: lockHolder,
+                            lockedAt: lockPath,
+                            refused: mutatedProject
+                        ),
+                        process: lockHolder?.process
                     )
                     : MutatedProjectLockError.cannotLock(
-                        path: path,
+                        path: lockPath,
                         errno: MutatedProjectLock.reportedErrno(
                             ofFailedFlock: code,
                             openedReadOnlyBecause: readOnlyBecause
@@ -91,10 +96,10 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
             }
             // Before this run's record replaces the list, and before anything in the folders they run in is removed or
             // used.
-            MutatedProjectLock.terminateTestProcesses(listedIn: descriptor)
+            MutatedProjectLock.terminateTestProcesses(listedIn: openDescriptor)
             let lock = MutatedProjectLock(
-                descriptor: descriptor,
-                path: path,
+                descriptor: openDescriptor,
+                path: lockPath,
                 holder: MutatedProjectLock.record(of: getpid(), runningIn: mutatedProject) ?? "",
                 startWatcher: startWatcher
             )
@@ -207,8 +212,8 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
     /// copy beside it does, so anyone who can remove the copy can lock it. A file this user can only read is opened
     /// read-only, which is all flock needs on a local disk; `readOnlyBecause` is why it couldn't be opened to write.
     private static func openFile(at path: String) throws -> (descriptor: Int32, readOnlyBecause: Int32?) {
-        let descriptor = open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0o666)
-        guard descriptor < 0 else { return (descriptor, nil) }
+        let openDescriptor = open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0o666)
+        guard openDescriptor < 0 else { return (openDescriptor, nil) }
         let code = errno
         if code == EACCES {
             let readOnly = open(path, O_RDONLY | O_CLOEXEC)
@@ -297,7 +302,7 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
             guard count > 0 else { break }
             bytes += buffer[..<count]
         }
-        return String(decoding: bytes, as: UTF8.self)
+        return String(lossyUTF8: bytes)
     }
 
     /// When the file at `descriptor` was last written, in seconds since 1970.

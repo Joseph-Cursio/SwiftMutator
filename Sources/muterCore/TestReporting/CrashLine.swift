@@ -23,7 +23,7 @@ enum CrashLine {
 
     /// The first line of `log` that shows a crash, without colour codes.
     static func first(inLog log: String) -> String? {
-        log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+        log.split { $0 == "\n" || $0 == "\r\n" }
             .first(where: matches)
             .map(FailedTestLine.withoutColours)
     }
@@ -31,7 +31,7 @@ enum CrashLine {
     /// The first line of `log` that shows a test process ended by a bad memory access, without colour codes: SIGBUS or
     /// SIGSEGV, the signals that running out of stack ends a process with, though not only that.
     static func firstMemoryFault(inLog log: String) -> String? {
-        log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+        log.split { $0 == "\n" || $0 == "\r\n" }
             .first { line in
                 guard matches(line) else { return false }
                 let text = FailedTestLine.withoutColours(line)

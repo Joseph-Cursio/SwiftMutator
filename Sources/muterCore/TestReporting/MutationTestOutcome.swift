@@ -1,6 +1,6 @@
 import Foundation
 
-struct MutationTestOutcome {
+struct MutationTestOutcome: Equatable {
     let mutations: [Mutation]
     let coverage: Coverage
     /// Whether the run skipped coverage (`--skip-coverage`), so a `.null` coverage wasn't a failure to gather it.
@@ -119,11 +119,7 @@ struct MutationTestOutcome {
         self.sourceDigests = sourceDigests
         self.run = run
     }
-}
 
-extension MutationTestOutcome: Equatable {}
-
-extension MutationTestOutcome {
     /// Whether a file's mutants may be missing from these results although the code is there: `--mutant`, `--shard`,
     /// `--sample` and `--since --changed-lines` test some of a file's mutants, and a run that stopped has tested only
     /// some. A plain `--since` tests whole files. `sampleIsCutShort` is set for any run that stopped, sampled or not.
@@ -158,9 +154,7 @@ extension MutationTestOutcome {
         if uncoveredMutants == nil { return Self.uncoveredMutantsUnknown }
         return nil
     }
-}
 
-extension MutationTestOutcome {
     /// What a run ends with when some of its mutants were build errors, as those that don't compile are: they weren't
     /// tested, and neither the score nor a passing `--fail-under` says so. nil without any, and for one mutant's run,
     /// whose verdict says it.
@@ -177,7 +171,9 @@ extension MutationTestOutcome {
     /// stopped run may not have tested them again yet, which `--resume` does. nil without any, and for one mutant's
     /// run, whose log shows it.
     var unprovenKillWarning: String? {
-        let count = mutations.count { [.failed, .runtimeError].contains($0.testSuiteOutcome) && $0.activated == false }
+        let count = mutations.count {
+            [.failed, .runtimeError].contains($0.testSuiteOutcome) && $0.activated == .didNotRun
+        }
         guard count > 0, mutant == nil else { return nil }
         return count == 1
             ? "1 kill's code never ran, though its tests failed: a flaky test or a crash at launch may be to blame, "
@@ -211,9 +207,8 @@ extension MutationTestOutcome {
         /// Whether it was taken out of the build with others, as the compiler's error could be any of theirs
         /// (`LeftOutMutant.Blame`), so it may compile. As its results line records it.
         var leftOutWithOthers = false
-        /// Whether its block ran in its run, as its results line records it (`TestRun.activated`); nil when that is
-        /// unknown.
-        var activated: Bool?
+        /// Whether its block ran in its run, as its results line records it (`TestRun.activated`).
+        var activated: MutantActivation = .unknown
         /// Why its run was tested again, as its results line records it; nil for a first run.
         var rerun: MutantResult.Rerun?
 
@@ -256,31 +251,32 @@ extension MutationTestOutcome {
         /// Whether the run exited by itself and `tests` names every test that failed. A run stopped at its first
         /// failed test, or at its time limit, may have had others to fail.
         let isComplete: Bool
-    }
-}
 
-// In an extension, so the memberwise initializer stays.
-extension MutationTestOutcome.KillingTests {
-    /// The tests a run that ended `endedBy` recorded failing: nil when it recorded none, and an empty list stays
-    /// empty. Without a count, the list's length is the count.
-    init?(killedBy: [FailedTestLine.FailedTest]?, failedTestCount: Int?, endedBy: TestRun.Ending) {
-        guard let killedBy else { return nil }
-        let count = failedTestCount ?? killedBy.count
-        self.init(tests: killedBy, count: count, isComplete: endedBy == .exited && count == killedBy.count)
+        init(tests: [FailedTestLine.FailedTest], count: Int, isComplete: Bool) {
+            self.tests = tests
+            self.count = count
+            self.isComplete = isComplete
+        }
+
+        /// The tests a run that ended `endedBy` recorded failing: nil when it recorded none, and an empty list stays
+        /// empty. Without a count, the list's length is the count.
+        init?(killedBy: [FailedTestLine.FailedTest]?, failedTestCount: Int?, endedBy: TestRun.Ending) {
+            guard let killedBy else { return nil }
+            let failed = failedTestCount ?? killedBy.count
+            self.init(tests: killedBy, count: failed, isComplete: endedBy == .exited && failed == killedBy.count)
+        }
+
+        /// The tests `failures` names, for a run that ended `endedBy`.
+        init?(_ failures: FailedTestLine.FailedTests?, endedBy: TestRun.Ending) {
+            self.init(killedBy: failures?.tests, failedTestCount: failures?.total, endedBy: endedBy)
+        }
+
+        /// The tests a results line records.
+        init?(_ record: MutantResult) {
+            self.init(killedBy: record.killedBy, failedTestCount: record.failedTestCount, endedBy: record.endedBy)
+        }
     }
 
-    /// The tests `failures` names, for a run that ended `endedBy`.
-    init?(_ failures: FailedTestLine.FailedTests?, endedBy: TestRun.Ending) {
-        self.init(killedBy: failures?.tests, failedTestCount: failures?.count, endedBy: endedBy)
-    }
-
-    /// The tests a results line records.
-    init?(_ record: MutantResult) {
-        self.init(killedBy: record.killedBy, failedTestCount: record.failedTestCount, endedBy: record.endedBy)
-    }
-}
-
-extension MutationTestOutcome {
     /// A control run, with no mutant on (`ControlRunResult`): how it ended, and the tests it recorded failing, nil when
     /// it passed or built nothing.
     struct ControlRun: Equatable {

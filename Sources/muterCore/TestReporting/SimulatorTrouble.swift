@@ -1,5 +1,25 @@
 import Foundation
 
+/// A mutant's run that the simulator failed to launch, which was run again in its place on the same worker.
+struct LaunchFailure: Equatable {
+    /// The line of its log that shows it (`SimulatorTrouble.launch`).
+    let line: String
+    let testLog: String
+}
+
+/// A mutant's run that the simulator failed to launch and that ran again, once the second run's result is written,
+/// before its outcome is sent. Never counted in the progress, which counts the second run.
+struct RepeatedRun {
+    /// The outcome of the second run, which the results file records.
+    let mutant: MutationTestOutcome.Mutation
+    /// The worker both ran on.
+    let worker: Int
+    /// The line that shows the first run's failure to launch.
+    let line: String
+    /// The first run's log, kept under a name of its own (`MutationTestLog.launchFailedFileName(for:)`).
+    let log: MutationTestLog
+}
+
 /// What an xcodebuild run's output shows went wrong with its simulator rather than with the mutant's tests. xcodebuild
 /// exits with 65 for both, with no failed test, so such a run would otherwise count as a kill.
 enum SimulatorTrouble: Equatable {
@@ -25,15 +45,15 @@ enum SimulatorTrouble: Equatable {
     /// `FailedTestLine.lineLengthLimit` characters.
     static func first(inLog log: String) -> Self? {
         // "\r\n" is a single Character, so a log with those line breaks isn't split at "\n" alone.
-        let lines = log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+        let lines = log.split { $0 == "\n" || $0 == "\r\n" }
         guard !lines.contains(where: { FailedTestLine.matches($0) || showsParallelTestingFailure($0) }) else {
             return nil
         }
         let summary = lines.lastIndex { $0.hasPrefix("Testing failed:") }.map { lines[$0...] } ?? []
         for (trouble, signs) in [(Self.deviceGone, deviceGoneLines), (Self.launch, launchLines)] {
             let shows = { (line: Substring) in signs.contains { line.contains($0) } }
-            if let line = summary.first(where: shows) ?? lines.first(where: shows) {
-                let text = line.trimmingCharacters(in: .whitespaces)
+            if let troubleLine = summary.first(where: shows) ?? lines.first(where: shows) {
+                let text = troubleLine.trimmingCharacters(in: .whitespaces)
                 return trouble(String(text.prefix(FailedTestLine.lineLengthLimit)))
             }
         }
@@ -75,24 +95,4 @@ enum SimulatorTrouble: Equatable {
         "Unable to find a device matching the provided destination specifier",
         "No matching device (",
     ]
-}
-
-/// A mutant's run that the simulator failed to launch, which was run again in its place on the same worker.
-struct LaunchFailure: Equatable {
-    /// The line of its log that shows it (`SimulatorTrouble.launch`).
-    let line: String
-    let testLog: String
-}
-
-/// A mutant's run that the simulator failed to launch and that ran again, once the second run's result is written,
-/// before its outcome is sent. Never counted in the progress, which counts the second run.
-struct RepeatedRun {
-    /// The outcome of the second run, which the results file records.
-    let mutant: MutationTestOutcome.Mutation
-    /// The worker both ran on.
-    let worker: Int
-    /// The line that shows the first run's failure to launch.
-    let line: String
-    /// The first run's log, kept under a name of its own (`MutationTestLog.launchFailedFileName(for:)`).
-    let log: MutationTestLog
 }

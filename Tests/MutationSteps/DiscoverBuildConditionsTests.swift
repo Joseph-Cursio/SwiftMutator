@@ -38,7 +38,8 @@ final class DiscoverBuildConditionsTests: MuterTestCase {
 
         let change = try XCTUnwrap(result.first)
         guard case let .buildConditionsDiscovered(conditions) = change else {
-            return XCTFail("Expected conditions, got \(change)")
+            XCTFail("Expected conditions, got \(change)")
+            return
         }
         XCTAssertEqual(conditions.everyTarget.platform?.system, "macOS")
     }

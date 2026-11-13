@@ -1,18 +1,5 @@
 import Foundation
 
-/// Hears the signals that stop or suspend a run, in place of their default action, which would end SwiftMutator at
-/// once, or suspend it without its test processes.
-protocol SignalObserving: AnyObject {
-    /// Calls `handler` on `queue` for each of `signals` this process receives, until `stop()`, and ignores them
-    /// meanwhile. A signal that was ignored (SIG_IGN) when this was called is left alone. Returns the signals it
-    /// observes.
-    @discardableResult
-    func start(observing signals: [Int32], on queue: DispatchQueue, handler: @escaping (Int32) -> Void) -> [Int32]
-    /// Stops observing, and gives each observed signal back its earlier disposition. Call it on `queue`, so that no
-    /// handler is under way.
-    func stop()
-}
-
 /// Observes signals with Dispatch signal sources.
 final class DispatchSignalObserver: SignalObserving {
     private var sources: [DispatchSourceSignal] = []
@@ -64,4 +51,17 @@ final class DispatchSignalObserver: SignalObserving {
         #endif
         return handler.map { unsafeBitCast($0, to: Int.self) } ?? 0
     }
+}
+
+/// Hears the signals that stop or suspend a run, in place of their default action, which would end SwiftMutator at
+/// once, or suspend it without its test processes.
+protocol SignalObserving: AnyObject {
+    /// Calls `handler` on `queue` for each of `signals` this process receives, until `stop()`, and ignores them
+    /// meanwhile. A signal that was ignored (SIG_IGN) when this was called is left alone. Returns the signals it
+    /// observes.
+    @discardableResult
+    func start(observing signals: [Int32], on queue: DispatchQueue, handler: @escaping (Int32) -> Void) -> [Int32]
+    /// Stops observing, and gives each observed signal back its earlier disposition. Call it on `queue`, so that no
+    /// handler is under way.
+    func stop()
 }

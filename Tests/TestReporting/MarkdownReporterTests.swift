@@ -6,38 +6,13 @@ import XCTest
 
 /// The Markdown report (`-f markdown`): short enough for a GitHub job summary, and the same for the same outcome.
 final class MarkdownReporterTests: MuterTestCase {
-    private let project = URL(fileURLWithPath: "/work/Foo")
-    private let copy = URL(fileURLWithPath: "/work/Foo_mutated")
+    let project = URL(fileURLWithPath: "/work/Foo")
+    let mutatedCopy = URL(fileURLWithPath: "/work/Foo_mutated")
 
     override func setUp() {
         super.setUp()
         Rainbow.outputTarget = .console
         Rainbow.enabled = false
-    }
-
-    private func mutant(
-        _ outcome: TestSuiteOutcome,
-        _ path: String = "Sources/Rules.swift",
-        line: Int,
-        column: Int = 9,
-        description: String = "changed == to !="
-    ) -> MutationTestOutcome.Mutation {
-        .make(
-            testSuiteOutcome: outcome,
-            point: .make(
-                mutationOperatorId: .ror,
-                filePath: copy.path + "/" + path,
-                position: MutationPosition(utf8Offset: 0, line: line, column: column)
-            ),
-            snapshot: .make(before: "==", after: "!=", description: description),
-            originalProjectDirectoryUrl: project,
-            mutatedProjectDirectoryURL: copy,
-            key: MutantKey(path: path, mutationOperatorId: .ror, line: line, column: column, occurrence: 0)
-        )
-    }
-
-    private func report(_ outcome: MutationTestOutcome) -> String {
-        MarkdownReporter().report(from: outcome)
     }
 
     // Every mutant killed, with coverage gathered: no survivor to list, and the note on what coverage leaves out.
@@ -46,7 +21,7 @@ final class MarkdownReporterTests: MuterTestCase {
             mutations: [mutant(.failed, line: 2), mutant(.runtimeError, "Sources/Sum.swift", line: 7)],
             coverage: .make(percent: 80),
             projectPath: project.path,
-            mutatedProjectPath: copy.path
+            mutatedProjectPath: mutatedCopy.path
         )
 
         AssertSnapshot(report(outcome))
@@ -64,7 +39,7 @@ final class MarkdownReporterTests: MuterTestCase {
                 mutant(.noCoverage, "Sources/Alpha.swift", line: 9),
                 mutant(.buildError, "Sources/Alpha.swift", line: 11),
             ],
-            coverage: .make(percent: 64, filesWithoutCoverage: [copy.path + "/Sources/Unused.swift"]),
+            coverage: .make(percent: 64, filesWithoutCoverage: [mutatedCopy.path + "/Sources/Unused.swift"]),
             triage: TriageFile(path: "/work/Foo/muter.triage.yml", entries: [
                 TriageEntry(
                     mutant: MutantKey(
@@ -77,7 +52,7 @@ final class MarkdownReporterTests: MuterTestCase {
                 ),
             ]),
             projectPath: project.path,
-            mutatedProjectPath: copy.path
+            mutatedProjectPath: mutatedCopy.path
         )
 
         AssertSnapshot(report(outcome))
@@ -90,7 +65,7 @@ final class MarkdownReporterTests: MuterTestCase {
             mutations: survivors,
             coverageSkipped: true,
             projectPath: project.path,
-            mutatedProjectPath: copy.path
+            mutatedProjectPath: mutatedCopy.path
         ))
 
         XCTAssertEqual(text.components(separatedBy: "\n  - `").count - 1, MarkdownReporter.mostListed, text)
@@ -102,12 +77,12 @@ final class MarkdownReporterTests: MuterTestCase {
     // Every file no test ran has a row, a shard's run's too, so a large project's table is cut as the lists are, the
     // files with mutants first.
     func test_aLongTableOfFiles_isCut() {
-        let unrun = (1 ... MarkdownReporter.mostFiles + 2).map { copy.path + "/Sources/Unrun\($0).swift" }
+        let unrun = (1 ... MarkdownReporter.mostFiles + 2).map { mutatedCopy.path + "/Sources/Unrun\($0).swift" }
         let text = report(MutationTestOutcome(
             mutations: [mutant(.failed, line: 2)],
             coverage: .make(percent: 1, filesWithoutCoverage: unrun),
             projectPath: project.path,
-            mutatedProjectPath: copy.path
+            mutatedProjectPath: mutatedCopy.path
         ))
 
         XCTAssertEqual(text.components(separatedBy: "\n| `").count - 1, MarkdownReporter.mostFiles, text)
@@ -123,7 +98,7 @@ final class MarkdownReporterTests: MuterTestCase {
             ],
             coverage: .make(percent: 50),
             projectPath: project.path,
-            mutatedProjectPath: copy.path
+            mutatedProjectPath: mutatedCopy.path
         )
 
         AssertSnapshot(report(outcome))
@@ -132,7 +107,7 @@ final class MarkdownReporterTests: MuterTestCase {
     // The score without them, and every warning the run ends with, each in a quote of its own.
     func test_withSuspectTests_andWarnings() {
         var unproven = mutant(.failed, "Sources/Unproven.swift", line: 1)
-        unproven.activated = false
+        unproven.activated = .didNotRun
         let suspects = MutationTestOutcome.withSuspectTests
         let outcome = MutationTestOutcome(
             mutations: suspects.mutations + [unproven, mutant(.buildError, "Sources/Broken.swift", line: 2)],
@@ -148,7 +123,7 @@ final class MarkdownReporterTests: MuterTestCase {
         var outcome = MutationTestOutcome(
             mutations: [mutant(.failed, line: 2), mutant(.passed, line: 4), mutant(.passed, line: 8)],
             projectPath: project.path,
-            mutatedProjectPath: copy.path
+            mutatedProjectPath: mutatedCopy.path
         )
         let gate = ScoreGate(failUnder: 50, judging: outcome)
         let newSurvivors = NewSurvivorsCheck(
@@ -187,7 +162,7 @@ final class MarkdownReporterTests: MuterTestCase {
         var outcome = MutationTestOutcome(
             mutations: [mutant(.failed, line: 2), mutant(.passed, line: 4), mutant(.passed, line: 8)],
             projectPath: project.path,
-            mutatedProjectPath: copy.path
+            mutatedProjectPath: mutatedCopy.path
         )
         outcome.checks = RunChecks(
             newSurvivors: NewSurvivorsCheck(

@@ -1,5 +1,37 @@
 import ArgumentParser
-import Foundation
+
+/// The verdicts a finished run, or `report`, ends with, each of the check its flag asks for, nil without it: the score
+/// against `--fail-under` (`ScoreGate`), the survivors against a baseline file (`NewSurvivorsCheck`), the score
+/// against the baseline file's (`ScoreDropCheck`), and the kills its evidence doesn't back (`DoubtfulKillsCheck`), in
+/// the order they're said.
+struct RunChecks: Equatable, Sendable {
+    var scoreGate: ScoreGate?
+    var newSurvivors: NewSurvivorsCheck?
+    var scoreDrop: ScoreDropCheck?
+    var doubtfulKills: DoubtfulKillsCheck?
+
+    init(
+        scoreGate: ScoreGate? = nil,
+        newSurvivors: NewSurvivorsCheck? = nil,
+        scoreDrop: ScoreDropCheck? = nil,
+        doubtfulKills: DoubtfulKillsCheck? = nil
+    ) {
+        self.scoreGate = scoreGate
+        self.newSurvivors = newSurvivors
+        self.scoreDrop = scoreDrop
+        self.doubtfulKills = doubtfulKills
+    }
+
+    /// Whether no check was asked for.
+    var isEmpty: Bool {
+        scoreGate == nil && newSurvivors == nil && scoreDrop == nil && doubtfulKills == nil
+    }
+
+    /// The status a command exits with when a check failed, `scoreBelowThreshold`; nil, so 0, otherwise.
+    var exitStatus: ExitCode? {
+        scoreGate?.exitStatus ?? newSurvivors?.exitStatus ?? scoreDrop?.exitStatus ?? doubtfulKills?.exitStatus
+    }
+}
 
 /// The verdict of a run, or of `report`, on its survivors against a baseline file's (`--baseline`, `BaselineMatches`):
 /// it fails when more of its survivors are new than `--max-new-survivors` allows, 0 unless it says otherwise, and then
@@ -144,16 +176,16 @@ struct NewSurvivorsCheck: Equatable, Sendable {
         self.uncoveredMutantsUnknown = uncoveredMutantsUnknown
     }
 
-    /// Whether the run has no more new survivors than allowed; nil when they aren't compared.
-    var passed: Bool? {
-        guard case let .checked(comparison) = verdict else { return nil }
-        return comparison.newSurvivors.count <= maxNewSurvivors
+    /// Whether the run has no more new survivors than allowed; not checked when they aren't compared.
+    var result: CheckResult {
+        guard case let .checked(comparison) = verdict else { return .notChecked }
+        return comparison.newSurvivors.count <= maxNewSurvivors ? .passed : .failed
     }
 
     /// The status a command exits with for this verdict: `scoreBelowThreshold` for too many new survivors, and nil, so
     /// 0, otherwise.
     var exitStatus: ExitCode? {
-        passed == false ? .scoreBelowThreshold : nil
+        result == .failed ? .scoreBelowThreshold : nil
     }
 
     /// What the run, or `report`, says of the verdict, after the score's: "2 new survivors against the baseline file
@@ -164,6 +196,7 @@ struct NewSurvivorsCheck: Equatable, Sendable {
         switch verdict {
         case let .notChecked(reason):
             return Self.notCheckedSentence(reason, file: file)
+
         case let .checked(comparison):
             let new = comparison.newSurvivors.count
             let survivors = new == 1 ? "1 new survivor" : "\(new) new survivors"
@@ -213,14 +246,9 @@ struct NewSurvivorsCheck: Equatable, Sendable {
     /// the first with ✅ when it passes, ❌ when too many survivors are new, and ⚠️ when they aren't compared. Empty
     /// when there's no line.
     var consoleLines: [String] {
-        let lines = lines
-        guard let line = lines.first else { return [] }
-        let emoji = switch passed {
-        case .some(true): "✅"
-        case .some(false): "❌"
-        case .none: "⚠️"
-        }
-        return (versionNotice.map { ["⚠️ \($0)"] } ?? []) + ["\(emoji) \(line)"] + lines.dropFirst()
+        let verdictLines = lines
+        guard let firstLine = verdictLines.first else { return [] }
+        return (versionNotice.map { ["⚠️ \($0)"] } ?? []) + ["\(result.mark) \(firstLine)"] + verdictLines.dropFirst()
     }
 
     /// Why the survivors aren't compared; nil for a run that ended early.
@@ -229,10 +257,13 @@ struct NewSurvivorsCheck: Equatable, Sendable {
         switch reason {
         case .oneMutant:
             return "\(notChecked): one mutant's run (--mutant) isn't the project's."
+
         case .stoppedOnAnError:
             return "\(notChecked): the run stopped on an error."
+
         case .lacksResults:
             return "\(notChecked): the merged report lacks results."
+
         case .endedEarly:
             return nil
         }
@@ -242,38 +273,5 @@ struct NewSurvivorsCheck: Equatable, Sendable {
     static func allowed(_ text: String) -> Int? {
         guard !text.isEmpty, text.allSatisfy({ ("0" ... "9").contains($0) }) else { return nil }
         return Int(text)
-    }
-}
-
-/// The verdicts a finished run, or `report`, ends with, each of the check its flag asks for, nil without it: the score
-/// against `--fail-under` (`ScoreGate`), the survivors against a baseline file (`NewSurvivorsCheck`), the score
-/// against the baseline file's (`ScoreDropCheck`), and the kills its evidence doesn't back (`DoubtfulKillsCheck`), in
-/// the order they're said.
-struct RunChecks: Equatable, Sendable {
-    var scoreGate: ScoreGate?
-    var newSurvivors: NewSurvivorsCheck?
-    var scoreDrop: ScoreDropCheck?
-    var doubtfulKills: DoubtfulKillsCheck?
-
-    init(
-        scoreGate: ScoreGate? = nil,
-        newSurvivors: NewSurvivorsCheck? = nil,
-        scoreDrop: ScoreDropCheck? = nil,
-        doubtfulKills: DoubtfulKillsCheck? = nil
-    ) {
-        self.scoreGate = scoreGate
-        self.newSurvivors = newSurvivors
-        self.scoreDrop = scoreDrop
-        self.doubtfulKills = doubtfulKills
-    }
-
-    /// Whether no check was asked for.
-    var isEmpty: Bool {
-        scoreGate == nil && newSurvivors == nil && scoreDrop == nil && doubtfulKills == nil
-    }
-
-    /// The status a command exits with when a check failed, `scoreBelowThreshold`; nil, so 0, otherwise.
-    var exitStatus: ExitCode? {
-        scoreGate?.exitStatus ?? newSurvivors?.exitStatus ?? scoreDrop?.exitStatus ?? doubtfulKills?.exitStatus
     }
 }

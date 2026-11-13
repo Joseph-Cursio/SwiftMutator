@@ -1,5 +1,22 @@
 import Foundation
 
+/// The mutants under way once none has finished for a while (`Heartbeat`).
+struct StillTesting: Equatable, Sendable {
+    struct Run: Equatable, Sendable {
+        /// From 0.
+        let worker: Int
+        /// "Rules.swift:42:17".
+        let place: String
+        /// How long it has run.
+        let seconds: TimeInterval
+    }
+
+    /// By worker.
+    let runs: [Run]
+    /// How many workers test the mutants.
+    let workers: Int
+}
+
 /// The mutants under way, by worker, and when one last finished, for the line that says the run is still testing once
 /// none has finished for `interval`: off a terminal nothing else prints between mutants, so a hung run would look the
 /// same as a slow one. Runs start and finish on whichever threads test them, and the clock is read on another.
@@ -62,21 +79,4 @@ final class Heartbeat: @unchecked Sendable { // `workers`, `running` and `quietS
         guard end >= start else { return 0 }
         return Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
     }
-}
-
-/// The mutants under way once none has finished for a while (`Heartbeat`).
-struct StillTesting: Equatable, Sendable {
-    struct Run: Equatable, Sendable {
-        /// From 0.
-        let worker: Int
-        /// "Rules.swift:42:17".
-        let place: String
-        /// How long it has run.
-        let seconds: TimeInterval
-    }
-
-    /// By worker.
-    let runs: [Run]
-    /// How many workers test the mutants.
-    let workers: Int
 }

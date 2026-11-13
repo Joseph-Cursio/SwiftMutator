@@ -1,6 +1,5 @@
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 final class AddImportRewriterTests: MuterTestCase {
     func test_addImport() throws {

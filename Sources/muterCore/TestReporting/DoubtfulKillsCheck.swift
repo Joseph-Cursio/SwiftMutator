@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 /// The verdict of a run, or of `report`, on the kills its score counts that its own evidence doesn't back
 /// (`--max-doubtful-kills`): it fails when there are more than the limit, and then exits 2
@@ -124,7 +123,7 @@ struct DoubtfulKillsCheck: Equatable, Sendable {
             let suspectOnly = KillingTestSummary.isSuspectOnlyKill(mutation, suspects: suspects)
                 && !mutation.wasTestedAlone
             let codeNeverRan = [.failed, .runtimeError].contains(mutation.testSuiteOutcome)
-                && mutation.activated == false
+                && mutation.activated == .didNotRun
             guard suspectOnly || codeNeverRan else { return nil }
             return DoubtfulKill(
                 mutant: mutation.key?.description ?? "\(mutation.relativePath):\(mutation.point.position.line):"
@@ -143,16 +142,16 @@ struct DoubtfulKillsCheck: Equatable, Sendable {
         return kills
     }
 
-    /// Whether there are no more doubtful kills than allowed; nil when they aren't counted.
-    var passed: Bool? {
-        guard case let .checked(kills) = verdict else { return nil }
-        return kills.count <= maxDoubtfulKills
+    /// Whether there are no more doubtful kills than allowed; not checked when they aren't counted.
+    var result: CheckResult {
+        guard case let .checked(kills) = verdict else { return .notChecked }
+        return kills.count <= maxDoubtfulKills ? .passed : .failed
     }
 
     /// The status a command exits with for this verdict: `scoreBelowThreshold` for too many doubtful kills, and nil,
     /// so 0, otherwise.
     var exitStatus: ExitCode? {
-        passed == false ? .scoreBelowThreshold : nil
+        result == .failed ? .scoreBelowThreshold : nil
     }
 
     /// What the run, or `report`, says of the verdict, after the score's and the survivors': "3 doubtful kills, more
@@ -196,14 +195,9 @@ struct DoubtfulKillsCheck: Equatable, Sendable {
     /// What a run prints of the verdict: `lines`, the first with ✅ when it passes, ❌ when there are too many
     /// doubtful kills, and ⚠️ when they aren't counted. Empty when there's no line.
     var consoleLines: [String] {
-        let lines = lines
-        guard let line = lines.first else { return [] }
-        let emoji = switch passed {
-        case .some(true): "✅"
-        case .some(false): "❌"
-        case .none: "⚠️"
-        }
-        return ["\(emoji) \(line)"] + lines.dropFirst()
+        let verdictLines = lines
+        guard let firstLine = verdictLines.first else { return [] }
+        return ["\(result.mark) \(firstLine)"] + verdictLines.dropFirst()
     }
 
     /// Why the kills aren't counted; nil for a run that ended early.
@@ -211,12 +205,15 @@ struct DoubtfulKillsCheck: Equatable, Sendable {
         switch reason {
         case .stoppedOnAnError:
             return "Doubtful kills aren't counted: the run stopped on an error."
+
         case .lacksResults:
             return "Doubtful kills aren't counted: the merged report lacks results."
+
         case .unfinished:
             let results = progress.map { "only \($0.results) of \($0.discovered) mutants have results, as " } ?? ""
             return "Doubtful kills aren't counted: \(results)the run didn't finish. --resume tests the rest, then the "
                 + "kills only suspect tests made again alone."
+
         case .endedEarly:
             return nil
         }

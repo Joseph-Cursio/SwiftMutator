@@ -1,5 +1,3 @@
-import Foundation
-
 /// A mutant discovery found but can't test: its switch has nowhere to go in the build every mutant shares, or its code
 /// isn't in the build at all. It is in no mapping, so without this nothing would say a report covers less code than it
 /// seems to.
@@ -33,18 +31,5 @@ struct DroppedMutant: Equatable, Sendable {
         case .inInactiveIfConfig: "in an `#if` branch this build doesn't compile"
         }
         return "\(path):\(position.line):\(position.column) \(mutationOperatorId.rawValue)\(change): \(why)"
-    }
-}
-
-extension DroppedMutant {
-    init(_ schema: MutationSchema, path: String, reason: Reason) {
-        self.init(
-            path: path,
-            mutationOperatorId: schema.mutationOperatorId,
-            position: schema.position,
-            snapshot: schema.snapshot,
-            lines: schema.lines,
-            reason: reason
-        )
     }
 }

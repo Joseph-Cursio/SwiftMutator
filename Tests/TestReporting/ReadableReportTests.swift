@@ -6,9 +6,9 @@ import XCTest
 /// The survivors first, each at its place by its path in the project, with the line it changes; and every report's
 /// counts by outcome.
 final class ReadableReportTests: MuterTestCase {
-    private let project = URL(fileURLWithPath: "/work/Foo")
-    private let copy = URL(fileURLWithPath: "/work/Foo_mutated")
-    private let rules = """
+    let project = URL(fileURLWithPath: "/work/Foo")
+    let mutatedCopy = URL(fileURLWithPath: "/work/Foo_mutated")
+    let rules = """
     func allows(_ a: Int, _ b: Int) -> Bool {
         if a == b && a > 0 { return true }
         return a < b
@@ -20,43 +20,6 @@ final class ReadableReportTests: MuterTestCase {
         super.setUp()
         Rainbow.outputTarget = .console
         Rainbow.enabled = false
-    }
-
-    private func mutant(
-        _ outcome: TestSuiteOutcome,
-        _ path: String,
-        line: Int,
-        column: Int,
-        _ snapshot: MutationOperator.Snapshot = .make(before: "==", after: "!=", description: "changed == to !=")
-    ) -> MutationTestOutcome.Mutation {
-        .make(
-            testSuiteOutcome: outcome,
-            point: .make(
-                mutationOperatorId: .ror,
-                filePath: copy.path + "/" + path,
-                position: MutationPosition(utf8Offset: 0, line: line, column: column)
-            ),
-            snapshot: snapshot,
-            originalProjectDirectoryUrl: project,
-            mutatedProjectDirectoryURL: copy
-        )
-    }
-
-    private func outcome(
-        _ mutations: [MutationTestOutcome.Mutation],
-        digests: [String: String]? = nil
-    ) -> MutationTestOutcome {
-        MutationTestOutcome(
-            mutations: mutations,
-            projectPath: project.path,
-            mutatedProjectPath: copy.path,
-            sourceDigests: digests
-        )
-    }
-
-    /// Reads `rules` as the original Sources/Rules.swift, and nothing else.
-    private func readingRules() -> ReadFile {
-        { [rules, project] path in path == project.path + "/Sources/Rules.swift" ? Data(rules.utf8) : nil }
     }
 
     // The survivors and the timeouts, which the score counts as survivors, by path, line and column as numbers;
@@ -127,10 +90,10 @@ final class ReadableReportTests: MuterTestCase {
         let outcome = MutationTestOutcome(
             coverage: .make(
                 percent: 50,
-                filesWithoutCoverage: [copy.path + "/Sources/A.swift", project.path + "/B.swift"]
+                filesWithoutCoverage: [mutatedCopy.path + "/Sources/A.swift", project.path + "/B.swift"]
             ),
             projectPath: project.path,
-            mutatedProjectPath: copy.path
+            mutatedProjectPath: mutatedCopy.path
         )
 
         XCTAssertEqual(MuterTestReport(from: outcome).fileReports.map(\.relativePath), ["Sources/A.swift", "B.swift"])
@@ -200,9 +163,8 @@ final class ReadableReportTests: MuterTestCase {
                 from: self.outcome(
                     [self.mutant(.passed, "Sources/F.swift", line: 3, column: column, .make(before: "<", after: ">"))],
                     digests: digests
-                ),
-                readingSourcesWith: { _ in Data(text.utf8) }
-            ).fileReports.first?.appliedOperators.first?.sourceChange
+                )
+            ) { _ in Data(text.utf8) }.fileReports.first?.appliedOperators.first?.sourceChange
         }
         let link = ["Sources/F.swift": ProjectTree.linkPrefix + "9a9a"]
 
@@ -274,11 +236,11 @@ final class ReadableReportTests: MuterTestCase {
         )
         let fileReports = try XCTUnwrap(json["fileReports"] as? [[String: Any]])
         let operators = try XCTUnwrap(fileReports.first?["appliedOperators"] as? [[String: Any]])
-        XCTAssertEqual(operators.last?["sourceChange"] as? NSDictionary, [
+        XCTAssertEqual(operators.last?["sourceChange"] as? [String: AnyHashable], [
             "line": 3,
             "before": "    return a < b",
             "after": "    return a > b",
-        ] as NSDictionary)
+        ] as [String: AnyHashable])
     }
 
     // A removed statement that leaves only spaces on its line has no line after.
@@ -332,9 +294,9 @@ final class ReadableReportTests: MuterTestCase {
         let json = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
-        XCTAssertEqual(json["mutantsByOutcome"] as? NSDictionary, [
+        XCTAssertEqual(json["mutantsByOutcome"] as? [String: AnyHashable], [
             "killed": 2, "survived": 1, "timedOut": 1, "buildErrors": 2, "notCovered": 0,
-        ] as NSDictionary)
+        ] as [String: AnyHashable])
         XCTAssertEqual(MuterTestReport.scoreLine(of: outcome), "Mutation score: 50% (\(tally))")
     }
 

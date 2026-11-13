@@ -9,7 +9,7 @@ struct CheckTestPlanCode: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         let copy = state.mutatedProjectDirectoryURL.path
         guard fileManager.fileExists(atPath: copy) else {
             throw TestPlanRefused(
@@ -47,7 +47,7 @@ struct CheckTestPlanCode: MutationStep {
         guard configuration.buildSystem == .swift else { return }
         for mapping in mappings where !mapping.isEmpty {
             guard let data = fileManager.contents(atPath: mapping.filePath) else { continue }
-            let code = String(decoding: data, as: UTF8.self)
+            let code = String(lossyUTF8: data)
             if code.contains(activeMutantFileKey) { return }
             if mapping.mutationSchemata.contains(where: { code.contains("\"\($0.id)\"") }) {
                 throw MuterError.literal(reason: Self.codePredatesTheActiveMutantFile(mutatedProjectPath))

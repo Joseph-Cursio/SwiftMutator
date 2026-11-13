@@ -70,9 +70,11 @@ final class MutationTestHandler {
     /// or by a signal, records why in a results file of its own (`StoppedRunRecorder`); stopped at once, from the
     /// signal's thread, until `PerformMutationTesting` takes that over.
     private func runMutationsSteps() async throws {
-        interruption.beforeStoppingAtOnce { [stoppedRun, interruption, now] in
-            if let signal = interruption.signal {
-                stoppedRun.record(.interrupted(signal: signal), at: now())
+        // The values the closure uses, not the dependencies' wrappers, which are `var`s.
+        let recorder = stoppedRun, signals = interruption, clock = now
+        interruption.beforeStoppingAtOnce { [recorder, signals, clock] in
+            if let signal = signals.signal {
+                recorder.record(.interrupted(signal: signal), at: clock())
             }
         }
         defer { interruption.beforeStoppingAtOnce(nil) }

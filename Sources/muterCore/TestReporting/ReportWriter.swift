@@ -14,7 +14,7 @@ enum ReportWriter {
     /// would pass with none. One that can't be made, such as one where a file is, leaves the report unsaved.
     static func save(_ report: String, to path: String, using fileManager: FileSystemManager) -> Bool {
         guard !path.isEmpty else { return false }
-        let folder = (path as NSString).deletingLastPathComponent
+        let folder = path.deletingLastPathComponent
         if !folder.isEmpty {
             // Nothing to make for a folder that is there, which `withIntermediateDirectories` doesn't refuse.
             try? fileManager.createDirectory(atPath: folder, withIntermediateDirectories: true, attributes: nil)

@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 /// The mutants a run, or a test plan, holds: by file and by operator.
 struct MutantSelectionArguments: ParsableArguments {

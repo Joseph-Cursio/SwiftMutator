@@ -154,7 +154,7 @@ final class LoggerTimeoutRerunTests: MuterTestCase {
         var tally = UnprovenRunTally()
         tally.add(.make(testSuiteOutcome: .noCoverage))
         var unproven = MutationTestOutcome.Mutation.make(testSuiteOutcome: .failed)
-        unproven.activated = false
+        unproven.activated = .didNotRun
         tally.add(unproven)
 
         sut.unprovenRunsRerunStarted(count: 2)

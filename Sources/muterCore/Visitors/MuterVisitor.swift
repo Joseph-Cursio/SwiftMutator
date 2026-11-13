@@ -1,8 +1,13 @@
 import Foundation
-import SwiftParser
 import SwiftSyntax
 
 final class MutationSourceCodePreparationChange: Equatable {
+    static var null: MutationSourceCodePreparationChange {
+        .init(
+            newLines: 0
+        )
+    }
+
     static func == (
         lhs: MutationSourceCodePreparationChange,
         rhs: MutationSourceCodePreparationChange
@@ -16,14 +21,6 @@ final class MutationSourceCodePreparationChange: Equatable {
         newLines: Int
     ) {
         self.newLines = newLines
-    }
-}
-
-extension MutationSourceCodePreparationChange: Nullable {
-    static var null: MutationSourceCodePreparationChange {
-        .init(
-            newLines: 0
-        )
     }
 }
 
@@ -65,20 +62,13 @@ class MuterVisitor: SyntaxAnyVisitor {
     )
 
     /// Lazy, because `sourceCodePreparationChange` is set after `init`.
-    private lazy var executionCounts = ExecutionCounts(
-        coverage: coverage,
-        source: sourceCodeInfo.code,
-        location: { [unowned self] position in
-            let position = mutationPosition(for: locationConverter.location(for: position))
-            return ExecutionCounts.Point(line: position.line, column: position.column)
-        }
-    )
+    private lazy var executionCounts = makeExecutionCounts()
 
     required init(
-        configuration: MuterConfiguration? = nil,
         sourceCodeInfo: SourceCodeInfo,
         mutationOperatorId: MutationOperator.Id,
-        coverage: FileCoverage
+        coverage: FileCoverage,
+        configuration: MuterConfiguration? = nil
     ) {
         self.configuration = configuration
         self.sourceCodeInfo = sourceCodeInfo
@@ -183,6 +173,17 @@ class MuterVisitor: SyntaxAnyVisitor {
         return (first - offset)...max(first, last) - offset
     }
 
+    /// The execution counts of this file's code, which locate a position as `mutationPosition(for:)` does. The
+    /// closure holds the converter and the line offset rather than the visitor, which holds the counts.
+    private func makeExecutionCounts() -> ExecutionCounts {
+        let converter = locationConverter
+        let newLines = sourceCodePreparationChange.newLines
+        return ExecutionCounts(coverage: coverage, source: sourceCodeInfo.code) { position in
+            let location = converter.location(for: position)
+            return ExecutionCounts.Point(line: location.line - newLines, column: location.column)
+        }
+    }
+
     private func mutationPosition(
         for sourceLocation: SourceLocation
     ) -> MutationPosition {
@@ -191,73 +192,6 @@ class MuterVisitor: SyntaxAnyVisitor {
             line: sourceLocation.line - sourceCodePreparationChange.newLines,
             column: sourceLocation.column
         )
-    }
-
-    /// Where `node` sits in its block's text, found from the node's own position. Searching the text
-    /// for the node finds the FIRST copy, so of two identical ternaries the second one's mutant
-    /// changed the first instead. `nil` if the offsets don't line up, and the text search is used.
-    static func range(
-        of node: SyntaxProtocol,
-        in block: SyntaxProtocol,
-        description: String
-    ) -> Range<String.Index>? {
-        let offset = node.position.utf8Offset - block.position.utf8Offset
-        let utf8 = description.utf8
-        guard offset >= 0,
-              let start = utf8.index(utf8.startIndex, offsetBy: offset, limitedBy: utf8.endIndex),
-              let end = utf8.index(start, offsetBy: node.description.utf8.count, limitedBy: utf8.endIndex),
-              description[start ..< end] == node.description
-        else {
-            return nil
-        }
-        return start ..< end
-    }
-
-    /// `code`'s text with `mutatedSyntax` in place of `node`, parsed as a statement list, which a branch of a switch
-    /// holds whichever place the switch is in.
-    func transform(
-        node: SyntaxProtocol,
-        mutatedSyntax: SyntaxProtocol,
-        in code: SyntaxProtocol
-    ) -> CodeBlockItemListSyntax {
-        let codeBlockDescription = code.description
-        let mutationDescription = mutatedSyntax.description
-        let range = Self.range(of: node, in: code, description: codeBlockDescription)
-            ?? codeBlockDescription.range(of: node.description)
-        let codeBlockTree = Parser.parse(source: codeBlockDescription)
-        guard let range
-        else {
-            return codeBlockTree.statements
-        }
-
-        // The incremental parse reuses every statement after the edit, so the edit must be exact
-        // and in UTF-8 bytes: the replaced text's bytes, replaced by the mutation's.
-        let utf8 = codeBlockDescription.utf8
-        let bytes = utf8.distance(from: utf8.startIndex, to: range.lowerBound)
-            ..< utf8.distance(from: utf8.startIndex, to: range.upperBound)
-        let edit = SourceEdit(
-            range: AbsolutePosition(utf8Offset: bytes.lowerBound) ..< AbsolutePosition(utf8Offset: bytes.upperBound),
-            replacement: mutationDescription
-        )
-
-        // The text gets the same edit, byte for byte. A combining mark that starts the next name joins the space
-        // before it into one character, and Linux's `replacingCharacters(in:with:)` widens the range to whole
-        // characters: `a && \u{064B}x` became `a ||  \u{064B}x`.
-        var codeBlockBytes = Array(utf8)
-        codeBlockBytes.replaceSubrange(bytes, with: mutationDescription.utf8)
-        let codeBlockWithMutation = String(decoding: codeBlockBytes, as: UTF8.self)
-
-        let parseTransition = IncrementalParseTransition(
-            previousIncrementalParseResult: .init(tree: codeBlockTree, lookaheadRanges: .init()),
-            edits: ConcurrentEdits(edit)
-        )
-
-        let mutationParsed = Parser.parseIncrementally(
-            source: codeBlockWithMutation,
-            parseTransition: parseTransition
-        )
-
-        return mutationParsed.tree.statements
     }
 
     /// Adds the mutant that replaces `syntax` with `mutation`. `changed` is the node the mutant changes, when that
@@ -273,10 +207,10 @@ class MuterVisitor: SyntaxAnyVisitor {
     ) {
         // By where the code it changes starts, as the inactive region and coverage checks below are, and by where the
         // mutant is reported, which for a ternary's first link is where its list ends.
-        let directives = directives(in: syntax.root)
+        let fileDirectives = directives(in: syntax.root)
         guard !isDisabled,
-              !directives.isLeftOut((changed ?? syntax).positionAfterSkippingLeadingTrivia),
-              !directives.isLeftOut(AbsolutePosition(utf8Offset: position.utf8Offset))
+              !fileDirectives.isLeftOut((changed ?? syntax).positionAfterSkippingLeadingTrivia),
+              !fileDirectives.isLeftOut(AbsolutePosition(utf8Offset: position.utf8Offset))
         else {
             return
         }

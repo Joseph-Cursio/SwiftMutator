@@ -1,5 +1,3 @@
-@testable import muterCore
-
 // class ProgressExtensionsSpec: QuickSpec {
 //    override func spec() {
 //        describe("SimpleTimeEstimate") {
