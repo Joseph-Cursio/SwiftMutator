@@ -1785,6 +1785,8 @@ as it is.
 | `suspectKillReruns` | How many kills a run tests again alone because only suspect tests failed for them: a whole number, 0 for none. See [Kills tested again alone](#kills-tested-again-alone) | `100` | All |
 | `propertyTests` | A list of globs that pick out property tests, by name or by the file their issue was recorded in, so the reports split the kills between example tests and property tests. See [Example tests and property tests](#example-tests-and-property-tests) | Unset: none are split | All |
 | `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests. Needs `propertyTests` | Unset: none is tested again | SwiftPM and xcodebuild |
+| `propertySurvivorReruns` | How many times each survivor whose code ran is tested again with only the tests `propertyTestFilter` selects, stopping at the first failure, as a property test tries a sample of inputs; 0 for none. It changes no result. See [Testing survivors again with the property tests](#testing-survivors-again-with-the-property-tests). Needs `propertyTestFilter` | Unset: none is tested again | SwiftPM and xcodebuild |
+| `propertySurvivorRerunLimit` | How many survivors a run tests again with the property tests, however many sessions it takes; 0 for none | 100 | SwiftPM and xcodebuild |
 | `reports` | A list of more reports a run saves beside `-f`'s, each `format:path`, as `markdown:summary.md`; a relative path is the project's; never `xcode`. See [Several reports, and the Markdown report](#several-reports-and-the-markdown-report) | Unset: none | All |
 
 Some keys have a flag that takes their place for one run: `--workers N` and `--timeout S`, on `run`
@@ -2836,6 +2838,48 @@ propertyTests:
   globs its header records. The JSON report's `propertyKillSummary` holds the section (see
   [the example](Docs/test_report_json_example.md#propertykillsummary)).
 
+### Testing survivors again with the property tests
+
+A survivor of a property test may only have missed the input that tells it apart: each run of a
+property tries a sample of inputs, 100 by default in swift-property-based, from a fresh seed.
+`propertySurvivorReruns: k` tests each survivor whose code ran again with only the property tests,
+up to k times, stopping at the first failure, so you can tell a weak generator from a weak law.
+It changes no result: a survivor a property told apart stays a survivor in the score,
+`--fail-under` and `--baseline`. It needs `propertyTestFilter`; `--mutant` runs none.
+
+```yaml
+propertyTests: ["*Properties*"]
+propertyTestFilter: [SortProperties]
+propertySurvivorReruns: 10
+```
+
+- **What it says.** "A property failed on run 3 of 10" means the law holds the change and the
+  generator rarely reaches an input that shows it: try edge cases in the generator. "Every run
+  passed" means no property reaches the change, or the mutant is equivalent: a stronger law, an
+  example test, or triage. Neither proves equivalence.
+
+  ```
+  🧪 Running the property tests again for 12 survivors whose code ran, up to 10 times each, 4 at a time.
+  🧪 Ran the property tests again for 12 survivors: a property test failed on a later run for 3, and every one of 10 runs passed for 9. They stay survivors in the score.
+  ```
+
+  The plain and HTML reports' Survivors and Properties section says the same, and lists each
+  survivor a property told apart, with the run it failed on and the property that failed. The
+  JSON report's `propertySurvivorReruns` holds the counts (see
+  [the example](Docs/test_report_json_example.md#propertysurvivorreruns)).
+- **How it runs.** Once every mutant is tested, and after the kills' property reruns, in rounds on
+  as many workers as the mutants had: each round tests again the survivors every run so far
+  passed. The property tests' run with no mutant on, which the kills' reruns make too, comes
+  first; if it ran no test or didn't pass, no survivor is tested again, and the run says why. A
+  survivor whose code didn't run isn't tested, nor one a resumed session already tested.
+- **What it costs.** Up to k runs of the property tests for each survivor. At most
+  `propertySurvivorRerunLimit` survivors, 100 by default, are tested in a whole run, however many
+  sessions it takes, spread evenly over the files; the run says how many it left out.
+- **In the results file.** A `propertySurvivorRerun` line follows each survivor's own line once
+  its runs end, with the run that ended them and how many it was to be given (see
+  [the results file](Docs/results-file.md#propertysurvivorrerun)). A resume keeps them, and a
+  merge of shards carries them; a resume or a merge lets either key change.
+
 ## Keeping the Mac awake
 
 A whole-project run can take hours. On macOS, `run`, `run-without-mutating` and
@@ -3023,12 +3067,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `propertyTests`, `propertyTestFilter` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
+| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `propertyTests`, `propertyTestFilter`, `propertySurvivorReruns`, `propertySurvivorRerunLimit` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | The operators chosen, by `--operators`, `--skip-operators`, `operators` or `skipOperators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `propertyTests`, `propertyTestFilter` or `reports` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `propertyTests`, `propertyTestFilter`, `propertySurvivorReruns`, `propertySurvivorRerunLimit` or `reports` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |

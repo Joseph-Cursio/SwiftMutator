@@ -26,7 +26,8 @@ extension RecordedResults {
             shards: header.shard?.scopeAlone,
             sampleIsCutShort: latest.count < header.mutantsDiscovered,
             controlRuns: controlRuns,
-            propertyReruns: propertyReruns
+            propertyReruns: propertyReruns,
+            propertySurvivorReruns: propertySurvivorReruns
         )
         outcome.run = resultsFile.flatMap { RunDetails(of: [($0, headers)]) }
         return outcome
@@ -45,11 +46,17 @@ extension MutationTestOutcome {
         shards: ShardScope?,
         sampleIsCutShort: Bool,
         controlRuns: [ControlRunResult],
-        propertyReruns: [MutantKey: PropertyRerunResult] = [:]
+        propertyReruns: [MutantKey: PropertyRerunResult] = [:],
+        propertySurvivorReruns: [MutantKey: PropertySurvivorRerunResult] = [:]
     ) {
         let mutatedProjectDirectory = URL(fileURLWithPath: header.mutatedProjectPath, isDirectory: true)
         self.init(
-            mutations: Self.mutations(of: records, under: header, propertyReruns: propertyReruns),
+            mutations: Self.mutations(
+                of: records,
+                under: header,
+                propertyReruns: propertyReruns,
+                propertySurvivorReruns: propertySurvivorReruns
+            ),
             coverage: header.coverage.map {
                 Coverage(percent: $0.percent, filesWithoutCoverage: $0.filesWithoutCoverage)
                     .limited(to: header.since, inCopyAt: mutatedProjectDirectory)
@@ -76,11 +83,12 @@ extension MutationTestOutcome {
     }
 
     /// The mutations of `records`, in the order a run tests them, under `header`'s project paths, each with its
-    /// property rerun among `propertyReruns`.
+    /// property rerun among `propertyReruns` and its property survivor reruns among `propertySurvivorReruns`.
     private static func mutations(
         of records: some Collection<MutantResult>,
         under header: ResultsHeader,
-        propertyReruns: [MutantKey: PropertyRerunResult]
+        propertyReruns: [MutantKey: PropertyRerunResult],
+        propertySurvivorReruns: [MutantKey: PropertySurvivorRerunResult]
     ) -> [Mutation] {
         let projectDirectory = URL(fileURLWithPath: header.projectPath, isDirectory: true)
         let mutatedProjectDirectory = URL(fileURLWithPath: header.mutatedProjectPath, isDirectory: true)
@@ -108,6 +116,7 @@ extension MutationTestOutcome {
                     durationSeconds: record.durationSeconds
                 )
                 mutation.propertyRerun = propertyReruns[record.key]?.rerun
+                mutation.propertySurvivorRerun = propertySurvivorReruns[record.key]?.rerun
                 mutation.leftOutWithOthers = record.leftOutWithOthers
                 mutation.activated = record.activated
                 mutation.rerun = record.rerun

@@ -34,7 +34,10 @@ struct HTMLReporter: Reporter {
                         .mutationOperatorsPerFile(from: testReport),
                         .divider("Applied Mutation Operators"),
                         .appliedOperators(from: testReport),
-                        .summarySections(from: testReport)
+                        .summarySections(
+                            from: testReport,
+                            survivorsToldApart: PropertySurvivorRerunSummary.toldApart(in: outcome)
+                        )
                     ),
                     .muterFooter(now: now)
                 )

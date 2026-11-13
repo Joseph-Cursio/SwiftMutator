@@ -30,6 +30,31 @@ extension ConfigurationParsingTests {
         XCTAssertNil(MuterConfiguration().withPropertyTestFilter(), "no filter, no filtered runs")
     }
 
+    // Runs for each survivor, off by default, and the most survivors, 100 by default; each needs propertyTestFilter.
+    func test_parsePropertySurvivorReruns_andWhenItCanBeUsed() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let parsed = { (lines: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(lines)".utf8)) }
+        let filter = "propertyTests: ['*Properties*']\npropertyTestFilter: [SortProperties]"
+
+        let set = try parsed("\(filter)\npropertySurvivorReruns: 10\npropertySurvivorRerunLimit: 20")
+        XCTAssertEqual([set.runsForEachSurvivor, set.survivorsToTestAgain], [10, 20])
+        XCTAssertNil(set.propertySurvivorRerunsUnsupportedReason)
+        XCTAssertEqual(try MuterConfiguration(from: set.asData), set, "written back as it was")
+
+        let unset = try MuterConfiguration(from: Data(swiftTest.utf8))
+        XCTAssertEqual([unset.runsForEachSurvivor, unset.survivorsToTestAgain], [0, 100])
+        XCTAssertNil(unset.propertySurvivorRerunsUnsupportedReason, "none tested again needs nothing")
+        XCTAssertNil(try parsed("propertySurvivorReruns: 0").propertySurvivorRerunsUnsupportedReason)
+        for wrong in ["propertySurvivorReruns: -1", "propertySurvivorReruns: many", "propertySurvivorRerunLimit: -1"] {
+            XCTAssertThrowsError(try parsed(wrong), wrong)
+        }
+
+        XCTAssertEqual(
+            try parsed("propertySurvivorReruns: 5").propertySurvivorRerunsUnsupportedReason,
+            "propertySurvivorReruns needs propertyTestFilter, which selects the property tests to run again"
+        )
+    }
+
     // `swift test` and the bundles run directly take `--filter`, xcodebuild `-only-testing:`, each after the rest.
     func test_withPropertyTestFilter_addsTheFilterToEachRunsTestCommand() throws {
         let swift = MuterConfiguration(

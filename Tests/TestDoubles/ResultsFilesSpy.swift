@@ -136,3 +136,7 @@ extension ControlRunResult: ResultsRecord {
 extension PropertyRerunResult: ResultsRecord {
     static let recordKind = "propertyRerun"
 }
+
+extension PropertySurvivorRerunResult: ResultsRecord {
+    static let recordKind = "propertySurvivorRerun"
+}

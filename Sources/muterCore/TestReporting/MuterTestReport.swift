@@ -20,6 +20,9 @@ struct MuterTestReport: Equatable, Codable {
     /// The kills split between example tests and the property tests `propertyTests` picks out. nil without
     /// `propertyTests`, and then left out of the JSON.
     let propertyKillSummary: PropertyKillSummary?
+    /// What testing survivors again with the property tests came to (`propertySurvivorReruns`). nil when none was, and
+    /// then left out of the JSON.
+    let propertySurvivorReruns: PropertySurvivorRerunSummary?
     /// How far the survivors have been triaged (`TriageFile`). nil without a triage file with entries, and then left
     /// out of the JSON.
     let triageSummary: TriageSummary?
@@ -48,6 +51,7 @@ struct MuterTestReport: Equatable, Codable {
         )
         killingTestSummary = summary
         propertyKillSummary = PropertyKillSummary(of: outcome.mutations, globs: outcome.propertyTests)
+        propertySurvivorReruns = PropertySurvivorRerunSummary(of: outcome.mutations)
         globalMutationScore = mutationScore(from: outcome.mutations.map(\.testSuiteOutcome))
         totalAppliedMutationOperators = outcome.mutations.count
         numberOfKilledMutants = outcome.mutations
@@ -206,6 +210,7 @@ struct MuterTestReport: Equatable, Codable {
         case timeElapsed
         case killingTestSummary
         case propertyKillSummary
+        case propertySurvivorReruns
         case triageSummary
         case since
         case shards

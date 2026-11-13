@@ -158,6 +158,19 @@ enum ConfigurationFileText {
             example: ["propertyTestFilter:", "- MyPackageTests.Properties"]
         ),
         Entry(
+            key: .propertySurvivorReruns,
+            comment: "How many times to test each survivor again with only the property tests propertyTestFilter "
+                + "selects, stopping at the first failure, as a property tries a sample of inputs; 0 for none. It "
+                + "changes no result. Needs propertyTestFilter. Default: none.",
+            example: ["propertySurvivorReruns: 10"]
+        ),
+        Entry(
+            key: .propertySurvivorRerunLimit,
+            comment: "How many survivors to test again with the property tests, in a whole run; 0 for none. "
+                + "Default: \(MuterConfiguration.defaultPropertySurvivorRerunLimit).",
+            example: ["propertySurvivorRerunLimit: \(MuterConfiguration.defaultPropertySurvivorRerunLimit)"]
+        ),
+        Entry(
             key: .reports,
             comment: "More reports for a run to save, each format:path. Default: none.",
             example: ["reports:", "- markdown:mutation-report.md"]

@@ -71,6 +71,20 @@ extension CLITable {
         ])
     }
 
+    /// The Survivors and Properties section's table: each survivor a property test failed for on a later run, where it
+    /// is, its operator, on which run, and the property test that failed, cut as the Killed By column cuts it.
+    static func propertySurvivors(_ survivors: [PropertySurvivorRerunSummary.ToldApart]) -> Self {
+        let column = { (title: String, cell: (PropertySurvivorRerunSummary.ToldApart) -> String) in
+            Column(title: title, rows: survivors.map { Row(value: cell($0)) })
+        }
+        return Self(padding: 3, columns: [
+            column("Place") { "\($0.path):\($0.line):\($0.column)" },
+            column("Operator") { $0.mutationOperator },
+            column("Failed On Run") { "\($0.failedOnRun) of \($0.runs)" },
+            column("Property") { $0.test.map(AppliedMutationOperator.shownName) ?? "-" },
+        ])
+    }
+
     /// The Mutation Test Scores table: each file's path, mutant count and score, colored by `coloringFunction`.
     static func mutationScores(
         from fileReports: [FileReport],
