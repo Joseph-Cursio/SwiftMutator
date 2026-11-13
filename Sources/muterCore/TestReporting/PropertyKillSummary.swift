@@ -95,8 +95,8 @@ struct PropertyKillSummary: Codable, Equatable {
     /// Of the kills whose recorded tests are all properties, in a list cut short, how many every test but the property
     /// tests was run again for, with them skipped (`propertyTestFilter`, SwiftPM only), and in how many of those an
     /// example failed too, so they count as by both. The others' tests all passed, so they count as by properties
-    /// alone, whatever their lists held. A rerun that timed out, didn't build, crashed or only failed property tests
-    /// settles nothing.
+    /// alone, whatever their lists held. A rerun that timed out, didn't build, crashed naming no example, or only
+    /// failed property tests, settles nothing.
     let exampleReruns: Int
     let exampleRerunKills: Int
     let exampleRerunPasses: Int

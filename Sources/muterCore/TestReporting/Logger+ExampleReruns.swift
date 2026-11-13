@@ -17,8 +17,7 @@ extension Logger {
         var sentence = "🧪 Ran every test but the property tests again for \(kills): an example failed too for "
             + "\(tally.examplesFailed), and every test passed for \(tally.passed)"
         if tally.unsettled > 0 {
-            sentence += "; \(tally.unsettled) settled nothing, as they timed out, didn't build, crashed or only failed "
-                + "property tests"
+            sentence += "; \(tally.unsettled) settled nothing, as they timed out, didn't build, or failed no example"
         }
         print(sentence + ".")
     }

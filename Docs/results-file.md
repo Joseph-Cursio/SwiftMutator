@@ -283,7 +283,7 @@ First the tests run once with the property tests skipped and no mutant on, and t
 | `kind` | `"exampleRerun"` | |
 | `session` | Int | The session that ran it, as in its header |
 | `path`, `line`, `column`, `occurrence`, `mutationOperatorId` | | The mutant's key, as its `mutant` line has it |
-| `outcome` | String | How the tests came out with the mutant on and the property tests skipped: `failed` with a test the globs don't match is a kill by an example too, so by both; `passed` is a kill by properties alone; anything else, or only property tests failing, settles nothing |
+| `outcome` | String | How the tests came out with the mutant on and the property tests skipped: `failed` or `runtimeError` with a test the globs don't match is a kill by an example too, so by both; `passed` is a kill by properties alone; anything else, such as a `timeout`, or only property tests failing, settles nothing |
 | `endedBy`, `exitStatus`, `durationSeconds`, `worker`, `finishedAt` | | As a mutant's |
 | `killedBy`, `failedTestCount`, `firstFailedTestLine` | | As a mutant's, for the tests that failed |
 | `log` | String | The kept log's file name in the session's `logDirectory`, the mutant's own with ` (examples)` before `.log`. Absent when every test passed, or a test the line names failed, unless `keepAllLogs: true` is set. |

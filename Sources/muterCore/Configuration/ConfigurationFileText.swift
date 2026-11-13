@@ -153,8 +153,9 @@ enum ConfigurationFileText {
         Entry(
             key: .propertyTestFilter,
             comment: "Test filters that select the property tests alone, as swift test --filter or xcodebuild's "
-                + "-only-testing: takes them, to test kills again with only them. Needs propertyTests. "
-                + "Default: none.",
+                + "-only-testing: takes them, to test kills by examples alone again with only them and, under "
+                + "SwiftPM, kills by properties alone again with every test but them, at the cost of a run close to "
+                + "a whole test run. Needs propertyTests. Default: none.",
             example: ["propertyTestFilter:", "- MyPackageTests.Properties"]
         ),
         Entry(

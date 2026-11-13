@@ -1,5 +1,3 @@
-import Foundation
-
 /// What the example reruns came to, so far.
 struct ExampleRerunTally: Equatable {
     let reruns: ExampleReruns
@@ -8,7 +6,8 @@ struct ExampleRerunTally: Equatable {
     private(set) var examplesFailed = 0
     /// Every test passed: a kill by properties alone.
     private(set) var passed = 0
-    /// Timed out, failed to build, crashed, or only property tests the globs match failed: it settles nothing.
+    /// Timed out, failed to build, crashed naming no example, or only property tests the globs match failed: it settles
+    /// nothing.
     private(set) var unsettled = 0
 
     init(_ reruns: ExampleReruns) {

@@ -106,7 +106,9 @@ struct MuterConfiguration: Equatable, Codable {
     /// (`propertyTestFilter:`, `PropertyReruns`): each entry is given to `swift test` as `--filter <entry>`, and to
     /// xcodebuild as `-only-testing:<entry>`. nil, the default, runs none. A kill whose recorded tests include no
     /// property test is tested again, so the reports can tell "only by examples" from "by both" where a run stopped at
-    /// its first failed test. It changes no mutant's result, so a resume lets it change.
+    /// its first failed test; under SwiftPM a kill whose recorded tests are all property tests, in a list cut short, is
+    /// tested again with every test but them, each entry as `--skip <entry>` (`ExampleReruns`), to tell "only by
+    /// properties" from "by both". It changes no mutant's result, so a resume lets it change.
     let propertyTestFilter: [String]?
     /// How many times each survivor whose code ran is tested again with only the property tests `propertyTestFilter`
     /// selects, stopping at the first run that doesn't pass (`propertySurvivorReruns:`, a whole number, 0 for none);

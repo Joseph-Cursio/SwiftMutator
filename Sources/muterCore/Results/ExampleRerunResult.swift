@@ -53,10 +53,13 @@ extension MutationTestOutcome {
         /// The tests it recorded failing.
         let killingTests: KillingTests?
 
-        /// Whether an example killed the mutant too: a test that `isProperty` doesn't pick out failed. The tests left
-        /// once the filter's are skipped may hold property tests the globs match, which say nothing of the examples.
+        /// Whether an example killed the mutant too: the run failed or crashed, as `PropertyRerun.killed` reads a
+        /// property rerun, and a test that `isProperty` doesn't pick out failed. The tests left once the filter's are
+        /// skipped may hold property tests the globs match, which say nothing of the examples; a run that timed out
+        /// settles nothing, whatever failed before.
         func examplesFailed(isProperty: (FailedTestLine.TestIdentity) -> Bool) -> Bool {
-            (killingTests?.tests ?? []).contains { !isProperty(FailedTestLine.TestIdentity($0)) }
+            guard outcome == .failed || outcome == .runtimeError else { return false }
+            return (killingTests?.tests ?? []).contains { !isProperty(FailedTestLine.TestIdentity($0)) }
         }
     }
 }

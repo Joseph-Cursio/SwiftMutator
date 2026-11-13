@@ -22,8 +22,7 @@ final class LoggerExampleRerunTests: MuterTestCase {
             "🧪 Ran every test but the property tests again for 2 kills: an example failed too for 1, and every test "
                 + "passed for 1.",
             "🧪 Ran every test but the property tests again for 3 kills: an example failed too for 1, and every test "
-                + "passed for 1; 1 settled nothing, as they timed out, didn't build, crashed or only failed property "
-                + "tests.",
+                + "passed for 1; 1 settled nothing, as they timed out, didn't build, or failed no example.",
         ])
     }
 

@@ -170,6 +170,31 @@ final class ExampleRerunRunTests: MuterTestCase {
         )
     }
 
+    // A rerun that timed out, or crashed naming no example, settles nothing, whatever it recorded failing before: as
+    // a property rerun, only a run that failed or crashed says a test killed the mutant.
+    func test_aRerunThatTimedOut_settlesNothing_evenNamingAnExample() throws {
+        let property = FailedTestLine.FailedTest(name: "ordered()", location: "SortProperties.swift:8:5")
+        let example = FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:12:5")
+        let isProperty = { (test: FailedTestLine.TestIdentity) in test.name == "ordered()" }
+        func rerun(_ outcome: TestSuiteOutcome) -> MutationTestOutcome.ExampleRerun {
+            .init(outcome: outcome, killingTests: .init(tests: [example], count: 1, isComplete: false))
+        }
+
+        XCTAssertFalse(rerun(.timeout).examplesFailed(isProperty: isProperty))
+        XCTAssertTrue(rerun(.failed).examplesFailed(isProperty: isProperty))
+        XCTAssertTrue(rerun(.runtimeError).examplesFailed(isProperty: isProperty))
+
+        var mutation = MutationTestOutcome.Mutation.make(
+            testSuiteOutcome: .failed,
+            killingTests: .init(tests: [property], count: 1, isComplete: false)
+        )
+        mutation.exampleRerun = rerun(.timeout)
+        let summary = try XCTUnwrap(PropertyKillSummary(of: [mutation], globs: ["*Properties*"]))
+        XCTAssertEqual([summary.killedOnlyByProperties, summary.killedByBoth, summary.incompletePropertyOnlyKills], [
+            1, 0, 1,
+        ])
+    }
+
     // MARK: Helpers
 
     private func configuration(filter: [String]? = ["Properties"]) -> MuterConfiguration {
