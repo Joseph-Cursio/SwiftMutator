@@ -78,6 +78,13 @@ extension PerformMutationTesting {
         let survivors = configuration.runsForEachSurvivor > 0
             ? Self.propertySurvivorCandidates(in: context.session, limit: configuration.survivorsToTestAgain)
             : (indices: [], leftOut: 0)
+        if survivors.indices.isEmpty, survivors.leftOut > 0 {
+            let them = survivors.leftOut == 1 ? "the 1 survivor" : "the \(survivors.leftOut) survivors"
+            events.send(.propertySurvivorRerunsSkipped(
+                reason: "\(them) to test \(survivors.leftOut == 1 ? "is" : "are") over propertySurvivorRerunLimit",
+                log: nil
+            ))
+        }
         guard !kills.isEmpty || !survivors.indices.isEmpty else { return }
         try Task.checkCancellation()
         let pool = workers.compactMap { worker in

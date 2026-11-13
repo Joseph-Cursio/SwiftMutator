@@ -160,7 +160,8 @@ enum ConfigurationFileText {
         Entry(
             key: .propertySurvivorReruns,
             comment: "How many times to test each survivor again with only the property tests propertyTestFilter "
-                + "selects, stopping at the first failure, as a property tries a sample of inputs; 0 for none. It "
+                + "selects, stopping at the first run that doesn't pass, as a property tries a sample of inputs; 0 for "
+                + "none. It "
                 + "changes no result. Needs propertyTestFilter. Default: none.",
             example: ["propertySurvivorReruns: 10"]
         ),

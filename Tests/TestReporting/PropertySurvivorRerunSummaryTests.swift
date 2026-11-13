@@ -75,9 +75,9 @@ final class PropertySurvivorRerunSummaryTests: XCTestCase {
         XCTAssertEqual(toldApart.map(\.failedOnRun), [1, 4])
         XCTAssertEqual(toldApart.map(\.test), ["maxIsAnElement()", "ordered()"])
         XCTAssertEqual(summary.sentences, [
-            "The property tests ran again on their own for 4 survivors whose code ran, up to 10 times each, stopping "
-                + "at the first failure (propertySurvivorReruns). A property test tries a sample of inputs, so a "
-                + "survivor may only have missed the one that tells it apart.",
+            "The property tests ran again on their own for 4 survivors, up to 10 times each, stopping at the first run "
+                + "that didn't pass (propertySurvivorReruns). A property test tries a sample of inputs, so a survivor "
+                + "may only have missed the one that tells it apart.",
             "A property test failed on a later run for 2: its law holds the change, and its generator rarely reaches "
                 + "an input that shows it, so a generator that tries edge cases would.",
             "Every run passed for 1: no property reaches the change, or the mutant is equivalent. Neither proves "

@@ -60,8 +60,8 @@ struct PropertySurvivorRerunSummary: Codable, Equatable {
         let survivors = survivorsTestedAgain == 1 ? "1 survivor" : "\(survivorsTestedAgain) survivors"
         let times = runs == 1 ? "once" : "up to \(runs) times each"
         var lines = [
-            "The property tests ran again on their own for \(survivors) whose code ran, \(times), stopping at the "
-                + "first failure (propertySurvivorReruns). A property test tries a sample of inputs, so a survivor may "
+            "The property tests ran again on their own for \(survivors), \(times), stopping at the first run that "
+                + "didn't pass (propertySurvivorReruns). A property test tries a sample of inputs, so a survivor may "
                 + "only have missed the one that tells it apart.",
             "A property test failed on a later run for \(failedOnALaterRun): its law holds the change, and its "
                 + "generator rarely reaches an input that shows it, so a generator that tries edge cases would.",

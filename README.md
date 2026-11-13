@@ -1785,7 +1785,7 @@ as it is.
 | `suspectKillReruns` | How many kills a run tests again alone because only suspect tests failed for them: a whole number, 0 for none. See [Kills tested again alone](#kills-tested-again-alone) | `100` | All |
 | `propertyTests` | A list of globs that pick out property tests, by name or by the file their issue was recorded in, so the reports split the kills between example tests and property tests. See [Example tests and property tests](#example-tests-and-property-tests) | Unset: none are split | All |
 | `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests. Needs `propertyTests` | Unset: none is tested again | SwiftPM and xcodebuild |
-| `propertySurvivorReruns` | How many times each survivor whose code ran is tested again with only the tests `propertyTestFilter` selects, stopping at the first failure, as a property test tries a sample of inputs; 0 for none. It changes no result. See [Testing survivors again with the property tests](#testing-survivors-again-with-the-property-tests). Needs `propertyTestFilter` | Unset: none is tested again | SwiftPM and xcodebuild |
+| `propertySurvivorReruns` | How many times each survivor whose code ran is tested again with only the tests `propertyTestFilter` selects, stopping at the first run that doesn't pass, as a property test tries a sample of inputs; 0 for none. It changes no result. See [Testing survivors again with the property tests](#testing-survivors-again-with-the-property-tests). Needs `propertyTestFilter` | Unset: none is tested again | SwiftPM and xcodebuild |
 | `propertySurvivorRerunLimit` | How many survivors a run tests again with the property tests, however many sessions it takes; 0 for none | 100 | SwiftPM and xcodebuild |
 | `reports` | A list of more reports a run saves beside `-f`'s, each `format:path`, as `markdown:summary.md`; a relative path is the project's; never `xcode`. See [Several reports, and the Markdown report](#several-reports-and-the-markdown-report) | Unset: none | All |
 
@@ -2843,7 +2843,8 @@ propertyTests:
 A survivor of a property test may only have missed the input that tells it apart: each run of a
 property tries a sample of inputs, 100 by default in swift-property-based, from a fresh seed.
 `propertySurvivorReruns: k` tests each survivor whose code ran again with only the property tests,
-up to k times, stopping at the first failure, so you can tell a weak generator from a weak law.
+up to k times, stopping at the first run that doesn't pass, so you can tell a weak generator from a
+weak law.
 It changes no result: a survivor a property told apart stays a survivor in the score,
 `--fail-under` and `--baseline`. It needs `propertyTestFilter`; `--mutant` runs none.
 
@@ -2859,7 +2860,7 @@ propertySurvivorReruns: 10
   example test, or triage. Neither proves equivalence.
 
   ```
-  🧪 Running the property tests again for 12 survivors whose code ran, up to 10 times each, 4 at a time.
+  🧪 Running the property tests again for 12 survivors, up to 10 times each, 4 at a time.
   🧪 Ran the property tests again for 12 survivors: a property test failed on a later run for 3, and every one of 10 runs passed for 9. They stay survivors in the score.
   ```
 
@@ -2871,14 +2872,20 @@ propertySurvivorReruns: 10
   as many workers as the mutants had: each round tests again the survivors every run so far
   passed. The property tests' run with no mutant on, which the kills' reruns make too, comes
   first; if it ran no test or didn't pass, no survivor is tested again, and the run says why. A
-  survivor whose code didn't run isn't tested, nor one a resumed session already tested.
+  run that times out or doesn't build ends a survivor's runs too, and settles nothing. A survivor
+  whose code didn't run isn't tested, nor one a resumed session already tested. A survivor whose
+  run couldn't show whether its code ran is tested.
 - **What it costs.** Up to k runs of the property tests for each survivor. At most
   `propertySurvivorRerunLimit` survivors, 100 by default, are tested in a whole run, however many
-  sessions it takes, spread evenly over the files; the run says how many it left out.
+  sessions it takes, spread evenly over the files; the run says how many it left out, also when
+  the limit leaves none to test.
 - **In the results file.** A `propertySurvivorRerun` line follows each survivor's own line once
   its runs end, with the run that ended them and how many it was to be given (see
   [the results file](Docs/results-file.md#propertysurvivorrerun)). A resume keeps them, and a
-  merge of shards carries them; a resume or a merge lets either key change.
+  merge of shards carries them; a resume or a merge lets either key change. These runs come last,
+  after every mutant, so a run stopped during them leaves some survivors without a line, and a
+  resume with nothing left to test runs no reruns: start the run again without `--resume` to test
+  them.
 
 ## Keeping the Mac awake
 

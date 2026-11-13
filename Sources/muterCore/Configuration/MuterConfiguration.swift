@@ -109,10 +109,10 @@ struct MuterConfiguration: Equatable, Codable {
     /// its first failed test. It changes no mutant's result, so a resume lets it change.
     let propertyTestFilter: [String]?
     /// How many times each survivor whose code ran is tested again with only the property tests `propertyTestFilter`
-    /// selects, stopping at the first failure (`propertySurvivorReruns:`, a whole number, 0 for none); nil, the
-    /// default, tests none again (`PropertySurvivorReruns`). A property test tries a sample of inputs, so a survivor
-    /// may only have missed the one that tells it apart: a later run's failure says the law holds the change and the
-    /// generator rarely reaches it. It changes no mutant's result, so a resume lets it change.
+    /// selects, stopping at the first run that doesn't pass (`propertySurvivorReruns:`, a whole number, 0 for none);
+    /// nil, the default, tests none again (`PropertySurvivorReruns`). A property test tries a sample of inputs, so a
+    /// survivor may only have missed the one that tells it apart: a later run's failure says the law holds the change
+    /// and the generator rarely reaches it. It changes no mutant's result, so a resume lets it change.
     let propertySurvivorReruns: Int?
     /// How many survivors a run tests again with the property tests (`propertySurvivorRerunLimit:`, a whole number, 0
     /// for none), over however many sessions it takes: nil leaves it to `defaultPropertySurvivorRerunLimit`. It

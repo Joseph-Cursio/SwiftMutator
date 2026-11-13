@@ -17,11 +17,11 @@ final class LoggerPropertySurvivorRerunTests: MuterTestCase {
         sut.propertySurvivorRerunsFinished(tally)
 
         XCTAssertEqual(printer.linesPassed, [
-            "🧪 Running the property tests again for 12 survivors whose code ran, up to 10 times each, 4 at a time. "
-                + "3 more are over propertySurvivorRerunLimit.",
-            "🧪 Running the property tests again for 2 survivors whose code ran, up to 5 times each, one at a time. "
-                + "1 more is over propertySurvivorRerunLimit.",
-            "🧪 Running the property tests again for 1 survivor whose code ran, once.",
+            "🧪 Running the property tests again for 12 survivors, up to 10 times each, 4 at a time. 3 more are over "
+                + "propertySurvivorRerunLimit.",
+            "🧪 Running the property tests again for 2 survivors, up to 5 times each, one at a time. 1 more is over "
+                + "propertySurvivorRerunLimit.",
+            "🧪 Running the property tests again for 1 survivor, once.",
             "🧪 Ran the property tests again for 2 survivors: a property test failed on a later run for 1, and every "
                 + "one of 10 runs passed for 1. They stay survivors in the score.",
             "🧪 Ran the property tests again for 3 survivors: a property test failed on a later run for 1, and every "
