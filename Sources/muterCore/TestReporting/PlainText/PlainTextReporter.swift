@@ -11,7 +11,9 @@ struct PlainTextReporter: Reporter {
 
         """ + notCoveredMessage(from: report)
         return survivorsMessage + appliedMutationsMessage(from: report) + killingTestsMessage(from: report)
-            + propertyKillsMessage(from: report) + triageMessage(from: report)
+            + propertyKillsMessage(from: report)
+            + propertySurvivorsMessage(from: report, toldApart: PropertySurvivorRerunSummary.toldApart(in: outcome))
+            + triageMessage(from: report)
             + mutationScoresMessage(from: report, coverageSkipped: outcome.coverageSkipped)
             + runMessage(from: report)
     }
@@ -180,6 +182,22 @@ struct PlainTextReporter: Reporter {
             (tableLines + [summary.shownPropertiesSentence].compactMap(\.self)).joined(separator: "\n"),
         ]
         return paragraphs.compactMap(\.self).filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
+    }
+
+    /// The Survivors and Properties section, followed by the blank lines that end a section: what testing survivors
+    /// again with the property tests came to, and `toldApart`, the survivors a property failed for on a later run.
+    /// None when no survivor was tested so, so such a report is as it was.
+    private func propertySurvivorsMessage(
+        from report: MuterTestReport,
+        toldApart: [PropertySurvivorRerunSummary.ToldApart]
+    ) -> String {
+        guard let summary = report.propertySurvivorReruns else { return "" }
+        let paragraphs = [
+            "------------------------\nSurvivors and Properties\n------------------------",
+            summary.sentences.joined(separator: "\n"),
+            toldApart.isEmpty ? "" : CLITable.propertySurvivors(toldApart).description,
+        ]
+        return paragraphs.filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
     }
 
     /// The Triage section, followed by the blank lines that end a section. None without a triage file with entries, so

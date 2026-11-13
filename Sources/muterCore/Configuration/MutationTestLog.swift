@@ -67,6 +67,12 @@ struct MutationTestLog {
         noting("properties", in: keptFileName(for: key))
     }
 
+    /// The name of the file the run's log folder keeps the log of run `run` of `key`'s property survivor reruns in
+    /// (`PropertySurvivorReruns`): `keptFileName(for:)` with ` (properties, run 3)` before `.log`.
+    static func propertySurvivorRerunFileName(for key: MutantKey, run: Int) -> String {
+        noting("properties, run \(run)", in: keptFileName(for: key))
+    }
+
     /// The name of the file the run's log folder keeps the log of a run in that the simulator failed to launch, and
     /// that ran again in its place: `logName`, the name of that second run's log, with ` (launch failed)` before
     /// `.log`.

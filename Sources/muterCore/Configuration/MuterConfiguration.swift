@@ -108,6 +108,16 @@ struct MuterConfiguration: Equatable, Codable {
     /// property test is tested again, so the reports can tell "only by examples" from "by both" where a run stopped at
     /// its first failed test. It changes no mutant's result, so a resume lets it change.
     let propertyTestFilter: [String]?
+    /// How many times each survivor whose code ran is tested again with only the property tests `propertyTestFilter`
+    /// selects, stopping at the first run that doesn't pass (`propertySurvivorReruns:`, a whole number, 0 for none);
+    /// nil, the default, tests none again (`PropertySurvivorReruns`). A property test tries a sample of inputs, so a
+    /// survivor may only have missed the one that tells it apart: a later run's failure says the law holds the change
+    /// and the generator rarely reaches it. It changes no mutant's result, so a resume lets it change.
+    let propertySurvivorReruns: Int?
+    /// How many survivors a run tests again with the property tests (`propertySurvivorRerunLimit:`, a whole number, 0
+    /// for none), over however many sessions it takes: nil leaves it to `defaultPropertySurvivorRerunLimit`. It
+    /// changes no result, so a resume lets it change.
+    let propertySurvivorRerunLimit: Int?
     /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
     /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
     /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
@@ -175,6 +185,8 @@ struct MuterConfiguration: Equatable, Codable {
         case failUnder
         case propertyTests
         case propertyTestFilter
+        case propertySurvivorReruns
+        case propertySurvivorRerunLimit
         case operators
         case skipOperators
         case reports
@@ -203,6 +215,8 @@ struct MuterConfiguration: Equatable, Codable {
         failUnder: Double? = nil,
         propertyTests: [String]? = nil,
         propertyTestFilter: [String]? = nil,
+        propertySurvivorReruns: Int? = nil,
+        propertySurvivorRerunLimit: Int? = nil,
         operators: [MutationOperator.Id]? = nil,
         skipOperators: [MutationOperator.Id]? = nil,
         reports: [ReportRequest]? = nil
@@ -229,6 +243,8 @@ struct MuterConfiguration: Equatable, Codable {
         self.failUnder = failUnder
         self.propertyTests = propertyTests
         self.propertyTestFilter = propertyTestFilter
+        self.propertySurvivorReruns = propertySurvivorReruns
+        self.propertySurvivorRerunLimit = propertySurvivorRerunLimit
         self.operators = operators
         self.skipOperators = skipOperators
         self.reports = reports
@@ -263,6 +279,10 @@ struct MuterConfiguration: Equatable, Codable {
         failUnder = try Self.percent(forKey: .failUnder, in: container)
         propertyTests = try Self.globs(forKey: .propertyTests, in: container)
         propertyTestFilter = try Self.globs(forKey: .propertyTestFilter, in: container)
+        propertySurvivorReruns = try Self.whole(forKey: .propertySurvivorReruns, in: 0 ... Int.max, in: container)
+        propertySurvivorRerunLimit = try Self.whole(
+            forKey: .propertySurvivorRerunLimit, in: 0 ... Int.max, in: container
+        )
         operators = try Self.operators(forKey: .operators, in: container)
         // A blank `operators:` is an empty list, not an unset key, which would use every operator.
         let isBlank = container.contains(.operators) ? try container.decodeNil(forKey: .operators) : false
@@ -304,6 +324,8 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(failUnder.map(WrittenPercent.init), forKey: .failUnder)
         try container.encodeIfPresent(propertyTests, forKey: .propertyTests)
         try container.encodeIfPresent(propertyTestFilter, forKey: .propertyTestFilter)
+        try container.encodeIfPresent(propertySurvivorReruns, forKey: .propertySurvivorReruns)
+        try container.encodeIfPresent(propertySurvivorRerunLimit, forKey: .propertySurvivorRerunLimit)
         try container.encodeIfPresent(operators, forKey: .operators)
         try container.encodeIfPresent(skipOperators, forKey: .skipOperators)
         try container.encodeIfPresent(reports, forKey: .reports)

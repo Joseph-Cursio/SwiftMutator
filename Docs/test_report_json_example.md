@@ -360,3 +360,27 @@ With made-up counts:
   ]
 }
 ```
+
+### `propertySurvivorReruns`
+
+At the top level, when `propertySurvivorReruns` tested survivors again with the property tests: what those runs came to (see [Testing survivors again with the property tests](../README.md#testing-survivors-again-with-the-property-tests)). It changes no score: every survivor stays one. The plain and HTML reports also list the survivors a property told apart; the JSON report holds the counts alone.
+
+| Key | Meaning |
+|---|---|
+| `survivorsTestedAgain` | How many survivors were tested again |
+| `failedOnALaterRun` | How many a property test failed or crashed for on some run: the law holds the change, and the generator rarely reaches an input that shows it |
+| `passedEveryRun` | How many every run passed for: no property reaches the change, or the mutant is equivalent |
+| `unsettled` | How many a run timed out or failed to build for, which settles nothing |
+| `runs` | The most runs any of them was to be given, `propertySurvivorReruns` |
+
+With made-up counts:
+
+```json
+"propertySurvivorReruns": {
+  "survivorsTestedAgain": 12,
+  "failedOnALaterRun": 3,
+  "passedEveryRun": 9,
+  "unsettled": 0,
+  "runs": 10
+}
+```

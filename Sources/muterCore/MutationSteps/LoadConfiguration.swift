@@ -165,7 +165,7 @@ struct LoadConfiguration: MutationStep {
                 reason: "\(folder.path) is a folder: name the file to save the report to, in \(folder.option)."
             )
         }
-        if let reason = resolved.propertyRerunsUnsupportedReason {
+        if let reason = resolved.propertyRerunsUnsupportedReason ?? resolved.propertySurvivorRerunsUnsupportedReason {
             throw MuterError.configurationParsingError(reason: reason)
         }
         // Now, not when the report is made: a typo shouldn't wait for the end of a long run.

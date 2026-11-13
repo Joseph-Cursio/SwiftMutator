@@ -26,6 +26,21 @@ extension MuterConfiguration {
         suspectKillReruns ?? Self.defaultSuspectKillReruns
     }
 
+    /// As many survivors as `defaultSuspectKillReruns` has kills tested again: each costs up to
+    /// `propertySurvivorReruns` runs of the property tests alone, which are a share of the suite.
+    static let defaultPropertySurvivorRerunLimit = 100
+
+    /// How many times each survivor is tested again with the property tests: `propertySurvivorReruns`; 0 for none.
+    var runsForEachSurvivor: Int {
+        propertySurvivorReruns ?? 0
+    }
+
+    /// How many survivors a run tests again with the property tests: `propertySurvivorRerunLimit`, or the default;
+    /// 0 for none.
+    var survivorsToTestAgain: Int {
+        propertySurvivorRerunLimit ?? Self.defaultPropertySurvivorRerunLimit
+    }
+
     /// Whether every mutant's test run keeps its log: only when `keepAllLogs` is `enabled`.
     var keepsAllLogs: Bool {
         keepAllLogs == .enabled
@@ -76,5 +91,11 @@ extension MuterConfiguration {
             return "propertyTestFilter needs a SwiftPM or xcodebuild project, whose test command it can filter"
         }
         return nil
+    }
+
+    /// Why `propertySurvivorReruns` can't be used with this configuration; nil when it can, or tests none again.
+    var propertySurvivorRerunsUnsupportedReason: String? {
+        guard runsForEachSurvivor > 0, propertyTestFilter?.isEmpty != false else { return nil }
+        return "propertySurvivorReruns needs propertyTestFilter, which selects the property tests to run again"
     }
 }

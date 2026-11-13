@@ -4,8 +4,11 @@ import Plot
 /// The HTML report's optional sections: the killing tests, the examples and properties, the triage and the run.
 extension Node where Context: HTML.BodyContext {
     /// The report's optional sections, each after its divider: the killing tests, the examples and properties, the
-    /// triage and the run, each when `testReport` has it.
-    static func summarySections(from testReport: MuterTestReport) -> Self {
+    /// survivors and properties, with `survivorsToldApart`, the triage and the run, each when `testReport` has it.
+    static func summarySections(
+        from testReport: MuterTestReport,
+        survivorsToldApart: [PropertySurvivorRerunSummary.ToldApart] = []
+    ) -> Self {
         .group(
             .unwrap(testReport.killingTestSummary) { summary in
                 .group(
@@ -17,6 +20,12 @@ extension Node where Context: HTML.BodyContext {
                 .group(
                     .divider("Examples and Properties"),
                     .propertyKillsTable(summary)
+                )
+            },
+            .unwrap(testReport.propertySurvivorReruns) { summary in
+                .group(
+                    .divider("Survivors and Properties"),
+                    .propertySurvivorsTable(summary, toldApart: survivorsToldApart)
                 )
             },
             .unwrap(testReport.triageSummary) { summary in
@@ -102,6 +111,38 @@ extension Node where Context: HTML.BodyContext {
                 )
             ),
             .unwrap(summary.shownPropertiesSentence) { .p(.text($0)) }
+        )
+    }
+
+    /// The Survivors and Properties section: what testing survivors again with the property tests came to, then
+    /// `toldApart`, the survivors a property failed for on a later run. Text nodes only: paths and names can hold
+    /// anything.
+    static func propertySurvivorsTable(
+        _ summary: PropertySurvivorRerunSummary,
+        toldApart: [PropertySurvivorRerunSummary.ToldApart]
+    ) -> Self {
+        .div(
+            .class("killing-tests"),
+            .forEach(summary.sentences) { .p(.text($0)) },
+            .if(
+                !toldApart.isEmpty,
+                .table(
+                    .thead(.tr(.th("Place"), .th("Operator"), .th("Failed On Run"), .th("Property"))),
+                    .tbody(
+                        .forEach(toldApart) { survivor -> Node<HTML.TableContext> in
+                            .tr(
+                                .td(
+                                    .class("left-aligned"),
+                                    .text("\(survivor.path):\(survivor.line):\(survivor.column)")
+                                ),
+                                .td(.class("left-aligned"), .text(survivor.mutationOperator)),
+                                .td(.class("right-aligned"), .text("\(survivor.failedOnRun) of \(survivor.runs)")),
+                                .td(.class("left-aligned"), .text(survivor.test ?? "-"))
+                            )
+                        }
+                    )
+                )
+            )
         )
     }
 

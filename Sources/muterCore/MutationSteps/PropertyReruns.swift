@@ -58,22 +58,34 @@ extension PerformMutationTesting {
         }
     }
 
-    /// Tests each of this session's kills whose recorded tests include no property test again, on `workers` at once,
-    /// with only the tests `propertyTestFilter` selects, and fail-fast as the mutants' runs have it. Nothing without
-    /// a filter, for `--mutant`'s one mutant, or with no such kill. First the property tests run once with no mutant
-    /// on: if they don't pass, or ran no test, as a filter that matches none would, no kill is tested again, as every
-    /// rerun would mean nothing, and that is said. Each rerun's line follows its mutant's, which it never replaces.
+    /// Tests again, with only the tests `propertyTestFilter` selects, on `workers` at once and fail-fast as the
+    /// mutants' runs have it: each of this session's kills whose recorded tests include no property test, once; then
+    /// survivors whose code ran, up to `propertySurvivorReruns` times each (`rerunSurvivorsWithPropertyTests`).
+    /// Nothing without a filter, for `--mutant`'s one mutant, or with nothing to test again. First the property tests
+    /// run once with no mutant on: if they don't pass, or ran no test, as a filter that matches none would, nothing is
+    /// tested again, as every rerun would mean nothing, and that is said. Each rerun's line follows its mutant's, which
+    /// it never replaces.
     func rerunPropertyTests(
         of jobs: [MutantJob],
         on workers: [PoolWorker],
         from testRun: XCTestRun,
         in context: RunContext
     ) async throws {
-        guard context.state.selectedMutant == nil, let globs = context.configuration.propertyTests,
-              context.configuration.withPropertyTestFilter() != nil
-        else { return }
-        let candidates = Self.propertyRerunCandidates(in: context.session, globs: globs)
-        guard !candidates.isEmpty else { return }
+        let configuration = context.configuration
+        guard context.state.selectedMutant == nil, configuration.withPropertyTestFilter() != nil else { return }
+        let kills = configuration.propertyTests.map { Self.propertyRerunCandidates(in: context.session, globs: $0) }
+            ?? []
+        let survivors = configuration.runsForEachSurvivor > 0
+            ? Self.propertySurvivorCandidates(in: context.session, limit: configuration.survivorsToTestAgain)
+            : (indices: [], leftOut: 0)
+        if survivors.indices.isEmpty, survivors.leftOut > 0 {
+            let them = survivors.leftOut == 1 ? "the 1 survivor" : "the \(survivors.leftOut) survivors"
+            events.send(.propertySurvivorRerunsSkipped(
+                reason: "\(them) to test \(survivors.leftOut == 1 ? "is" : "are") over propertySurvivorRerunLimit",
+                log: nil
+            ))
+        }
+        guard !kills.isEmpty || !survivors.indices.isEmpty else { return }
         try Task.checkCancellation()
         let pool = workers.compactMap { worker in
             worker.configuration.withPropertyTestFilter().map {
@@ -98,10 +110,30 @@ extension PerformMutationTesting {
             state: context.state
         )
         if let reason = Self.whyPropertyRerunsMeanNothing(baseline.run) {
-            events.send(.propertyRerunsSkipped(reason: reason, log: log.map { _ in Self.propertyBaselineLogName }))
+            let logName = log.map { _ in Self.propertyBaselineLogName }
+            if !kills.isEmpty {
+                events.send(.propertyRerunsSkipped(reason: reason, log: logName))
+            }
+            if !survivors.indices.isEmpty {
+                events.send(.propertySurvivorRerunsSkipped(reason: reason, log: logName))
+            }
             return
         }
 
+        try await rerunKillsWithPropertyTests(kills, of: jobs, on: pool, from: testRun, in: context)
+        try await rerunSurvivorsWithPropertyTests(survivors, of: jobs, on: pool, from: testRun, in: context)
+    }
+
+    /// Tests each of `candidates`, kills whose recorded tests include no property test, again once with the property
+    /// tests on `pool`, the workers' configurations already filtered to them.
+    private func rerunKillsWithPropertyTests(
+        _ candidates: [Int],
+        of jobs: [MutantJob],
+        on pool: [PoolWorker],
+        from testRun: XCTestRun,
+        in context: RunContext
+    ) async throws {
+        guard let first = pool.first, !candidates.isEmpty else { return }
         let reruns = PropertyReruns(count: candidates.count, workers: min(pool.count, candidates.count))
         events.send(.propertyRerunsStarted(reruns))
         var tally = PropertyRerunTally(reruns)

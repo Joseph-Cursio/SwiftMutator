@@ -129,6 +129,8 @@ func configurationWithEveryFieldSet(
         failUnder: 80,
         propertyTests: ["*Properties*"],
         propertyTestFilter: ["Properties"],
+        propertySurvivorReruns: 10,
+        propertySurvivorRerunLimit: 50,
         operators: [.ror, .swapTernary],
         skipOperators: [.swapTernary],
         reports: [ReportRequest(format: .markdown, path: "summary.md")]

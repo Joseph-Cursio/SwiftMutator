@@ -124,6 +124,14 @@ enum RunEvent {
     /// Why no kill is tested again with the property tests alone, though some would be: their run with no mutant on
     /// didn't pass, or ran no test. With the name of that run's kept log, if kept.
     case propertyRerunsSkipped(reason: String, log: String?)
+    /// Once the kills' property reruns are over, the survivors whose code ran, which the property tests alone test
+    /// again, up to `propertySurvivorReruns` times each (`PropertySurvivorReruns`).
+    case propertySurvivorRerunsStarted(PropertySurvivorReruns)
+    /// What those runs came to, once every survivor's are over.
+    case propertySurvivorRerunsFinished(PropertySurvivorRerunTally)
+    /// Why no survivor is tested again with the property tests alone, though some would be, as for
+    /// `propertyRerunsSkipped`.
+    case propertySurvivorRerunsSkipped(reason: String, log: String?)
     /// A mutant's xcodebuild run that the simulator failed to launch, which ran again in its place, once the second
     /// run's result is written, just before its outcome is sent. Never counted in the progress, which counts the second
     /// run.
