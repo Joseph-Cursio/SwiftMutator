@@ -224,7 +224,7 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
 
     /// Skips a test that compiles with `-default-isolation`, which compilers before Swift 6.2 don't take. Any
     /// other failure is left for the test's own compile to report.
-    private func skipUnlessTheCompilerTakesDefaultIsolation() throws {
+    func skipUnlessTheCompilerTakesDefaultIsolation() throws {
         let empty = directory.appendingPathComponent("Empty.swift")
         try write("", to: empty)
         let probe = try execute(
