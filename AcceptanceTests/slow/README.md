@@ -8,7 +8,7 @@ make slow-acceptance-test
 
 ## What it checks
 
-Each scenario is a whole run, with 4 workers and `--skip-coverage`. A check passes only when every mutant's verdict is the reference's, and its mutation too (`before` and `after`):
+Each scenario is a whole run, with 4 workers, `--skip-coverage` and the operators `target.env` pins. A check passes only when every mutant's verdict is the reference's, and its mutation too (`before` and `after`). A verdict is SwiftMutator's own: killed, survived, timed out, or not covered, a survivor whose code it saw didn't run (`activated: false`), which its reports count apart:
 
 - **A different mutation** always fails.
 - **A verdict that differs only by a timeout**, a kill or a survivor that timed out or the other way round, is reported. A check fails only on more than 3 in a run (`MAX_TIMEOUT_FLIPS`). SwiftProjectLint's tests now and then hang, or slow down past the time limit, under a random mutant, about one a run.
@@ -37,8 +37,9 @@ Times are recorded, and never fail a check.
 
 Its `Package.resolved` isn't in git, and several of its dependencies take `from:` versions. So the pin's resolved versions are kept here, in `reference/<pin>.Package.resolved`, and every run resolves from that file alone.
 
+- **Operators.** `target.env` pins the operators every run mutates with, so a new operator doesn't change the tier's mutants: it joins the tier only when it's added to `OPERATORS` and the reference is made again. The reference records its operators, and the driver refuses to start a suite against one made with others ([#280](https://github.com/Joseph-Cursio/SwiftMutator/issues/280)). A change to what a pinned operator mutates still fails every check it touches, as a different mutation should.
 - **Excludes and skipped tests.** `target.env` lists them, each with its reason.
-  - The rules package is left out. It holds 2,952 of the pin's 3,823 mutants, and a run of them all takes about 6 h. The other 871 still take every scenario through the behaviour it checks.
+  - Three packages are left out: rules, visitors and config. Under the ten operators, visitors and config alone hold 1,936 of the 3,064 mutants outside the rules package. The other 1,128 still take every scenario through the behaviour it checks.
   - Some tests fail in the mutated copy whatever the mutant, and are skipped:
     - tests that parse the project's own sources from disk, once those sources hold mutant switches;
     - a deeply recursive test, which overflows a test thread's stack once the switches enlarge each frame.
@@ -48,14 +49,14 @@ Its `Package.resolved` isn't in git, and several of its dependencies take `from:
 
 ## Running it
 
-- **Where.** Everything happens in a work folder, by default `~/Library/Caches/SwiftMutatorSlowTier/<time>`. It holds a fresh clone of the target, each run's configuration (outside the clone, so the reuse checks never see it), and each run's console, report and load samples. `summary.md` there gives each check and each run's time.
+- **Where.** Everything happens in a work folder, by default `~/Library/Caches/SwiftMutatorSlowTier/<time>`. It holds a fresh clone of the target, each run's configuration (outside the clone, so the reuse checks never see it), and each run's console, report and load samples. `summary.md` there gives each check and each run's time, and `runs.tsv` each run's load and whether its workers tested from one build or each from a clone, which SwiftMutator chooses from the run with no mutant on.
 - **Choosing.** `--scenarios full,since` runs some of the scenarios, and `--work DIR` reuses a work folder. A reuse scenario makes `full` first if this suite hasn't.
 - **Idle and awake.** Each run starts only once the 1-minute load average is under 4 (`MAX_LOAD`). The driver keeps the Mac awake from start to end, the waits included: a Mac that sleeps goes on only in short dark wakes, and the tests it runs then time out. Builds or other measurements meanwhile make runs slower, and can turn a slow kill into a timeout.
 - **Exit status.** The driver exits 1 when a check fails, and 2 when the setup does.
 
 ## Making the reference
 
-A new pin, or a SwiftMutator change that rightly changes verdicts, needs a new reference:
+A new pin, a change to `OPERATORS`, or a SwiftMutator change that rightly changes verdicts or mutations needs a new reference:
 
 1. **Pin.** Set `PIN` in `target.env` to a commit on the target's `main`.
 2. **Preflight.** Run `./AcceptanceTests/slow/slow-acceptance.sh --preflight`. If the baseline fails, add the failing test to `SKIP_TESTS`, or its file to `EXCLUDES`, with a reason.
@@ -64,7 +65,7 @@ A new pin, or a SwiftMutator change that rightly changes verdicts, needs a new r
    - `reference/<pin>.Package.resolved`;
    - the full runs' median time, in `reference/<pin>-times.json`.
 
-   It refuses runs that discover different mutants or mutations. It also refuses a mutant the runs disagree on, unless `allowlist.json` names it with a reason, or the runs differ only by a minority of timeouts.
+   It refuses runs that discover different mutants or mutations, that mutated with operators other than `OPERATORS`, or that a check would refuse: a session that didn't finish, or timeouts it never ran again. It also refuses a mutant the runs disagree on, unless `allowlist.json` names it with a reason, or the runs differ only by a minority of timeouts. It prints each run's timeout flips against the majority, the count a check holds to `MAX_TIMEOUT_FLIPS`.
 4. **Scenario choices.** Choose `TEST_CHANGE_FILE` (the reference run prints a candidate), `SOURCE_CHANGE_FILE` and `SINCE_BASE`, as `target.env` describes.
 5. **Times.** The first idle suite records each other scenario's time: `verdicts.py times <work>/runs.tsv --baseline reference/<pin>-times.json --update`.
 
