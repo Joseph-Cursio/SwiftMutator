@@ -171,6 +171,110 @@ jobs:
           swiftlint version
           swiftlint lint --strict --reporter github-actions-logging
 
+  # The shared config's analyzer_rules, which `swiftlint lint` never runs: they need the types a compiler log gives,
+  # so this builds on macOS, on the unit-tests job's xcode-27 runner and Xcode 27.0 (a Mac on a later 27.x can find a
+  # little more or less). Any finding fails it. Not one of the jobs main's ruleset requires.
+  #
+  # Each rule type-checks every file it looks at through SourceKit, one after another. unused_import over every file
+  # takes 45 minutes or more, so on a pull request it looks only at the Swift files the pull request changes, where an
+  # unused import comes from; a push to main, or a run by hand, looks at every file, in parallel processes. The other
+  # rules always look at every file: capture_variable and unused_declaration collect across files.
+  swiftlint-analyze:
+    name: SwiftLint analyzer
+    runs-on: xcode-27
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 45 || 150 }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      SWIFTLINT_VERSION: 0.65.1
+      # portable_swiftlint.zip's SHA-256, as the release lists it.
+      SWIFTLINT_SHA256: c1e429b0599cf1b516f369a2d9ec04eaf0e436f3c12b637df8851fa52ff694d0
+    steps:
+      # At the workspace's root, as the unit-tests job checks out, so that .build is the same cache path. Two commits
+      # deep, so that a pull request's merge commit has its base, HEAD^1, to compare with.
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      # .swiftlint.yml's parent_config is ../SwiftLintConfig/.swiftlint.yml, outside the workspace, where a checkout
+      # can't go: it is checked out inside, and linked there.
+      - name: Check out the shared SwiftLint config
+        uses: actions/checkout@v7
+        with:
+          repository: Joseph-Cursio/SwiftLintConfig
+          path: .shared-swiftlint-config
+          persist-credentials: false
+
+      - name: Link the shared SwiftLint config
+        run: ln -s "$GITHUB_WORKSPACE/.shared-swiftlint-config" ../SwiftLintConfig
+
+      # The same version as the SwiftLint job's container, whatever the image has installed.
+      - name: Install SwiftLint
+        run: |
+          zip="$RUNNER_TEMP/portable_swiftlint.zip"
+          curl -fsSL -o "$zip" \
+            "https://github.com/realm/SwiftLint/releases/download/$SWIFTLINT_VERSION/portable_swiftlint.zip"
+          echo "$SWIFTLINT_SHA256  $zip" | shasum -a 256 -c -
+          unzip -q -o "$zip" -d "$RUNNER_TEMP/swiftlint"
+          echo "$RUNNER_TEMP/swiftlint" >> "$GITHUB_PATH"
+
+      # As the unit-tests job computes it, so that the cache key is the same.
+      - name: Show toolchain
+        id: toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          toolchain=$({ xcodebuild -version; swift --version 2>&1; xcrun --sdk macosx --show-sdk-version; } | shasum -a 256)
+          echo "hash=${toolchain:0:16}" >> "$GITHUB_OUTPUT"
+
+      # The unit-tests job's .build, only restored: that job saves it on pushes to main. The dependencies are then
+      # built already, and SwiftMutator's own modules build again, which puts their compile commands in the log.
+      - name: Restore .build
+        uses: actions/cache/restore@v6
+        with:
+          path: .build
+          key: build-xcode-27-${{ steps.toolchain.outputs.hash }}-${{ hashFiles('Package.resolved') }}
+
+      - name: Build with a compiler log
+        timeout-minutes: 30
+        run: |
+          swift package resolve --force-resolved-versions
+          swift build --build-tests -v --force-resolved-versions > "$RUNNER_TEMP/compile.log" 2>&1 \
+            || { tail -n 50 "$RUNNER_TEMP/compile.log"; exit 1; }
+
+      # Every rule in the shared config's analyzer_rules, each run on its own, as SwiftLint 0.65.1 crashes running
+      # several in one invocation. The script fails unless SwiftLint analyzed every file it was given.
+      - name: Analyze
+        env:
+          SWIFTLINT_REPORTER: github-actions-logging
+        run: |
+          swiftlint version
+          rules=$(awk '/^analyzer_rules:/ { f = 1; next } f && /^  - / { print $2; next } f { f = 0 }' \
+            ../SwiftLintConfig/.swiftlint.yml)
+          if [ -z "$rules" ]; then
+            echo "::error::No analyzer_rules found in ../SwiftLintConfig/.swiftlint.yml."
+            exit 1
+          fi
+          # unused_import looks at one file at a time, so its files are shared between processes: a pull request that
+          # changes most files, as a formatting sweep does, would otherwise outlast the timeout.
+          cpus=$(sysctl -n hw.ncpu)
+          jobs=$((cpus < 4 ? cpus : 4))
+          status=0
+          for rule in $rules; do
+            echo "::group::$rule"
+            if [ "$rule" != unused_import ]; then
+              Scripts/ci-swiftlint-analyze.sh "$RUNNER_TEMP/compile.log" "$rule" all || status=1
+            elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+              Scripts/ci-swiftlint-analyze.sh "$RUNNER_TEMP/compile.log" "$rule" changed-since HEAD^1 --jobs "$jobs" \
+                || status=1
+            else
+              Scripts/ci-swiftlint-analyze.sh "$RUNNER_TEMP/compile.log" "$rule" all --jobs "$jobs" || status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $status
+
   # Non-blocking (continue-on-error): SwiftMutator builds on Linux and its unit
   # suite runs, but it hasn't passed here long enough to block a merge. It shows
   # what fails on Linux without failing the workflow. Not on pull
