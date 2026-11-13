@@ -1,4 +1,3 @@
-import Foundation
 import Yams
 
 /// The text of the `muter.conf.yml` that `init` writes: every configuration key, each under a comment that says what

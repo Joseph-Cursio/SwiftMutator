@@ -15,34 +15,6 @@ enum SwapTernaryOperator {
             )
         }
 
-        override func visit(_ node: TernaryExprSyntax) -> SyntaxVisitorContinueKind {
-            guard !node.containsComplexCauses else {
-                return super.visit(node)
-            }
-
-            let mutatedSyntax = mutated(node)
-            // A swap that could not be made returns the node unchanged. Registering it would run
-            // the original code as a "mutant" and report it as survived.
-            guard mutatedSyntax.description != node.description else {
-                return super.visit(node)
-            }
-            let position = endLocation(for: node)
-            let snapshot = MutationOperator.Snapshot(
-                before: node.description.trimmed.inlined,
-                after: mutatedSyntax.description.trimmed.inlined,
-                description: "swapped ternary operator"
-            )
-
-            add(
-                mutation: mutatedSyntax,
-                with: node,
-                at: position,
-                snapshot: snapshot
-            )
-
-            return super.visit(node)
-        }
-
         /// One mutant for each `?:` of a list, so each link of `a ? b : c ? d : e` gets its own. The first link's swap
         /// moves the rest of the chain, and only the link's own swap shows whether `c ? d : e` is tested.
         override func visit(_ node: UnresolvedTernaryExprSyntax) -> SyntaxVisitorContinueKind {
@@ -83,20 +55,6 @@ enum SwapTernaryOperator {
             )
 
             return next
-        }
-
-        private func mutated(_ node: TernaryExprSyntax) -> ExprSyntax {
-            ExprSyntax(
-                TernaryExprSyntax(
-                    leadingTrivia: node.leadingTrivia,
-                    condition: node.condition,
-                    questionMark: node.questionMark,
-                    thenExpression: node.elseExpression,
-                    colon: node.colon,
-                    elseExpression: node.thenExpression,
-                    trailingTrivia: node.trailingTrivia
-                )
-            )
         }
 
         /// `terms` with the branches of the ternary at `index` swapped. `nil` if there's no telling them apart, or no
@@ -218,12 +176,5 @@ enum SwapTernaryOperator {
             nodes.contains { $0.is(AsExprSyntax.self) }
                 || nodes.contains { $0.is(UnresolvedAsExprSyntax.self) }
         }
-    }
-}
-
-private extension TernaryExprSyntax {
-    var containsComplexCauses: Bool {
-        thenExpression.allChildren.containsSyntaxKind(AsExprSyntax.self)
-            || elseExpression.allChildren.containsSyntaxKind(AsExprSyntax.self)
     }
 }
