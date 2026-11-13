@@ -100,7 +100,7 @@ extension ResultsRecordTests {
         for key in [
             "coverage", "baselineSeconds", "testRunSeconds", "timeoutSeconds", "executablePath", "executableSHA256",
             "testCommandVersion", "testExecutableSHA256", "mutationTestTimeout", "buildSystem", "project",
-            "mutantsReused", "waived", "forced", "testBundlesRunDirectly", "testPlan",
+            "mutantsReused", "waived", "forced", "testBundlesRunDirectly", "configurationWorkedOut", "testPlan",
         ] {
             XCTAssertFalse(header.contains("\"\(key)\""), "\(key) in \(header)")
         }

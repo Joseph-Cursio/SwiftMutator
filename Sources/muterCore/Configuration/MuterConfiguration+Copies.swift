@@ -10,6 +10,13 @@ extension MuterConfiguration {
 }
 
 extension MuterConfiguration {
+    /// This configuration with `workedOut` true: what `init` would write, for a run with no configuration file.
+    func workedOutFromTheProject() -> Self {
+        var copy = self
+        copy.workedOut = true
+        return copy
+    }
+
     /// This configuration with a mutant's run going to its end, past its first failed test (`runsGoToTheirEnd`).
     func goingToEachRunsEnd() -> Self {
         var copy = self

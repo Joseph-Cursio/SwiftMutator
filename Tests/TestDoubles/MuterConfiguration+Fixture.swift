@@ -150,7 +150,7 @@ func configurationWithEveryFieldSet(
     ))
     // So `testFilterArguments` is set too, as for a property rerun's runs.
     .withPropertyTestFilter() ?? MuterConfiguration()
-    let goingToItsEnd = configuration.goingToEachRunsEnd()
+    let goingToItsEnd = configuration.goingToEachRunsEnd().workedOutFromTheProject()
     return failedTestLinesAreReliable
         ? goingToItsEnd : goingToItsEnd.withUnreliableFailedTestLines(printedIn: [failedTestLookalikeLog])
 }

@@ -13,7 +13,7 @@ struct LoadConfiguration: MutationStep {
     ) async throws -> [MutationTestState.Change] {
         let configurationPath = configurationPath(state.runOptions)
         do {
-            let configuration = try readConfiguration(at: configurationPath, state: state)
+            let configuration = try checked(try await readOrWorkOutConfiguration(at: configurationPath, state: state))
             let resolved = try await withResolvedExecutable(configuration)
                 .overriding(
                     workers: state.runOptions.workers,
@@ -40,13 +40,61 @@ struct LoadConfiguration: MutationStep {
         }
     }
 
-    /// The configuration at `configurationPath`, or in the legacy file beside it, which is migrated, once it is
-    /// checked: its unknown keys are said, and an empty `exclude` entry, a missing destination or a refused argument
-    /// stops the run.
+    /// The configuration at `configurationPath`, or in the legacy file beside it, or, when there is neither and no
+    /// `--configuration` names one, what `init` would write in the project's folder.
+    private func readOrWorkOutConfiguration(
+        at configurationPath: String,
+        state: AnyMutationTestState
+    ) async throws -> MuterConfiguration {
+        if let configuration = try readConfiguration(at: configurationPath, state: state) {
+            return configuration
+        }
+        guard state.runOptions.configurationURL == nil else {
+            throw MuterError.configurationParsingError(
+                reason: "Could not find \(MuterConfiguration.fileName) at path \(configurationPath)"
+            )
+        }
+        return try await workedOutConfiguration(missing: configurationPath)
+    }
+
+    /// What `init` would write in the project's folder, which it says, with the scheme it guessed and the trust checks
+    /// it skips. Refused, as a missing file was, when there is nothing to work a test command out from, or more than
+    /// one workspace or project to choose between.
+    private func workedOutConfiguration(missing configurationPath: String) async throws -> MuterConfiguration {
+        let folder = fileManager.currentDirectoryPath
+        let missing = "Could not find \(MuterConfiguration.fileName) at path \(configurationPath)"
+        // The folder's top first, so that a run from the wrong folder, as a home folder, is refused at once, without
+        // listing everything below it.
+        let topLevel = (try? fileManager.contentsOfDirectory(atPath: folder)) ?? []
+        let hasAnXcodeContainer = topLevel.contains { $0.hasSuffix(".xcworkspace") || $0.hasSuffix(".xcodeproj") }
+        guard hasAnXcodeContainer || topLevel.contains("Package.swift") else {
+            throw MuterError.configurationParsingError(
+                reason: "\(missing), and the project's folder has no Package.swift, Xcode workspace or Xcode project "
+                    + "at its top to work out a test command from."
+            )
+        }
+        let generated: GeneratedConfiguration
+        do {
+            // Only the trust checks of an Xcode project look below the top.
+            let contents = hasAnXcodeContainer ? fileManager.subpaths(atPath: folder) ?? topLevel : topLevel
+            generated = try await MuterConfiguration.generated(from: contents, in: folder)
+        } catch {
+            throw MuterError.configurationParsingError(reason: "\(missing). \(error)")
+        }
+        guard !generated.configuration.testCommandExecutable.isEmpty else {
+            throw MuterError.configurationParsingError(reason: Self.noTestCommand(in: generated, missing: missing))
+        }
+        // Without `--configuration`, the file missing is the project's own.
+        events.send(.configurationWorkedOut(generated, missing: MuterConfiguration.fileNameWithExtension))
+        return generated.configuration.workedOutFromTheProject()
+    }
+
+    /// The configuration at `configurationPath`, or in the legacy file beside it, which is migrated, or nil when
+    /// there is neither: its unknown keys are said.
     private func readConfiguration(
         at configurationPath: String,
         state: AnyMutationTestState
-    ) throws -> MuterConfiguration {
+    ) throws -> MuterConfiguration? {
         let hasJSON = hasJsonInProjectAtPath(configurationPath)
         let hasYAML = hasYamlInProjectAtPath(configurationPath)
         // A YAML file wins over a legacy file beside it, which migrating would overwrite. A `.yml` that
@@ -54,12 +102,10 @@ struct LoadConfiguration: MutationStep {
         let namesItsFile = state.runOptions.configurationURL?.path.pathContainsConfigExtension == true
         let isLegacy = hasJSON && !hasYAML && !namesItsFile
 
-        guard hasYAML || isLegacy,
-              let configurationData = loadConfigurationDataAtPath(
-                  configurationPath,
-                  legacy: isLegacy
-              )
-        else {
+        guard hasYAML || isLegacy else {
+            return nil
+        }
+        guard let configurationData = loadConfigurationDataAtPath(configurationPath, legacy: isLegacy) else {
             throw MuterError.configurationParsingError(
                 reason: "Could not find \(MuterConfiguration.fileName) at path \(configurationPath)"
             )
@@ -80,7 +126,12 @@ struct LoadConfiguration: MutationStep {
         if isLegacy, unknownKeys.isEmpty {
             try migrateToYAMLAtPath(configurationPath, configuration)
         }
+        return configuration
+    }
 
+    /// `configuration`, once checked: an empty `exclude` entry, a missing destination or a refused argument stops the
+    /// run.
+    private func checked(_ configuration: MuterConfiguration) throws -> MuterConfiguration {
         // YAML reads an unquoted `- !/Stubs/` as a tag on an empty value.
         if configuration.excludeFileList.contains(where: \.isEmpty) {
             throw MuterError.configurationParsingError(
@@ -122,44 +173,6 @@ struct LoadConfiguration: MutationStep {
             at: TriageFile.path(in: fileManager.currentDirectoryPath),
             using: fileManager
         )
-    }
-
-    /// Why one of `configuration`'s values can't be used, the run's flags already in, or nil. Checked here rather than
-    /// in decoding, as a results file's header holds what an earlier version took, which a resume must still read.
-    static func valueOutOfRange(in configuration: MuterConfiguration) -> String? {
-        // As `--timeout` and `--build-timeout` are, which take their place: 0 would stop every run at once, below 0
-        // traps, and a limit past a day is a mistake.
-        let timeouts = [
-            ("mutationTestTimeout", configuration.testSuiteTimeout),
-            ("buildTimeout", configuration.buildTimeout),
-        ]
-        let longest = TestingArguments.longestTimeout
-        for case let (key, seconds?) in timeouts where !(seconds > 0 && seconds <= longest) {
-            return "\(key) must be a number of seconds above 0, and at most a day (86400), not \(Self.shown(seconds))."
-        }
-        // As `--workers` is: an earlier version took 0 or less as 1.
-        if let workers = configuration.mutationTestWorkers, workers < 1 {
-            return "mutationTestWorkers must be a whole number, at least 1, not \(workers)."
-        }
-        if !(0 ... 100).contains(configuration.coverageThreshold) {
-            return "coverageThreshold must be a percentage from 0 to 100, "
-                + "not \(Self.shown(configuration.coverageThreshold))."
-        }
-        return nil
-    }
-
-    /// Why an xcodebuild test command's `arguments` would break SwiftMutator's own calls of it, or nil
-    /// (`XcodebuildArguments.refusal`): an `executable` that is a wrapper script with `buildSystem: xcodebuild` is
-    /// given the same arguments, so it is checked too. Another build system's arguments aren't xcodebuild's.
-    static func argumentRefused(in configuration: MuterConfiguration) -> String? {
-        guard configuration.buildSystem == .xcodebuild else { return nil }
-        return XcodebuildArguments(configuration.testCommandArguments).refusal
-    }
-
-    /// `value` in plain decimal digits, as written, so a refusal never names a rounded value that is in range, as
-    /// `%g` shows 86400.01 as 86400.
-    private static func shown(_ value: Double) -> String {
-        ScoreGate.shown(value)
     }
 
     /// The reports a run with `options` and `configuration` saves, by how a refusal names each: `-o`'s, then those of

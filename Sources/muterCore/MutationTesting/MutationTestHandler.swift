@@ -167,8 +167,9 @@ private extension [MutationStep] {
     static var testPlanSteps: [MutationStep] {
         [
             UpdateCheck(),
-            // It finds the project folder the plan is read under. A folder without a configuration stops here, as an
-            // error, so `CheckTestPlanSources` refuses another folder only when it has one.
+            // It finds the project folder the plan is read under. A folder without a configuration, and with nothing
+            // to work one out from, stops here, as an error, so `CheckTestPlanSources` refuses another folder only
+            // when it has a configuration, read or worked out.
             LoadConfiguration(),
             LoadMuterTestPlan(),
             // Once the plan has given the operators, which its file must share.

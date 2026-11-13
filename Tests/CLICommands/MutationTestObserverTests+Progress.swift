@@ -19,6 +19,38 @@ extension MutationTestObserverTests {
         )
     }
 
+    // The command, as a shell reads it, then what init says of the scheme and the trust checks.
+    func test_configurationWorkedOut_isPrinted_withTheCommand_theSchemeGuessed_andTheTrustChecksSkipped() throws {
+        try sut.start()
+
+        runEvents.send(.configurationWorkedOut(
+            GeneratedConfiguration(
+                configuration: MuterConfiguration(
+                    executable: "/usr/bin/xcodebuild",
+                    arguments: [
+                        "-project", "App.xcodeproj", "-scheme", "Core", "-skipMacroValidation",
+                        "-destination", "platform=iOS Simulator,name=iPhone 17", "test",
+                    ]
+                ),
+                scheme: SchemeChoice(listed: ["Core", "App Tests"], containerName: "App")
+            ),
+            missing: "muter.conf.yml"
+        ))
+
+        // Each line typed on its own: as one array literal of sums, Xcode 26.6's compiler gives up on it.
+        let command: String = "/usr/bin/xcodebuild -project App.xcodeproj -scheme Core -skipMacroValidation "
+            + "-destination 'platform=iOS Simulator,name=iPhone 17' test"
+        let workedOut: String = "⚙️ There is no muter.conf.yml, so this run tests with what `swift-mutator init` "
+            + "would write there: \(command.bold). `swift-mutator init` writes it to a file you can edit."
+        let schemeGuessed: String = "⚠️ No scheme is named after App, so the arguments take `-scheme Core`, the "
+            + "first of Core, App Tests. Change it in muter.conf.yml if another one runs your tests."
+        let trustChecksSkipped: String = "⚠️ The project seems to use macros, so the arguments include "
+            + "`-skipMacroValidation`: xcodebuild then runs them without asking anyone to trust them first, which a "
+            + "run with no one at the Mac, as on CI, needs. Take the argument out of muter.conf.yml if you don't "
+            + "trust that code."
+        XCTAssertEqual(Array(printer.linesPassed.suffix(3)), [workedOut, schemeGuessed, trustChecksSkipped])
+    }
+
     func test_stopAtFirstFailureTurnedOff_isPrinted() throws {
         try sut.start()
 

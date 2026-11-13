@@ -134,6 +134,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// `propertyTestFilter`'s entries (`withPropertyTestFilter`). Not a configuration key; a `var` only so that can
     /// copy `self` and change just this field.
     var testFilterArguments: [String] = []
+    /// Whether the run found no configuration file, and uses what `init` would write there
+    /// (`MuterConfiguration.generated(from:in:)`). Not a configuration key: the results header records it
+    /// (`ResultsHeader.configurationWorkedOut`), so a resume can say how the configuration came to differ. A `var` only
+    /// so `workedOutFromTheProject` can copy `self` and change just this field.
+    var workedOut = false
 
     var buildSystem: BuildSystem {
         if let explicitBuildSystem, explicitBuildSystem != .unknown {

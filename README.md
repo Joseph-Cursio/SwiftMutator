@@ -445,7 +445,9 @@ arguments:
 ```
 
 [Configuration](#configuration) says more of each key. `executable` is the full path on the Mac
-that ran `init`. Commit the file rather than running `init` on each machine.
+that ran `init`. Commit the file rather than running `init` on each machine. A run in a project
+with no `muter.conf.yml` tests with what `init` would write, and says so (see
+[Configuration](#configuration)), so you can try SwiftMutator before writing one.
 
 #### Plugins and macros
 
@@ -1152,9 +1154,10 @@ muter-mappings.json` then tests it. See [The test plan](Docs/test-plan.md).
   tested.
 - **Run it from the project folder,** as `mutate-without-running` was: the plan's paths are
   relative, and it finds its copy and loads `muter.conf.yml` from there. The configuration comes
-  first: a folder without one, as the project's `Sources`, stops on the missing file, with exit
-  status 255, before the plan is read. A folder with a configuration that holds none of the files the
-  plan mutates is refused, with exit status 7.
+  first: a folder without one, and with nothing to work one out from, as the project's `Sources`,
+  stops on the missing file, with exit status 255, before the plan is read. A folder with a
+  configuration, or one worked out, that holds none of the files the plan mutates is refused, with
+  exit status 7.
 - **A changed project.** A file the plan mutates that changed in the project since the plan was made
   refuses the plan, with exit status 7. Make the plan again, or give `--plan-ignoring <glob>` to test
   the copy as it is. A change to any other file, such as a test, is only said.
@@ -1731,6 +1734,25 @@ it passes a function that matches, as `events.forEach(log)` does. An older `mute
 it is converted to `muter.conf.yml` and removed, unless a `muter.conf.yml` is there, which wins and
 leaves the JSON file alone, or it has a key SwiftMutator doesn't know, which the conversion would
 drop: it is kept, and warned of, until that key is fixed.
+
+With no configuration file, `run`, `mutate-without-running` and `run-without-mutating` test with
+what `init` would write (see [Setting up](#setting-up)), and say so at the start, with the command,
+any scheme `init` would have guessed, and any trust check it skips
+([#263](https://github.com/Joseph-Cursio/SwiftMutator/issues/263)):
+
+```
+⚙️ There is no muter.conf.yml, so this run tests with what `swift-mutator init` would write there: /usr/bin/swift test. `swift-mutator init` writes it to a file you can edit.
+```
+
+A run is still refused when there is nothing to work a test command out from (no `Package.swift`,
+Xcode workspace or Xcode project at the top of the folder, or no `swift` or `xcodebuild` on `PATH`),
+when there are two workspaces, or two projects and no workspace, and when `-c` names a file, or a
+folder, that holds no configuration. The results file's header records that the configuration was
+worked out (`configurationWorkedOut`). A resume works it out again and compares it key by key, as any
+configuration, with the run's options in: one refused for a change says which session worked its
+configuration out, and one whose configuration comes from a file now, or from none, with nothing
+that changes a result, says so and goes ahead. Projects whose guess can change, as the newest simulator does
+when another runtime is installed, are better off with the file `init` writes, committed.
 
 Every key but `executable` and `arguments` can be left out. *Build systems* says which test
 commands a key does anything for: SwiftPM is `swift test`, or a wrapper with `buildSystem: swift`;

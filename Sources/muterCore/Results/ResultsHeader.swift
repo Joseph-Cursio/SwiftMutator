@@ -73,6 +73,9 @@ struct ResultsHeader: Codable, Equatable {
     let forced: [String]?
     /// Only when mutants' tests ran without `swift test`, each test bundle started directly (see `DirectTestRun`).
     @TrueOrAbsent var testBundlesRunDirectly = false
+    /// Only when the run found no configuration file, and tested with what `init` would write there:
+    /// `configuration` is then what it worked out from the project.
+    @TrueOrAbsent var configurationWorkedOut = false
     /// Only in a session that reuses an earlier run's results (`--reuse`): that run's results file. The results it
     /// kept follow the header, each with its `reusedFrom`.
     var reusedFrom: String?

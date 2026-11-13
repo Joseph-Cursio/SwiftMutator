@@ -2,8 +2,8 @@ extension MutationTestObserver {
     /// Reports `event` as it happens, by the part of the run it is about.
     func handle(_ event: RunEvent) {
         switch event {
-        case .muterLaunched, .updateCheckStarted, .updateCheckFinished, .configurationKeysUnknown, .changesSelected,
-             .logFoldersPruned, .projectCopyStarted:
+        case .muterLaunched, .updateCheckStarted, .updateCheckFinished, .configurationKeysUnknown,
+             .configurationWorkedOut, .changesSelected, .logFoldersPruned, .projectCopyStarted:
             handleLaunchEvent(event)
 
         case .projectCopySkippedVanishedFiles, .projectCopyFinished, .codeOutsideTheProjectBuilt,
@@ -60,6 +60,9 @@ extension MutationTestObserver {
 
         case let .configurationKeysUnknown(keys, file):
             logger.configurationKeysUnknown(keys, file: file)
+
+        case let .configurationWorkedOut(generated, missing):
+            logger.configurationWorkedOut(generated, missing: missing)
 
         case let .changesSelected(selection):
             sinceMergeBase = selection.mergeBase

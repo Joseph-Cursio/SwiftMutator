@@ -103,8 +103,11 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
         case .testPlanRun, .testPlanChanged, .testPlanNotRecorded:
             return "A run that tests a test plan has no shards to merge."
 
+        // A merge compares no configuration's source (`ResumeCheck.compare(for: .merge)`), so it has no
+        // `configurationWorkedOut`; as a resume would say it, should one come.
         case .inUse, .filesChanged, .copyChanged, .reportWouldReplaceTheResultsFile,
-             .otherReportWouldReplaceTheResultsFile, .baselineFileWouldReplaceTheResultsFile, .stoppedBeforeFirstMutant:
+             .otherReportWouldReplaceTheResultsFile, .baselineFileWouldReplaceTheResultsFile, .stoppedBeforeFirstMutant,
+             .configurationWorkedOut:
             return refusal.description
         }
     }
