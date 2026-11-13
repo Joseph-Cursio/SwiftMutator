@@ -1784,7 +1784,7 @@ as it is.
 | `controlRunEvery` | How many mutants to test for each control run, a run with no mutant on among theirs, whose failed tests are flaky: a whole number, 0 for none. See [Control runs](#control-runs) | `100` | All |
 | `suspectKillReruns` | How many kills a run tests again alone because only suspect tests failed for them: a whole number, 0 for none. See [Kills tested again alone](#kills-tested-again-alone) | `100` | All |
 | `propertyTests` | A list of globs that pick out property tests, by name or by the file their issue was recorded in, so the reports split the kills between example tests and property tests. See [Example tests and property tests](#example-tests-and-property-tests) | Unset: none are split | All |
-| `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests. Needs `propertyTests` | Unset: none is tested again | SwiftPM and xcodebuild |
+| `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests, and, under SwiftPM, each kill only property tests were recorded making, in a list cut short, is tested again with every test but those. Needs `propertyTests` | Unset: none is tested again | SwiftPM and xcodebuild |
 | `propertySurvivorReruns` | How many times each survivor whose code ran is tested again with only the tests `propertyTestFilter` selects, stopping at the first run that doesn't pass, as a property test tries a sample of inputs; 0 for none. It changes no result. See [Testing survivors again with the property tests](#testing-survivors-again-with-the-property-tests). Needs `propertyTestFilter` | Unset: none is tested again | SwiftPM and xcodebuild |
 | `propertySurvivorRerunLimit` | How many survivors a run tests again with the property tests, however many sessions it takes; 0 for none | 100 | SwiftPM and xcodebuild |
 | `reports` | A list of more reports a run saves beside `-f`'s, each `format:path`, as `markdown:summary.md`; a relative path is the project's; never `xcode`. See [Several reports, and the Markdown report](#several-reports-and-the-markdown-report) | Unset: none | All |
@@ -2833,6 +2833,26 @@ propertyTests:
   package whose three properties wait 0.4 s before their checks, fail-fast stopped three kills at
   an example, and the reruns found a property failing for each, which matched a run that stopped
   at none.
+- **Testing a kill again with the examples alone.** Under SwiftPM, `propertyTestFilter` also
+  settles the other direction: each kill only property tests were recorded making, whose run
+  stopped at its first failed test, or named more tests than its list holds, is
+  tested again with every test but those the filter selects, as `swift test --skip <entry>` for
+  each entry. A test the `propertyTests` globs don't match that fails makes the kill one by both;
+  every test passing keeps it one by properties alone, and settles it. The tests left may hold
+  property tests the filter doesn't select, whose failure settles nothing. This is the count most
+  quoted for property tests, the mutants only they kill, which fail-fast would otherwise flatter.
+
+  ```
+  🧪 Running every test but the property tests again for 2 kills only properties were recorded making, one at a time.
+  🧪 Ran every test but the property tests again for 2 kills: an example failed too for 1, and every test passed for 1.
+  ```
+
+  First every test but the property tests runs once with no mutant on, which costs close to a
+  whole test run; if it ran no test or didn't pass, no kill is tested again, and the run says
+  why. Each rerun that no example kills runs every example test. An `exampleRerun` line in the
+  results file records each run (see [the results file](Docs/results-file.md#examplererun)).
+  xcodebuild runs don't stop at their first failed test, so their lists are cut short only by
+  the 20-test cap, and these reruns don't run for them.
 - **It changes no result.** It only reads what the runs recorded, so a resume lets it change, and
   `swift-mutator report --property-tests '<glob>'` splits an earlier run's kills, in place of the
   globs its header records. The JSON report's `propertyKillSummary` holds the section (see

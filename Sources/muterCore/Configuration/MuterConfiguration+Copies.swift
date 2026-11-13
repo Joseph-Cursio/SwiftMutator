@@ -71,6 +71,19 @@ extension MuterConfiguration {
         return copy
     }
 
+    /// This configuration with its runs testing everything but what `propertyTestFilter` selects: `swift test`, and the
+    /// test bundles run directly, with `--skip` for each entry. nil without a filter, or for any other build system,
+    /// whose runs don't stop at their first failed test, so record no list cut short that this would settle.
+    func withPropertyTestsSkipped() -> Self? {
+        guard let filter = propertyTestFilter, !filter.isEmpty, propertyRerunsUnsupportedReason == nil,
+              buildSystem == .swift
+        else { return nil }
+        var copy = self
+        copy.testFilterArguments = filter.flatMap { ["--skip", $0] }
+        copy.directTestRun = directTestRun?.adding(copy.testFilterArguments)
+        return copy
+    }
+
     /// This configuration with an xcodebuild mutant's runs testing as `worker` says.
     func forXcodeWorker(_ worker: XcodeWorker) -> Self {
         var copy = self

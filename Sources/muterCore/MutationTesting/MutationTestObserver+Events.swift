@@ -34,8 +34,9 @@ extension MutationTestObserver {
              .baselineRepeatedAfterLaunchFailure:
             handleRepeatedRunEvent(event)
 
-        case .propertySurvivorRerunsStarted, .propertySurvivorRerunsFinished, .propertySurvivorRerunsSkipped:
-            handlePropertySurvivorRerunEvent(event)
+        case .propertySurvivorRerunsStarted, .propertySurvivorRerunsFinished, .propertySurvivorRerunsSkipped,
+             .exampleRerunsStarted, .exampleRerunsFinished, .exampleRerunsSkipped:
+            handlePropertySurvivorAndExampleRerunEvent(event)
 
         case .controlRunFinished, .oneMutantTested, .mutationTestingFinished, .mutationTestingEndedEarly,
              .newMutationTestOutcomeAvailable, .newTestLogAvailable, .resultsFileCreated, .resultsFileUnavailable:
@@ -282,8 +283,8 @@ extension MutationTestObserver {
         }
     }
 
-    /// What the events about the property survivor reruns say.
-    private func handlePropertySurvivorRerunEvent(_ event: RunEvent) {
+    /// What the events about the property survivor reruns and the example reruns say.
+    private func handlePropertySurvivorAndExampleRerunEvent(_ event: RunEvent) {
         switch event {
         case let .propertySurvivorRerunsStarted(reruns):
             logger.propertySurvivorRerunsStarted(reruns)
@@ -293,6 +294,15 @@ extension MutationTestObserver {
 
         case let .propertySurvivorRerunsSkipped(reason, log):
             logger.propertySurvivorRerunsSkipped(reason: reason, log: log)
+
+        case let .exampleRerunsStarted(reruns):
+            logger.exampleRerunsStarted(reruns)
+
+        case let .exampleRerunsFinished(tally):
+            logger.exampleRerunsFinished(tally)
+
+        case let .exampleRerunsSkipped(reason, log):
+            logger.exampleRerunsSkipped(reason: reason, log: log)
 
         default:
             break

@@ -105,6 +105,9 @@ struct MergedShards {
             },
             propertySurvivorReruns: parts.reduce(into: [:]) { reruns, part in
                 reruns.merge(part.recorded.propertySurvivorReruns) { _, later in later }
+            },
+            exampleReruns: parts.reduce(into: [:]) { reruns, part in
+                reruns.merge(part.recorded.exampleReruns) { _, later in later }
             }
         )
         outcome.run = RunDetails(of: parts.map { ($0.path, $0.recorded.headers) })
