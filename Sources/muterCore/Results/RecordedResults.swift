@@ -33,6 +33,9 @@ struct RecordedResults {
     /// Each survivor's property reruns, by key, for its result in `latest`, kept as `propertyReruns` are
     /// (`PropertySurvivorRerunResult`).
     private(set) var propertySurvivorReruns: [MutantKey: PropertySurvivorRerunResult] = [:]
+    /// Each kill by properties alone's example rerun, by key, for its result in `latest`, kept as `propertyReruns` are
+    /// (`ExampleRerunResult`).
+    private(set) var exampleReruns: [MutantKey: ExampleRerunResult] = [:]
     /// The 1-based numbers of the lines skipped: those that don't read as a record, and records of a session no
     /// earlier header started. Empty lines, and kinds of record this SwiftMutator doesn't know, aren't among them.
     private(set) var unreadableLines: [Int] = []
@@ -89,10 +92,8 @@ struct RecordedResults {
         case "control":
             return addControlRun(line, using: decoder)
 
-        case "propertyRerun", "propertySurvivorRerun":
-            return kind == "propertyRerun"
-                ? addPropertyRerun(line, using: decoder)
-                : addPropertySurvivorRerun(line, using: decoder)
+        case "propertyRerun", "propertySurvivorRerun", "exampleRerun":
+            return addRerun(of: kind, line, using: decoder)
 
         case "stopped":
             guard let record = try? decoder.decode(ResultsStopped.self, from: line) else { return false }
@@ -117,6 +118,7 @@ struct RecordedResults {
         // A new result: a rerun of the mutant's properties is of the result it followed.
         propertyReruns.removeValue(forKey: record.key)
         propertySurvivorReruns.removeValue(forKey: record.key)
+        exampleReruns.removeValue(forKey: record.key)
         sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
         return true
     }
@@ -131,6 +133,7 @@ struct RecordedResults {
             latest.removeValue(forKey: key)
             propertyReruns.removeValue(forKey: key)
             propertySurvivorReruns.removeValue(forKey: key)
+            exampleReruns.removeValue(forKey: key)
         }
         return true
     }
@@ -153,6 +156,28 @@ struct RecordedResults {
         // Of a result a later line retired, so of none: read, but kept for no result.
         if latest[record.key] != nil {
             propertyReruns[record.key] = record
+        }
+        sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+        return true
+    }
+
+    /// Adds `line`, a rerun's line of `kind`, which follows its mutant's, or returns false if it doesn't read.
+    private mutating func addRerun(of kind: String, _ line: Data, using decoder: JSONDecoder) -> Bool {
+        switch kind {
+        case "propertyRerun": addPropertyRerun(line, using: decoder)
+        case "propertySurvivorRerun": addPropertySurvivorRerun(line, using: decoder)
+        default: addExampleRerun(line, using: decoder)
+        }
+    }
+
+    /// Adds the example rerun's line `line`, or returns false if it doesn't read.
+    private mutating func addExampleRerun(_ line: Data, using decoder: JSONDecoder) -> Bool {
+        guard let record = try? decoder.decode(ExampleRerunResult.self, from: line),
+              let session = sessionIndex(record.session)
+        else { return false }
+        // Of a result a later line retired, so of none: read, but kept for no result.
+        if latest[record.key] != nil {
+            exampleReruns[record.key] = record
         }
         sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
         return true

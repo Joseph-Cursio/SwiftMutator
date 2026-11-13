@@ -60,6 +60,7 @@ extension PerformMutationTesting {
         let recorded = state.resumeState.flatMap { $0.isReuse ? nil : $0.recorded }
         let reruns = recorded?.propertyReruns ?? [:]
         let survivorReruns = recorded?.propertySurvivorReruns ?? [:]
+        let exampleReruns = recorded?.exampleReruns ?? [:]
         for (index, result) in reused.sorted(by: { $0.key < $1.key }) {
             var outcome = Self.outcome(
                 result.outcome,
@@ -75,6 +76,7 @@ extension PerformMutationTesting {
             )
             outcome.propertyRerun = reruns[result.key]?.rerun
             outcome.propertySurvivorRerun = survivorReruns[result.key]?.rerun
+            outcome.exampleRerun = exampleReruns[result.key]?.rerun
             outcome.rerun = result.rerun
             session.outcomes[index] = outcome
             session.reused += 1

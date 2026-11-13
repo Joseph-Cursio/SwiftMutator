@@ -34,6 +34,16 @@ extension PropertyKillSummary {
                     + "passed for \(propertyRerunPasses)\(rest)."
             )
         }
+        if exampleReruns > 0 {
+            let kills = exampleReruns == 1 ? "1 kill" : "\(exampleReruns) kills"
+            let unsettled = exampleReruns - exampleRerunKills - exampleRerunPasses
+            let rest = unsettled > 0 ? "; \(unsettled) settled nothing" : ""
+            sentences.append(
+                "Every test but the property tests ran again for \(kills) only properties were recorded making, "
+                    + "whose lists were cut short: an example failed too for \(exampleRerunKills), which count as by "
+                    + "both, and every test passed for \(exampleRerunPasses)\(rest)."
+            )
+        }
         if killedNamingNoTest > 0 {
             let (these, name, counts) = killedNamingNoTest == 1
                 ? ("1 more killed mutant", "names", "it counts")

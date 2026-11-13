@@ -60,6 +60,7 @@ final class DirectTestRunTests: MuterTestCase {
           *Fails) echo "✘ Test run with 1 test in 1 suite failed after 0.1 seconds with 1 issue."; exit 1 ;;
           *FailsThenWaits) echo "✘ Test sample() recorded an issue at SampleTests.swift:3:5: x"; sleep 10; exit 1 ;;
           *Waits) sleep 10 ;;
+          *NoTests) echo "✔ Test run with 0 tests passed after 0.001 seconds."; exit 69 ;;
         esac
         echo "✔ Test run with 2 tests in 1 suite passed after 0.1 seconds."
         """.write(to: helper, atomically: true, encoding: .utf8)

@@ -67,6 +67,12 @@ struct MutationTestLog {
         noting("properties", in: keptFileName(for: key))
     }
 
+    /// The name of the file the run's log folder keeps the log of `key`'s example rerun in, the run of every test but
+    /// the property tests with its mutant on (`ExampleReruns`): `keptFileName(for:)` with ` (examples)` before `.log`.
+    static func exampleRerunFileName(for key: MutantKey) -> String {
+        noting("examples", in: keptFileName(for: key))
+    }
+
     /// The name of the file the run's log folder keeps the log of run `run` of `key`'s property survivor reruns in
     /// (`PropertySurvivorReruns`): `keptFileName(for:)` with ` (properties, run 3)` before `.log`.
     static func propertySurvivorRerunFileName(for key: MutantKey, run: Int) -> String {

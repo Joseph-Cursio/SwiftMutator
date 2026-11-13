@@ -63,7 +63,10 @@ struct DirectTestRun: Equatable, Sendable {
     /// that stops at its first failure (`CrashLine`). Every bundle runs, as under `swift test`, unless the run is
     /// stopped. A helper ended by SIGINT, SIGTERM or SIGHUP ends the script at once, with its status, so that a signal
     /// from outside SwiftMutator reads as one (`MutationTestingDelegate.mayHaveEndedByAnOutsideSignal`), not as a
-    /// crash.
+    /// crash. With a test filter among `arguments`, `--filter` or `--skip`, a helper that found no test to run, as a
+    /// bundle the filter leaves nothing in does, exits 69 (`EX_UNAVAILABLE`, swift-testing's "no tests found"), which
+    /// passes, as `swift test` takes it: a bundle of property tests alone runs none of them with the property tests
+    /// skipped.
     ///
     /// The script sets `environment(in:)` itself: macOS drops every `DYLD_` variable from the environment of a
     /// protected binary such as `/bin/sh` as it starts, so they would never reach the helpers otherwise.
@@ -89,6 +92,10 @@ struct DirectTestRun: Equatable, Sendable {
             """
         let products = (sharedBuild ?? folder).appendingPathComponent(productsFolder).path
         let passedOn = arguments.map(Logger.shellQuoted).joined(separator: " ")
+        let noTestsFoundPasses = arguments.contains("--filter") || arguments.contains("--skip")
+        let verdict = noTestsFoundPasses
+            ? "[ $status -eq 0 ] || [ $status -eq 69 ] || failed=1"
+            : "[ $status -eq 0 ] || failed=1"
         let runs = bundles(forMutantIn: filePath).map { bundle in
             let executable = Logger.shellQuoted("\(products)/\(bundle).xctest/Contents/MacOS/\(bundle)")
             let process = Logger.shellQuoted("\(helper) --test-bundle-path \(products)/\(bundle).xctest")
@@ -100,7 +107,7 @@ struct DirectTestRun: Equatable, Sendable {
                 if [ $status -gt 128 ]; then
                   printf "error: Process '%s' exited with unexpected signal code %d\\n" \(process) $((status - 128)) >&2
                 fi
-                [ $status -eq 0 ] || failed=1
+                \(verdict)
                 """
         }
         return (exports + [startHelper, "failed=0"] + runs + ["exit $failed"]).joined(separator: "\n")

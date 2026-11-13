@@ -119,7 +119,8 @@ extension PerformMutationTesting {
 
     /// Once the mutants' runs are over, tests again, on `pool`'s first worker, the kills not shown to run their code,
     /// and the timeouts too `includingTimeouts`, then the kills only suspect tests failed for, and then, on all of
-    /// `pool`, the kills by examples alone with the property tests.
+    /// `pool`, the kills by examples alone and the survivors with the property tests, and the kills by properties
+    /// alone with every test but those.
     private func rerunKills(
         of jobs: [MutantJob],
         on pool: [PoolWorker],
@@ -139,6 +140,12 @@ extension PerformMutationTesting {
             in: context
         )
         try await rerunPropertyTests(
+            of: jobs,
+            on: pool,
+            from: context.state.projectXCTestRun,
+            in: context
+        )
+        try await rerunKillsWithExamples(
             of: jobs,
             on: pool,
             from: context.state.projectXCTestRun,

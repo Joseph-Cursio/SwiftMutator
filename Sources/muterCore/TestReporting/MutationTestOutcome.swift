@@ -207,6 +207,9 @@ struct MutationTestOutcome: Equatable {
         /// For a survivor whose code ran: how the property tests alone came out with it on, run after run, up to
         /// `propertySurvivorReruns` times (`PropertySurvivorRerunResult`); nil when they weren't run again for it.
         var propertySurvivorRerun: PropertySurvivorRerun?
+        /// For a kill whose recorded tests are all property tests, in a list cut short: how every test but the property
+        /// tests came out with it on (`ExampleRerunResult`); nil when they weren't run again for it.
+        var exampleRerun: ExampleRerun?
         /// Whether it was taken out of the build with others, as the compiler's error could be any of theirs
         /// (`LeftOutMutant.Blame`), so it may compile. As its results line records it.
         var leftOutWithOthers = false

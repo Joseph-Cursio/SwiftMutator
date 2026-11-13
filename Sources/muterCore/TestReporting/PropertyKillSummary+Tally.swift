@@ -9,6 +9,9 @@ private struct PropertyKillTally {
     var reruns = 0
     var rerunKills = 0
     var rerunPasses = 0
+    var exampleReruns = 0
+    var exampleRerunKills = 0
+    var exampleRerunPasses = 0
     /// For each property test, how many kills it was recorded failing for, and how many of those only it was.
     var byProperty: [FailedTestLine.TestIdentity: (mutants: Int, only: Int)] = [:]
 
@@ -24,11 +27,27 @@ private struct PropertyKillTally {
         if let rerun {
             add(rerun)
         }
-        let properties = split(mutation, tests: tests, properties: recorded, rerun: rerun, isProperty: isProperty)
+        // Only for a kill by properties alone, whose rerun says whether an example would have failed too.
+        let exampleRerun = recorded.count == tests.count ? mutation.exampleRerun : nil
+        let examplesFailed = exampleRerun?.examplesFailed(isProperty: isProperty) == true
+        if let exampleRerun {
+            exampleReruns += 1
+            if examplesFailed { exampleRerunKills += 1 }
+            if exampleRerun.outcome == .passed { exampleRerunPasses += 1 }
+        }
+        let properties = split(
+            mutation,
+            tests: tests,
+            properties: recorded,
+            reruns: (rerun, exampleRerun.map { ($0, examplesFailed) }),
+            isProperty: isProperty
+        )
         for property in properties {
             byProperty[property, default: (0, 0)].mutants += 1
-            // The count, not the list: more may have failed than it holds. Never a rerun's, as an example failed.
-            if rerun == nil, mutation.killingTests?.count == 1 { byProperty[property, default: (0, 0)].only += 1 }
+            // The count, not the list: more may have failed than it holds. Never with a rerun's example failing.
+            if rerun == nil, !examplesFailed, mutation.killingTests?.count == 1 {
+                byProperty[property, default: (0, 0)].only += 1
+            }
         }
     }
 
@@ -40,14 +59,16 @@ private struct PropertyKillTally {
     }
 
     /// Counts `mutation`, whose recorded failed `tests` hold `properties`, as a kill only by examples, only by
-    /// properties, or by both, and gives the properties that killed it.
+    /// properties, or by both, given its `reruns`: the property rerun of a kill by examples alone, and the example
+    /// rerun of one by properties alone with whether an example failed in it. Gives the properties that killed it.
     private mutating func split(
         _ mutation: MutationTestOutcome.Mutation,
         tests: Set<FailedTestLine.TestIdentity>,
         properties: Set<FailedTestLine.TestIdentity>,
-        rerun: MutationTestOutcome.PropertyRerun?,
+        reruns: (MutationTestOutcome.PropertyRerun?, (MutationTestOutcome.ExampleRerun, Bool)?),
         isProperty: (FailedTestLine.TestIdentity) -> Bool
     ) -> Set<FailedTestLine.TestIdentity> {
+        let (rerun, exampleRerun) = reruns
         let isComplete = mutation.killingTests?.isComplete == true
         switch (properties.isEmpty, properties.count == tests.count) {
         case (true, _) where rerun?.killed == true:
@@ -61,9 +82,14 @@ private struct PropertyKillTally {
             // Every property passed with it on, so no property was hidden, however the list was cut short.
             if !isComplete, rerun?.outcome != .passed { examplesOnlyIncomplete += 1 }
 
+        case (false, true) where exampleRerun?.1 == true:
+            // An example failed with the property tests skipped: it killed the mutant too.
+            both += 1
+
         case (false, true):
             propertiesOnly += 1
-            if !isComplete { propertiesOnlyIncomplete += 1 }
+            // Every other test passed with it on, so no example was hidden, however the list was cut short.
+            if !isComplete, exampleRerun?.0.outcome != .passed { propertiesOnlyIncomplete += 1 }
 
         case (false, false):
             both += 1
@@ -106,6 +132,9 @@ extension PropertyKillSummary {
             propertyReruns: tally.reruns,
             propertyRerunKills: tally.rerunKills,
             propertyRerunPasses: tally.rerunPasses,
+            exampleReruns: tally.exampleReruns,
+            exampleRerunKills: tally.exampleRerunKills,
+            exampleRerunPasses: tally.exampleRerunPasses,
             distinctProperties: ranked.count,
             properties: Array(ranked.prefix(Self.shownProperties))
         )

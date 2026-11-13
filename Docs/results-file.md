@@ -21,9 +21,10 @@ The file is [JSON Lines](https://jsonlines.org): UTF-8, one JSON object per line
 3. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in. A session that tests on several workers then runs its timeouts again at lower load, and writes a second line for each, with `rerun`, which replaces the first. A run that `--reuse` starts first writes one for each result it keeps from the earlier run, right after its header, each with `reusedFrom`, and with `rerun` too for a result that a rerun gave.
 4. **`control`**, one for each control run: the test command with no mutant on, run among the session's mutants, about one for each 100 (`controlRunEvery`). See [below](#control).
 5. **`propertyRerun`**, with `propertyTestFilter`: one for each kill whose recorded tests include no property test, which the session tested again with only the property tests, once every mutant was tested. See [below](#propertyrerun).
-6. **`propertySurvivorRerun`**, with `propertySurvivorReruns`: one for each survivor the session tested again with only the property tests, up to that many times, written once its runs end. See [below](#propertysurvivorrerun).
-7. **`stopped`**, alone in its file, with no header: the run stopped before its first mutant, as its baseline or a build failed or ran past `buildTimeout`, or a signal stopped it. See [below](#stopped).
-8. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
+6. **`exampleRerun`**, with `propertyTestFilter` under SwiftPM: one for each kill whose recorded tests are all property tests, in a list cut short, which the session tested again with every test but the property tests, once every mutant was tested. See [below](#examplererun).
+7. **`propertySurvivorRerun`**, with `propertySurvivorReruns`: one for each survivor the session tested again with only the property tests, up to that many times, written once its runs end. See [below](#propertysurvivorrerun).
+8. **`stopped`**, alone in its file, with no header: the run stopped before its first mutant, as its baseline or a build failed or ran past `buildTimeout`, or a signal stopped it. See [below](#stopped).
+9. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
 
 Here is a header, three of a run's mutant lines, and the end line of a run that stopped after 1,103 mutants. The first mutant was killed by tests its line names, so it kept no log, and its line has no `log`:
 
@@ -271,6 +272,22 @@ First the filtered tests run once with no mutant on, and their log is kept as `p
 | `killedBy`, `failedTestCount`, `firstFailedTestLine` | | As a mutant's, for the property tests that failed |
 | `log` | String | The kept log's file name in the session's `logDirectory`, the mutant's own with ` (properties)` before `.log`. Absent when the property tests passed, or a property test the line names failed, unless `keepAllLogs: true` is set. |
 
+### `exampleRerun`
+
+With `propertyTestFilter` set, under `swift test` and the test bundles run directly, once every mutant is tested and the kills' property reruns are over, a session tests again each of its kills whose recorded tests are all ones `propertyTests` picks out, in a list cut short (the run stopped at its first failed test, or more failed than the list holds), with every test but those the filter selects: `--skip <entry>` for each entry. It stops at the first failed test as the mutants' runs do. A property that failed first hides an example that would also have failed, so this line tells a kill only by properties from one by both (see [Example tests and property tests](../README.md#example-tests-and-property-tests)): a failed test the globs don't match is an example's. A crash, and `--mutant`'s one mutant, aren't tested again, nor a kill not in the session's build or whose code didn't run.
+
+First the tests run once with the property tests skipped and no mutant on, and their log is kept as `tests but the property tests with no mutant on.log`. If they ran no test or didn't pass, no kill is tested again, and the run says why. The line follows its mutant's `mutant` line and never replaces it, and `end`'s `recorded` doesn't count it. A later `mutant` line of the same key sets it aside, as does a `retired` line. A resumed session keeps an earlier session's lines for the results it keeps; a session `--reuse` starts doesn't copy them.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `kind` | `"exampleRerun"` | |
+| `session` | Int | The session that ran it, as in its header |
+| `path`, `line`, `column`, `occurrence`, `mutationOperatorId` | | The mutant's key, as its `mutant` line has it |
+| `outcome` | String | How the tests came out with the mutant on and the property tests skipped: `failed` or `runtimeError` with a test the globs don't match is a kill by an example too, so by both; `passed` is a kill by properties alone; anything else, such as a `timeout`, or only property tests failing, settles nothing |
+| `endedBy`, `exitStatus`, `durationSeconds`, `worker`, `finishedAt` | | As a mutant's |
+| `killedBy`, `failedTestCount`, `firstFailedTestLine` | | As a mutant's, for the tests that failed |
+| `log` | String | The kept log's file name in the session's `logDirectory`, the mutant's own with ` (examples)` before `.log`. Absent when every test passed, or a test the line names failed, unless `keepAllLogs: true` is set. |
+
 ### `propertySurvivorRerun`
 
 With `propertySurvivorReruns: k` set, and `propertyTestFilter`, once every mutant is tested and the kills' property reruns are over, a session tests again each survivor whose code ran, or couldn't be shown not to, with only the tests the filter selects, as for `propertyRerun`: up to k times, stopping at the first run that doesn't pass, in rounds that each test again the survivors every run so far passed. A property test tries a sample of inputs, so a failure on a later run tells a law that holds the change from a generator that rarely reaches it (see [Testing survivors again with the property tests](../README.md#testing-survivors-again-with-the-property-tests)). At most `propertySurvivorRerunLimit` survivors, 100 by default, are tested in a whole run, counting the lines earlier sessions wrote, evenly spaced in job order. `--mutant`'s one mutant, and a survivor not in the session's build, aren't tested again.
@@ -345,6 +362,7 @@ New keys and new kinds of line are added without changing `formatVersion`, so a 
 - **A run stopped before its first mutant** writes a file with only a `stopped` line, which a SwiftMutator from before it refuses as a file with no header line, rather than report a run with no result.
 - **Format 1** is a run's first session, also one that `--reuse` starts. A SwiftMutator from before `--reuse` reads the results such a session kept as tested in it.
 - **A control run** is a `control` line, a kind a SwiftMutator from before control runs skips. Its reports then name no flaky test.
+- **A kill by properties alone tested again with the examples** is an `exampleRerun` line, a kind a SwiftMutator from before it skips. Its reports then count the kill as by properties alone, possibly cut short, and every result is the same.
 - **A survivor tested again with the property tests** is a `propertySurvivorRerun` line, a kind a SwiftMutator from before it skips. Its reports then say nothing of those runs, and every result is the same.
 - **A timeout run again** has a second `mutant` line for its key, so a SwiftMutator from before `rerun` takes that line for the mutant's result, by the last-line rule, and ignores `rerun`.
 - **Format 2** is a resumed session. Its file can hold `retired` lines, and a reader that skipped them would report results the run no longer stands by, so a SwiftMutator from before `--resume` refuses the file. A file that was never resumed stays in format 1, which those read.

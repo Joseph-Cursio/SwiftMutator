@@ -140,3 +140,7 @@ extension PropertyRerunResult: ResultsRecord {
 extension PropertySurvivorRerunResult: ResultsRecord {
     static let recordKind = "propertySurvivorRerun"
 }
+
+extension ExampleRerunResult: ResultsRecord {
+    static let recordKind = "exampleRerun"
+}
