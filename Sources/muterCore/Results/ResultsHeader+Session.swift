@@ -67,6 +67,7 @@ extension ResultsHeader {
             waived: waived,
             forced: forced,
             testBundlesRunDirectly: configuration.directTestRun != nil,
+            configurationWorkedOut: state.muterConfiguration.workedOut,
             reusedFrom: reusedFrom,
             since: state.changeSelection,
             shard: state.shardSelection,

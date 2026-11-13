@@ -8,6 +8,7 @@ extension RunEvent {
         case updateCheckStarted
         case updateCheckFinished
         case configurationKeysUnknown
+        case configurationWorkedOut
         case changesSelected
         case logFoldersPruned
         case projectCopyStarted
@@ -83,6 +84,7 @@ extension RunEvent {
         case .updateCheckStarted: .updateCheckStarted
         case .updateCheckFinished: .updateCheckFinished
         case .configurationKeysUnknown: .configurationKeysUnknown
+        case .configurationWorkedOut: .configurationWorkedOut
         case .changesSelected: .changesSelected
         case .logFoldersPruned: .logFoldersPruned
         case .projectCopyStarted: .projectCopyStarted
@@ -168,6 +170,7 @@ extension RunEvent {
         case let .stoppedTakingOutMutants(builds): builds
         case let .mutantsLeftOutOfTheBuild(leftOut): leftOut
         case let .configurationKeysUnknown(keys, file): (keys, file)
+        case let .configurationWorkedOut(generated, missing): (generated, missing)
         case let .changesSelected(selection): selection
         case let .logFoldersPruned(pruning): pruning
         case let .projectCopySkippedVanishedFiles(paths): paths

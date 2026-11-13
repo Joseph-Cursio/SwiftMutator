@@ -12,6 +12,21 @@ extension Logger {
         }
     }
 
+    /// That no configuration file was at `missing`, so the run tests with the command `init` would write there, which
+    /// it names; then, as `init` says them, the scheme it guessed and the trust checks it skips.
+    func configurationWorkedOut(_ generated: GeneratedConfiguration, missing: String) {
+        let configuration = generated.configuration
+        let command = ([configuration.testCommandExecutable] + configuration.testCommandArguments)
+            .map(Self.shellWord)
+            .joined(separator: " ")
+        print(
+            "⚙️ There is no \(missing), so this run tests with what `swift-mutator init` would write there: "
+                + "\(command.bold). `swift-mutator init` writes it to a file you can edit."
+        )
+        schemeGuessed(generated.scheme)
+        trustChecksSkipped(XcodebuildTrustCheck.skipped(by: configuration.testCommandArguments))
+    }
+
     /// How many Swift files changed since `--since`'s merge base, and with `verbose`, their paths.
     func changesSelected(_ selection: ChangeSelection, verbose: Bool = false) {
         let count = selection.files.count == 1 ? "1 Swift file" : "\(selection.files.count) Swift files"

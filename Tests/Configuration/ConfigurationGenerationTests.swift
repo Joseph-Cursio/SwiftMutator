@@ -56,9 +56,9 @@ final class ConfigurationGenerationTests: MuterTestCase {
             } catch {
                 XCTAssertEqual(
                     "\(error)",
-                    "There is more than one Xcode \(kind) in the project's folder (\(names)), and init can't tell "
-                        + "which one runs your tests, so it wrote nothing. Write muter.conf.yml yourself: see "
-                        + "Configuration in SwiftMutator's README."
+                    "There is more than one Xcode \(kind) in the project's folder (\(names)), so SwiftMutator can't "
+                        + "tell which one runs your tests. Write muter.conf.yml yourself: see Configuration in "
+                        + "SwiftMutator's README."
                 )
             }
         }

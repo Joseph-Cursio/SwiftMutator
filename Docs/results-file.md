@@ -79,6 +79,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `mutantsReused` | Int | Only in a resumed session: how many earlier sessions' results it kept rather than tested again. In a session that `--reuse` starts, how many of the earlier run's results it kept. |
 | `waived` | [String] | Only in a resumed session: the project files that changed since the last session and that `--resume-ignoring` let through, by their paths relative to the project, or `[]`. In a run of a test plan, they are files of the plan's copy, by their paths relative to it. In a session that `--reuse` starts, those that `--reuse-ignoring` let through since any of the earlier run's sessions. |
 | `testBundlesRunDirectly` | Bool | Only when the session's mutants ran their test bundles directly, with `swiftpm-testing-helper`, rather than through `swift test`: `true` |
+| `configurationWorkedOut` | Bool | Only when the run found no `muter.conf.yml` and tested with what `init` would write there, which `configuration` then holds: `true`. A resume refused for a configuration change says which session worked its configuration out. |
 | `reusedFrom` | String | Only in a session that `--reuse` starts: the earlier run's results file |
 | `since` | Object | Only in a session run with `--since`: what it chose, below |
 | `shard` | Object | Only in a session run with `--shard`: which shard it tested, and what discovery found in every shard, below |

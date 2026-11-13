@@ -24,7 +24,9 @@ extension ResumeCheckTests {
                 "mutationTestTimeout",
             ]
         )
-        XCTAssertEqual(verdict.refusals.count, 7)
+        // And the reason more that this run worked its configuration out, as the fixture's is.
+        XCTAssertEqual(verdict.refusals.count, 8)
+        XCTAssertEqual(verdict.refusals.last, .configurationWorkedOut(then: false, now: true))
         XCTAssertEqual(
             verdict.notices,
             [

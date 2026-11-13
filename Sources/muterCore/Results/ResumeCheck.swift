@@ -175,11 +175,24 @@ enum ResumeCheck {
         longestLimit: Double? = nil
     ) -> Verdict {
         var verdict = Verdict()
-        for difference in configurationDifferences(recorded.configuration, current.configuration)
-            where !keysComparedByTheirSelection.contains(difference.name) {
+        let differences = configurationDifferences(recorded.configuration, current.configuration)
+        for difference in differences where !keysComparedByTheirSelection.contains(difference.name) {
             judge(difference, into: &verdict, for: purpose, longestLimit: longestLimit)
         }
-        verdict.refusals += selectionDifferences(recorded, current).map(ResumeRefusal.selectionChanged)
+        let selection = selectionDifferences(recorded, current)
+        if purpose != .merge {
+            // The operators the configuration's keys choose refuse as a change to the selection.
+            let operatorsChanged = selection.contains { $0.name == "operators" }
+                && differences.contains { keysComparedByTheirSelection.contains($0.name) }
+            sayWhereTheConfigurationCameFrom(
+                then: recorded.configurationWorkedOut,
+                now: current.configuration.workedOut,
+                differs: !differences.isEmpty,
+                operatorsChanged: operatorsChanged,
+                into: &verdict
+            )
+        }
+        verdict.refusals += selection.map(ResumeRefusal.selectionChanged)
         if purpose != .reuse {
             verdict.refusals += sinceDifferences(recorded.since, current.since).map(ResumeRefusal.selectionChanged)
         }

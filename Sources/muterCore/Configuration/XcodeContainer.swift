@@ -43,9 +43,9 @@ enum XcodeContainer: Equatable {
     private static func ambiguity(_ candidates: [URL], kind: String) -> MuterError {
         let names = candidates.map(\.lastPathComponent).sorted().joined(separator: ", ")
         return .literal(
-            reason: "There is more than one Xcode \(kind) in the project's folder (\(names)), and init can't tell "
-                + "which one runs your tests, so it wrote nothing. Write \(MuterConfiguration.fileNameWithExtension) "
-                + "yourself: see Configuration in SwiftMutator's README."
+            reason: "There is more than one Xcode \(kind) in the project's folder (\(names)), so SwiftMutator can't "
+                + "tell which one runs your tests. Write \(MuterConfiguration.fileNameWithExtension) yourself: see "
+                + "Configuration in SwiftMutator's README."
         )
     }
 

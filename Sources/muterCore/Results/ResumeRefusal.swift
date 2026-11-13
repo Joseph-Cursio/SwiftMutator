@@ -5,6 +5,9 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
     case inUse(holder: ResultsFileError.Holder?, lastProcess: Int32?, lastHost: String?)
     /// A configuration key that some outcome depends on.
     case configurationChanged(ResumeCheck.Difference)
+    /// Either session worked out its configuration, as it found no configuration file, which explains a
+    /// `configurationChanged` it comes after: the recorded one if `then`, this run if `now`.
+    case configurationWorkedOut(then: Bool, now: Bool)
     /// A new time limit, where the file doesn't record the limit each of its results was tested under, so none is
     /// known to be long enough: one that `--reuse` kept was tested under the earlier run's.
     case timeLimitUnknown(ResumeCheck.Difference)
@@ -48,7 +51,7 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
         case .stoppedBeforeFirstMutant, .inUse:
             runDescription(reusing: reusing)
 
-        case .configurationChanged, .timeLimitUnknown, .selectionChanged, .needsForce:
+        case .configurationChanged, .configurationWorkedOut, .timeLimitUnknown, .selectionChanged, .needsForce:
             changeDescription(reusing: reusing)
 
         case .filesChanged, .copyChanged, .testPlanRun, .testPlanChanged, .testPlanNotRecorded, .noProjectTree:
@@ -102,6 +105,26 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
         case let .configurationChanged(difference):
             return "\(difference.name) \(difference.change(absent: "not set")). "
                 + "A configuration change needs a new run."
+
+        case let .configurationWorkedOut(then, now):
+            // The change can be the project's, the file's, or this run's options', which override either.
+            let file = MuterConfiguration.fileNameWithExtension
+            let verb = reusing ? "reuse" : "resume"
+            switch (then, now) {
+            case (true, true):
+                return "Both runs worked out their configuration, as there was no \(file), so the project or this "
+                    + "run's options gave a different one. Run with the last session's options, or have "
+                    + "`swift-mutator init` write this run's configuration to a file and set it back to the last "
+                    + "session's, to \(verb)."
+
+            case (true, false):
+                return "The last session worked out its configuration, as there was no \(file), and this run reads "
+                    + "\(file). Set the file, and this run's options, to the last session's to \(verb)."
+
+            default:
+                return "The last session read \(file), and this run works out its configuration, as there is none. "
+                    + "Put the file back, and run with the last session's options, to \(verb)."
+            }
 
         case let .timeLimitUnknown(difference):
             return "\(difference.name) \(difference.change(absent: "not set")). The file doesn't record the time "
