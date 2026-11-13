@@ -165,10 +165,6 @@ and every push to `main`:
   dependencies aren't built again. Only pushes to `main` save it.
 - **SwiftLint**, in SwiftLint's own 0.65.1 container, with the rules `.swiftlint.yml` takes from
   `../SwiftLintConfig`.
-- **SwiftLint analyzer**, on `xcode-27`: the shared config's analyzer rules, such as
-  `unused_import`, which need a full compiler log. It runs
-  `../SwiftLintConfig/scripts/swiftlint-analyze.sh --strict`, as you can locally, with SwiftLint
-  0.65.1 too, and any finding fails it.
 - **Unit tests on Linux**, Swift 6.4, only on pushes to `main` and by hand, and never blocking
   ([#130](https://github.com/Joseph-Cursio/SwiftMutator/issues/130)).
 
