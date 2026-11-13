@@ -1,5 +1,3 @@
-import Foundation
-
 /// What the property survivor reruns came to (`PropertySurvivorReruns`): of the survivors tested again with only the
 /// property tests, up to `propertySurvivorReruns` times each, those a property test failed for on some run, those every
 /// run passed for, and those a run settled nothing for. Survivors all stay survivors: this changes no score. Counts

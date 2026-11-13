@@ -1,5 +1,3 @@
-import Foundation
-
 /// What the property survivor reruns came to, so far.
 struct PropertySurvivorRerunTally: Equatable {
     let reruns: PropertySurvivorReruns
