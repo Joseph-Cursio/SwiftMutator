@@ -141,8 +141,10 @@ def operator_problems(run, reference):
 def unfinished(run):
     """Why a run can't stand for a whole run: its last session didn't finish, or left timeouts it never ran again."""
     problems = []
-    if not run.ends or run.ends[-1].get("reason") != "finished":
-        problems.append(f"the last session ended {run.ends[-1].get('reason') if run.ends else 'without an end line'}")
+    last = run.headers[-1]["session"] if run.headers else None
+    ending = next((end for end in reversed(run.ends) if end.get("session") == last), None)
+    if not ending or ending.get("reason") != "finished":
+        problems.append(f"the last session ended {ending.get('reason') if ending else 'without an end line'}")
     return problems + [f"{k}: a timeout its session never ran again at lower load" for k in timeouts_not_rerun(run)]
 
 
@@ -165,6 +167,9 @@ def command_reference(args):
     problems += [f"{run.path}: {problem}" for run in runs for problem in unfinished(run)]
     problems += [f"{run.path} mutated with {operators(run)}, unlike {runs[0].path}'s {operators(runs[0])}"
                  for run in runs[1:] if operators(run) != operators(runs[0])]
+    # Skipped tests or workers that differ make verdicts differ for no reason a mutant gives.
+    problems += [f"{run.path} ran with another configuration than {runs[0].path}" for run in runs[1:]
+                 if run.headers and runs[0].headers and run.headers[0].get("configuration") != runs[0].headers[0].get("configuration")]
     for run, found in zip(runs[1:], keys[1:]):
         if found != keys[0]:
             problems.append(f"{run.path} discovers {len(found ^ keys[0])} mutants unlike {runs[0].path}'s")
@@ -188,7 +193,7 @@ def command_reference(args):
     # What a check of each run against this reference would count as timeout flips, against MAX_TIMEOUT_FLIPS.
     for run in runs:
         flips = sum(verdict(record) != mutants[k]["verdict"] and timeout_only({verdict(record), mutants[k]["verdict"]})
-                    for k, record in run.latest.items() if k in mutants)
+                    for k, record in run.latest.items() if k in mutants and k not in explained)
         print(f"  {run.path}: {flips} timeout flips against the majority (a check allows {MAX_TIMEOUT_FLIPS})")
     if fail(problems, "reference"):
         return 1
@@ -375,7 +380,9 @@ def command_expect_stop_resume(args):
         problems.append(f"{k}: neither session tested it")
     expected, found = set(reference["mutants"]), set(run.latest)
     problems += [f"{k}: not discovered" for k in sorted(expected - found)]
+    problems += [f"{k}: not in the reference" for k in sorted(found - expected)]
     problems += compare(run, reference, allowlist(args.allowlist), found & expected)
+    problems += unfinished(run)
     return fail(problems, "expect-stop-resume")
 
 

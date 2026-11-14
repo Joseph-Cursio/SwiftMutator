@@ -112,9 +112,31 @@ class VerdictsTests(unittest.TestCase):
         self.assertIn("timeouts only", output)
         self.assertEqual(verdicts.load_json(out)["mutants"]["Sources/A.swift:1:5:RelationalOperatorReplacement:0"]["verdict"],
                          "killed")
+        # The flips a check of each run would count: the hung run's one timeout against a kill, and not mutant 3's
+        # timeout, which is the majority's too.
+        self.assertIn("a.jsonl: 0 timeout flips", output)
+        self.assertIn("c.jsonl: 1 timeout flips", output)
         code, output, _ = self.reference(self.full("a.jsonl"), hung)
         self.assertEqual(code, 1, output)
         self.assertIn("disagree", output)
+
+    # The printed flips are the ones a check counts, so an allowlisted mutant, which a check never counts, isn't one.
+    def test_theReferencesFlips_leaveOutAllowlistedMutants(self):
+        hung = self.write("c.jsonl", header(), mutant(1, "timeout"), mutant(2, "passed"), mutant(3, "timeout"), end())
+        allowed = self.write("allow.json")
+        with open(allowed, "w") as file:
+            json.dump({"mutants": {"Sources/A.swift:1:5:RelationalOperatorReplacement:0": "varies"}}, file)
+        code, output, _ = self.reference(self.full("a.jsonl"), self.full("b.jsonl"), hung, allowlist=allowed)
+        self.assertEqual(code, 0, output)
+        self.assertIn("c.jsonl: 0 timeout flips", output)
+
+    # Runs with other skipped tests or workers can disagree for no reason a mutant gives: they can't vote together.
+    def test_theReference_refusesRunsWithAnotherConfiguration(self):
+        other = self.write("b.jsonl", header(configuration={"executable": "swift", "arguments": ["test", "--skip", "x"]}),
+                           mutant(1), mutant(2, "passed"), mutant(3, "timeout"), end())
+        code, output, _ = self.reference(self.full("a.jsonl"), other)
+        self.assertEqual(code, 1, output)
+        self.assertIn("another configuration", output)
 
     # Discovery is deterministic on a pinned tree: another mutation at the same place isn't a flaky verdict.
     def test_theReference_refusesRunsWithDifferentMutations(self):
@@ -166,6 +188,9 @@ class VerdictsTests(unittest.TestCase):
         self.assertEqual(verdicts.verdict(mutant(1, "passed", activated=False)), "notCovered")
         self.assertEqual(verdicts.verdict(mutant(1, "passed", activated=True)), "survived")
         self.assertEqual(verdicts.verdict(mutant(1, "passed")), "survived")
+        # SwiftMutator also writes activated:false on kills it settles: they stay kills, and timeouts stay timeouts.
+        self.assertEqual(verdicts.verdict(mutant(1, "failed", activated=False)), "killed")
+        self.assertEqual(verdicts.verdict(mutant(1, "timeout", activated=False)), "timedOut")
         _, _, reference = self.reference(self.full())
         uncovered = self.write("u.jsonl", header(), mutant(1), mutant(2, "passed", activated=False), mutant(3, "timeout"), end())
         code, output = self.run_command("check", uncovered, "--reference", reference)
@@ -300,6 +325,21 @@ class VerdictsTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("recorded a run that the stop ended", output)
         self.assertIn("neither session tested it", output)
+
+    # What the resumed session discovers is checked as a whole run's is: no mutant the reference lacks, and a last
+    # session that finished.
+    def test_expectStopResume_failsOnAMutantTheReferenceLacks_orAnUnfinishedResume(self):
+        _, _, reference = self.reference(self.full())
+        stopped = [header(), mutant(1), end(reason="interrupted", detail="SIGINT"), header(session=2, to_test=3),
+                   mutant(2, "passed", session=2), mutant(3, "timeout", session=2)]
+        extra = self.write("extra.jsonl", *stopped, mutant(4, "passed", session=2), end(session=2))
+        code, output = self.run_command("expect-stop-resume", extra, "--reference", reference)
+        self.assertEqual(code, 1, output)
+        self.assertIn("A.swift:4:5:RelationalOperatorReplacement:0: not in the reference", output)
+        unended = self.write("unended.jsonl", *stopped)
+        code, output = self.run_command("expect-stop-resume", unended, "--reference", reference)
+        self.assertEqual(code, 1, output)
+        self.assertIn("the last session ended without an end line", output)
 
     # A timeout run again before the stop has two lines in session 1, but is one mutant: two of three recorded is
     # still a stop in time.

@@ -43,7 +43,7 @@ Its `Package.resolved` isn't in git, and several of its dependencies take `from:
   - Some tests fail in the mutated copy whatever the mutant, and are skipped:
     - tests that parse the project's own sources from disk, once those sources hold mutant switches;
     - a deeply recursive test, which overflows a test thread's stack once the switches enlarge each frame.
-  - Tests that gave a mutant another verdict than the reference's, whatever the mutant, are skipped too: a speed ratio timed under the workers' load, and a kill no reference run made.
+  - Tests that gave a mutant another verdict than the reference's, whatever the mutant, are skipped too: a speed ratio timed under the workers' load, and a lint's 30-second ceiling, which a loaded machine trips. One more is skipped for a kill that depends on test order, which `allowlist.json` now covers.
   - `--preflight` runs once, stopping when the baseline passes, to show that the list is enough.
 - **Scenario choices.** `TEST_CHANGE_FILE`, `SOURCE_CHANGE_FILE` and `SINCE_BASE` are chosen when the reference is made.
 
@@ -60,12 +60,12 @@ A new pin, a change to `OPERATORS`, or a SwiftMutator change that rightly change
 
 1. **Pin.** Set `PIN` in `target.env` to a commit on the target's `main`.
 2. **Preflight.** Run `./AcceptanceTests/slow/slow-acceptance.sh --preflight`. If the baseline fails, add the failing test to `SKIP_TESTS`, or its file to `EXCLUDES`, with a reason.
-3. **Reference.** Run `make slow-acceptance-reference RUNS=5`: five full runs, about 4 hours. It writes:
+3. **Reference.** Run `make slow-acceptance-reference RUNS=5`: five full runs, about 9 hours. It writes:
    - `reference/<pin>.json`: each mutant's majority verdict and its mutation;
    - `reference/<pin>.Package.resolved`;
    - the full runs' median time, in `reference/<pin>-times.json`.
 
-   It refuses runs that discover different mutants or mutations, that mutated with operators other than `OPERATORS`, or that a check would refuse: a session that didn't finish, or timeouts it never ran again. It also refuses a mutant the runs disagree on, unless `allowlist.json` names it with a reason, or the runs differ only by a minority of timeouts. It prints each run's timeout flips against the majority, the count a check holds to `MAX_TIMEOUT_FLIPS`.
+   It refuses runs that discover different mutants or mutations, that mutated with operators other than `OPERATORS`, that ran with another configuration than the first (skipped tests, workers), or that a check would refuse: a session that didn't finish, or timeouts it never ran again. It also refuses a mutant the runs disagree on, unless `allowlist.json` names it with a reason, or the runs differ only by timeouts and one verdict has more than half the runs. That verdict is kept, even when it is a timeout. It prints each run's timeout flips against the majority, the count a check holds to `MAX_TIMEOUT_FLIPS`.
 
    After a refusal that `allowlist.json` should explain, add the mutant there and run the same command with the same `--work`: it keeps each run that finished with the same binary and configuration, and only makes the reference again.
 4. **Scenario choices.** Choose `TEST_CHANGE_FILE` (the reference run prints a candidate), `SOURCE_CHANGE_FILE` and `SINCE_BASE`, as `target.env` describes.

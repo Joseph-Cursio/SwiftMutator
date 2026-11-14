@@ -363,9 +363,11 @@ reference() {
       runs+=("$kept")
       continue
     fi
-    cp "$WORK/conf/full.yml" "$WORK/logs/$name.yml"
+    # Recorded only once the run finishes: a run of this name stopped or failed later must not vouch for an older one.
+    rm -f "$WORK/logs/$name.yml"
     run "$name" "$WORK/conf/full.yml"
     [ -n "$RESULTS" ] || die "reference run $i wrote no results"
+    [ "$STATUS" -ne 0 ] || cp "$WORK/conf/full.yml" "$WORK/logs/$name.yml"
     runs+=("$RESULTS")
   done
   mkdir -p "$HERE/reference"
