@@ -66,6 +66,8 @@ A new pin, a change to `OPERATORS`, or a SwiftMutator change that rightly change
    - the full runs' median time, in `reference/<pin>-times.json`.
 
    It refuses runs that discover different mutants or mutations, that mutated with operators other than `OPERATORS`, or that a check would refuse: a session that didn't finish, or timeouts it never ran again. It also refuses a mutant the runs disagree on, unless `allowlist.json` names it with a reason, or the runs differ only by a minority of timeouts. It prints each run's timeout flips against the majority, the count a check holds to `MAX_TIMEOUT_FLIPS`.
+
+   After a refusal that `allowlist.json` should explain, add the mutant there and run the same command with the same `--work`: it keeps each run that finished with the same binary and configuration, and only makes the reference again.
 4. **Scenario choices.** Choose `TEST_CHANGE_FILE` (the reference run prints a candidate), `SOURCE_CHANGE_FILE` and `SINCE_BASE`, as `target.env` describes.
 5. **Times.** The first idle suite records each other scenario's time: `verdicts.py times <work>/runs.tsv --baseline reference/<pin>-times.json --update`.
 

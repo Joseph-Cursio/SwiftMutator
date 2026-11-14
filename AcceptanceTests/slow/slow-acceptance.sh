@@ -72,6 +72,9 @@ setup() {
     git -C "$CLONE" checkout -q --detach "$PIN" || die "can't check out $PIN"
   fi
   git -C "$CLONE" merge-base --is-ancestor "$PIN" origin/main || die "$PIN isn't on the target's main"
+  # A work folder made for another pin would test that pin's tree.
+  [ "$(git -C "$CLONE" rev-parse HEAD)" = "$(git -C "$CLONE" rev-parse "$PIN^{commit}")" ] \
+    || die "the clone in $WORK is at another commit than $PIN: use a new work folder"
 
   if [ -f "$RESOLVED" ]; then
     cp "$RESOLVED" "$CLONE/Package.resolved"
@@ -339,10 +342,29 @@ preflight() {
   fi
 }
 
+# kept_run NAME: the results file of an earlier run NAME in this work folder that exited 0 with today's binary and
+# today's full.yml, or nothing. A reference the checker refuses then costs only its verdicts once allowlist.json
+# explains the refusal: the runs themselves are kept.
+kept_run() {
+  local name=$1 results
+  results=$(awk -F'\t' -v name="$1" '$1 == name && $9 == 0 {print $10}' "$RUNS" | tail -1)
+  [ -n "$results" ] && [ -f "$results" ] && cmp -s "$WORK/logs/$name.yml" "$WORK/conf/full.yml" || return 0
+  [ "$(head -1 "$results" | python3 -I -c 'import json, sys; print(json.load(sys.stdin)["provenance"]["swiftMutator"]["executableSHA256"])')" \
+    = "$(shasum -a 256 "$BIN" | cut -d' ' -f1)" ] && echo "$results"
+}
+
 reference() {
-  local runs=()
+  local runs=() name kept
   for i in $(seq 1 "$REFERENCE_RUNS"); do
-    run "reference-$i" "$WORK/conf/full.yml"
+    name=reference-$i
+    kept=$(kept_run "$name")
+    if [ -n "$kept" ]; then
+      say "keeping $name, made with this binary and configuration: $kept"
+      runs+=("$kept")
+      continue
+    fi
+    cp "$WORK/conf/full.yml" "$WORK/logs/$name.yml"
+    run "$name" "$WORK/conf/full.yml"
     [ -n "$RESULTS" ] || die "reference run $i wrote no results"
     runs+=("$RESULTS")
   done
@@ -350,7 +372,9 @@ reference() {
   cp "$CLONE/Package.resolved" "$RESOLVED"
   verdicts reference "${runs[@]}" --pin "$PIN" --resolved-sha256 "$(shasum -a 256 "$RESOLVED" | cut -d' ' -f1)" \
     --operators "${OPERATORS[@]}" --allowlist "$ALLOWLIST" --out "$REFERENCE" || exit 1
-  awk 'NR == 1 || /^reference-/' "$RUNS" | sed 's/^reference-[0-9]*/full/' > "$WORK/full-runs.tsv"
+  # The times of the runs that made it, not of earlier runs of the same name.
+  { head -1 "$RUNS"; for results in "${runs[@]}"; do awk -F'\t' -v r="$results" '$10 == r' "$RUNS" | tail -1; done; } \
+    | sed 's/^reference-[0-9]*/full/' > "$WORK/full-runs.tsv"
   rm -f "$TIMES" # a new reference, so every scenario's time is recorded again
   verdicts times "$WORK/full-runs.tsv" --baseline "$TIMES" --update
   say "a test file to disable for reuse-testchange: $(cd "$CLONE" && verdicts pick-test-change "${runs[0]}" \
