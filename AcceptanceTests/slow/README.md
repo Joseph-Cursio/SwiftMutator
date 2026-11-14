@@ -1,6 +1,6 @@
 # The slow acceptance tier
 
-Whole SwiftMutator runs on a pinned SwiftProjectLint, each checked mutant by mutant against reference verdicts ([#174](https://github.com/Joseph-Cursio/SwiftMutator/issues/174)). The unit, acceptance and regression tests run small sample projects. Several bugs only ever showed in whole runs of a real project: workers sharing `UserDefaults` (#92), test-bundle order (#64), crash handling, and whether `--reuse` (#71) keeps only results a fresh run would give. A suite takes about 6½ hours on an 18-core M5 Pro, so it isn't run on every PR. Run it before a release, or when a change touches how mutants are discovered, tested or recorded.
+Whole SwiftMutator runs on a pinned SwiftProjectLint, each checked mutant by mutant against reference verdicts ([#174](https://github.com/Joseph-Cursio/SwiftMutator/issues/174)). The unit, acceptance and regression tests run small sample projects. Several bugs only ever showed in whole runs of a real project: workers sharing `UserDefaults` (#92), test-bundle order (#64), crash handling, and whether `--reuse` (#71) keeps only results a fresh run would give. A suite takes about 12 hours on an 18-core M5 Pro, so it isn't run on every PR. Run it before a release, or when a change touches how mutants are discovered, tested or recorded.
 
 ```bash
 make slow-acceptance-test
@@ -18,14 +18,14 @@ Times are recorded, and never fail a check.
 
 | Scenario | The run | It checks | Time |
 |---|---|---|---|
-| `full` | A plain run | The same mutants as the reference, each with its mutation and verdict | 46 min |
-| `release` | Tests built with `-c release -Xswiftc -enable-testing` | As `full` | 22 min |
-| `no-stop` | `stopAtFirstFailure: false` | As `full` | 1 h 53 min |
-| `reuse-nochange` | `--reuse` of `full`'s results, nothing changed | As `full`; and it kept exactly what `ResumePlan` keeps: every result but timeouts, build errors and repeated places | 12 min |
-| `reuse-testchange` | A test file's suites disabled, then `--reuse` of `full` | No kill only that file's tests made is kept, some other kill is, no survivor is; its verdicts are those of a full run of the same edited tree (`full-testchange`), and the edit moved some | 37 min, and 50 for `full-testchange` |
-| `reuse-sourcechange` | A comment added to a source file with no mutants: `--reuse`, stopped once its header is written; then `--reuse --reuse-ignoring` that file | The first plans to test everything again; the second keeps what `reuse-nochange` keeps, and records the waiver | 1 min, then 12 |
-| `stop-resume` | A run stopped by SIGINT, to its process group as Ctrl-C does, a third of the way through; then the `▶️ Continue:` command it printed | The stop ended session 1, which recorded no run the stop cancelled; session 2 tested whatever session 1 left, and every key it retired; the results then match the reference | 20 min, then 29 |
-| `since` | `--since SINCE_BASE --changed-lines`; then `--since HEAD` | Every mutant on a line `git diff -U0` adds or changes is tested, and none outside the changed files; with nothing changed, nothing is mutated, and the run exits 0 without a results file | 4 min |
+| `full` | A plain run | The same mutants as the reference, each with its mutation and verdict | 1 h 40 min |
+| `release` | Tests built with `-c release -Xswiftc -enable-testing` | As `full` | 32 min |
+| `no-stop` | `stopAtFirstFailure: false` | As `full` | 2 h 35 min |
+| `reuse-nochange` | `--reuse` of `full`'s results, nothing changed | As `full`; and it kept exactly what `ResumePlan` keeps: every result but timeouts, build errors and repeated places | 50 min |
+| `reuse-testchange` | A test file's suites disabled, then `--reuse` of `full` | No kill only that file's tests made is kept, some other kill is, no survivor is; its verdicts are those of a full run of the same edited tree (`full-testchange`), and the edit moved some | 1 h 33 min, and 1 h 41 min for `full-testchange` |
+| `reuse-sourcechange` | A comment added to a source file with no mutants: `--reuse`, stopped once its header is written; then `--reuse --reuse-ignoring` that file | The first plans to test everything again; the second keeps what `reuse-nochange` keeps, and records the waiver | 1 min, then 49 |
+| `stop-resume` | A run stopped by SIGINT, to its process group as Ctrl-C does, a third of the way through; then the `▶️ Continue:` command it printed | The stop ended session 1, which recorded no run the stop cancelled; session 2 tested whatever session 1 left, and every key it retired; the results then match the reference | 27 min, then 1 h 23 min |
+| `since` | `--since SINCE_BASE --changed-lines`; then `--since HEAD` | Every mutant on a line `git diff -U0` adds or changes is tested, and none outside the changed files; with nothing changed, nothing is mutated, and the run exits 0 without a results file | 21 min |
 
 `verdicts.py` reads a results file as SwiftMutator does: in order, a `mutant` line setting its key's result, and a `retired` line dropping the keys it lists. `make slow-acceptance-selftest` runs its own tests, in seconds, on results files it writes.
 

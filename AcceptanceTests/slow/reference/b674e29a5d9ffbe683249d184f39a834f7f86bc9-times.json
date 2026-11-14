@@ -2,5 +2,49 @@
  "full": {
   "runs": 5,
   "wall_s": 6302.0
+ },
+ "full-testchange": {
+  "runs": 1,
+  "wall_s": 6084.0
+ },
+ "no-stop": {
+  "runs": 1,
+  "wall_s": 9287.0
+ },
+ "release": {
+  "runs": 1,
+  "wall_s": 1939.0
+ },
+ "reuse-nochange": {
+  "runs": 1,
+  "wall_s": 3008.0
+ },
+ "reuse-sourcechange": {
+  "runs": 1,
+  "wall_s": 86.0
+ },
+ "reuse-sourcechange-ignoring": {
+  "runs": 1,
+  "wall_s": 2910.0
+ },
+ "reuse-testchange": {
+  "runs": 1,
+  "wall_s": 5563.0
+ },
+ "since": {
+  "runs": 1,
+  "wall_s": 1270.0
+ },
+ "since-nothing": {
+  "runs": 1,
+  "wall_s": 0.0
+ },
+ "stop-resume": {
+  "runs": 1,
+  "wall_s": 1609.0
+ },
+ "stop-resume-continued": {
+  "runs": 1,
+  "wall_s": 4948.0
  }
 }
