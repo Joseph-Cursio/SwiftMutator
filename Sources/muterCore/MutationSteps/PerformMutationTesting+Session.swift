@@ -173,7 +173,8 @@ extension PerformMutationTesting {
         // whether or not runs stop at their first failed test, but worth a notice only if they do, sent before the
         // baseline's log, which starts the progress bar or lines. Worker clones' baselines keep the configuration as
         // it was: a baseline is never stopped at a failed test, and has no mutant's time limit, only `buildTimeout`'s.
-        if let lookalike = FailedTestLine.first(inLog: testLog) ?? CrashLine.first(inLog: testLog) {
+        if let lookalike = FailedTestLine.first(inLog: testLog) ?? CrashLine.first(inLog: testLog)
+            ?? XcodebuildRestartLine.first(inLog: testLog) {
             if muterConfiguration.stopsAtFirstFailure {
                 let reason = "the baseline run passed but printed a line that looks like a failed test or a crash:\n  "
                     + lookalike

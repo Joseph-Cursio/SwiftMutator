@@ -266,7 +266,8 @@ struct SimulatorWorkerSetup {
         }
         // The logs of the runs that printed a line shaped like a failed test or a crash.
         let printingLookalikes = runs.compactMap { run in
-            (FailedTestLine.first(inLog: run.testLog) ?? CrashLine.first(inLog: run.testLog)).map { _ in run.testLog }
+            (FailedTestLine.first(inLog: run.testLog) ?? CrashLine.first(inLog: run.testLog)
+                ?? XcodebuildRestartLine.first(inLog: run.testLog)).map { _ in run.testLog }
         }
         return Workers(
             count: xcodeWorkers.count,

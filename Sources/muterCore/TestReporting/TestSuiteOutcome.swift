@@ -88,14 +88,19 @@ enum TestSuiteOutcome: String, Codable, CaseIterable {
     /// nothing else. That last line counts only while such lines are reliable: a passing baseline that
     /// printed one has tests that print text shaped like it. A crash is common here: after one,
     /// xcodebuild collects diagnostics and relaunches the runner for each remaining test, which can take
-    /// several times as long as the baseline run the limit is derived from.
+    /// several times as long as the baseline run the limit is derived from. A crash shows as the Swift
+    /// runtime's message for a trap, SwiftPM's report of a signal, or xcodebuild's restart line
+    /// (`XcodebuildRestartLine`), which also follows a crash with no message, such as a bad access. The
+    /// restart line counts only while failed-test lines are reliable, as a passing baseline that printed
+    /// it, under a test plan that retries failed tests, makes them unreliable.
     private static func outcomeOfStoppedRun(_ testLog: String, failedTestLinesAreReliable: Bool) -> Self {
         let firstFailedTestLine = FailedTestLine.first(inLog: testLog)
         let showsFailedTestLine = failedTestLinesAreReliable && firstFailedTestLine != nil
         if logContainsTestFailure(testLog) || logContainsFailedTestCase(testLog) || showsFailedTestLine {
             return .failed
         }
-        if logContainsCrash(testLog) {
+        let showsRestart = failedTestLinesAreReliable && XcodebuildRestartLine.first(inLog: testLog) != nil
+        if logContainsCrash(testLog) || showsRestart {
             return .runtimeError
         }
 
@@ -113,12 +118,13 @@ enum TestSuiteOutcome: String, Codable, CaseIterable {
         NSRegularExpression.regexWithPattern(#"Test Case '[^']*' failed \("#)
     }
 
-    /// The Swift runtime's message for a trap (`file.swift:12: Fatal error: …`), or SwiftPM's report
-    /// of a test process killed by a signal (`exited with unexpected signal code 5`; older versions
-    /// say `Exited with signal code 4`). Signal 9 is left out: stopping a run sends SIGKILL to the
-    /// test processes before `swift test` itself, which can report that as a signal exit. Used only
-    /// for stopped runs: a finished run's exit status is better evidence, and a `Fatal error` line
-    /// alone with exit status 0 still counts as passed.
+    /// The Swift runtime's message for a trap, or SwiftPM's report of a test process killed by a signal
+    /// (`exited with unexpected signal code 5`; older versions say `Exited with signal code 4`). The
+    /// runtime's message is `file.swift:12: Fatal error`, `Precondition failed` or `Assertion failed`,
+    /// for `fatalError`, `precondition` and `assert`, followed by `: message` only when there is one.
+    /// Signal 9 is left out: stopping a run sends SIGKILL to the test processes before `swift test`
+    /// itself, which can report that as a signal exit. Used only for stopped runs: a finished run's exit
+    /// status is better evidence, and a `Fatal error` line alone with exit status 0 still counts as passed.
     private static func logContainsCrash(_ testLog: String) -> Bool {
         let entireTestLog = NSRange(testLog.startIndex..., in: testLog)
         return crashRegEx.numberOfMatches(in: testLog, options: [], range: entireTestLog) > 0
@@ -126,7 +132,8 @@ enum TestSuiteOutcome: String, Codable, CaseIterable {
 
     private static var crashRegEx: NSRegularExpression {
         NSRegularExpression.regexWithPattern(
-            #"(^|: )Fatal error: |[Ee]xited with (unexpected )?signal code (?!9\b)[0-9]+"#,
+            #"(^|: )(Fatal error|Precondition failed|Assertion failed)(: |$)"#
+                + #"|[Ee]xited with (unexpected )?signal code (?!9\b)[0-9]+"#,
             .anchorsMatchLines
         )
     }

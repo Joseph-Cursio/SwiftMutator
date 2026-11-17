@@ -145,6 +145,75 @@ final class TestSuiteResultParsingTests: MuterTestCase {
         )
     }
 
+    // A `precondition` or `assert` traps as `fatalError` does, with its own word for it. Yams under xcodebuild: every
+    // test crashed, and xcodebuild relaunched the runner for each until the time limit.
+    func test_stoppedRunWhoseLogShowsAPreconditionOrAssertion_isARuntimeError() {
+        XCTAssertEqual(
+            TestSuiteOutcome.from(
+                testLog: loadLogFile(named: "timeout_xcodebuildPreconditionCrash.log"),
+                terminationStatus: 9,
+                timeoutExecution: .timeout,
+                failedTestLinesAreReliable: false
+            ),
+            .runtimeError
+        )
+        // The runtime adds `: message` only when there is one.
+        for trap in ["Fatal error", "Precondition failed", "Assertion failed", "Fatal error: Index out of range"] {
+            let contents = """
+            Test Case '-[ExampleTests.ExampleTests testSum]' started.
+            Example/Sum.swift:12: \(trap)
+            """
+            XCTAssertEqual(
+                TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+                .runtimeError,
+                trap
+            )
+        }
+    }
+
+    // A test's own text that only mentions a trap isn't the runtime's message for one.
+    func test_stoppedRunWhoseLogOnlyMentionsATrap_isATimeout() {
+        let contents = """
+        Test Case '-[ExampleTests.ExampleTests testSum]' started.
+        checking that a Precondition failed message is shown
+        the Assertion failedCount is 0
+        """
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .timeout
+        )
+    }
+
+    // A crash with no Swift message, such as a bad access, shows only as xcodebuild's restart line. It counts while
+    // failed-test lines are reliable: a passing baseline that printed it, retrying a failed test, makes them unreliable.
+    func test_stoppedRunWhoseLogShowsXcodebuildsRestart_isARuntimeErrorWhileLinesAreReliable() {
+        let contents = """
+        Test Case '-[ExampleTests.ExampleTests testParse]' started.
+
+        Restarting after unexpected exit, crash, or test timeout; summary will include totals from previous launches.
+
+        Test Suite 'Selected tests' started at 2026-11-17 11:28:56.523.
+        Test Case '-[ExampleTests.ExampleTests testPrint]' started.
+        """
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .runtimeError
+        )
+        XCTAssertEqual(
+            TestSuiteOutcome.from(
+                testLog: contents, terminationStatus: 9, timeoutExecution: .timeout, failedTestLinesAreReliable: false
+            ),
+            .timeout
+        )
+        // Only at the start of a line, as xcodebuild prints it.
+        let quoted = "Test Case '-[ExampleTests.ExampleTests testParse]' started.\nlog: Restarting after unexpected "
+            + "exit, crash, or test timeout"
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: quoted, terminationStatus: 9, timeoutExecution: .timeout),
+            .timeout
+        )
+    }
+
     // Stopped at the crash, before any test failed and before any summary: the crash decides it.
     func test_runStoppedAtACrash_isARuntimeError() {
         let contents = """

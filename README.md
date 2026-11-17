@@ -1975,7 +1975,11 @@ A timeout that a failed test or a crash in its log doesn't explain still counts 
 unlike Stryker, which counts it as killed. No test was shown to catch the mutant, and as above, a
 timeout is often a mutant that was only slow. One whose log shows a failed test is killed, and one
 that shows a crash counts as a crash
-([#89](https://github.com/Joseph-Cursio/SwiftMutator/issues/89)).
+([#89](https://github.com/Joseph-Cursio/SwiftMutator/issues/89)). A crash shows as the Swift runtime's
+`Fatal error`, `Precondition failed` or `Assertion failed`, SwiftPM's report of a test process ended
+by a signal, or xcodebuild's `Restarting after unexpected exit, crash, or test timeout`. xcodebuild
+runs the tests left after a crash, each in a runner of its own, so a mutant that crashes every test
+reaches the limit before the summary that would show it failing.
 
 The rerun's result is the one the report gives. The results file keeps both: the rerun's line, with
 `rerun`, follows the first run's. Each keeps a log of its own by the rule for mutants' logs (see

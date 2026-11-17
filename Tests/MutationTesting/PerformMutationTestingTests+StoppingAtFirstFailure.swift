@@ -70,6 +70,27 @@ extension PerformMutationTestingTests {
         XCTAssertEqual(sent().count, 0)
     }
 
+    // A test plan that retries failed tests can pass after xcodebuild relaunched a crashed runner, so its restart line
+    // would count a mutant's timed-out run killed though every test passed.
+    func test_whenThePassingBaselinePrintsXcodebuildsRestartLine_thenItDoesNotCount() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: .disabled
+        )
+        ioDelegate.baselineTestLog = """
+        Test Case '-[ExampleTests.ExampleTests testParse]' started.
+
+        Restarting after unexpected exit, crash, or test timeout; summary will include totals from previous launches.
+
+        Test Case '-[ExampleTests.ExampleTests testParse]' passed (0.001 seconds).
+        ** TEST SUCCEEDED **
+        """
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.configurations.map(\.failedTestLinesAreReliable), [false, false])
+    }
+
     // With the key unset: stopping at the first failed test is the default.
     func test_whenThePassingBaselineHasNoFailureLikeLine_thenMutantsStopAtTheirFirstFailure() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
