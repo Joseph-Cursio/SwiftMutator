@@ -40,7 +40,7 @@ acceptance-test: build
 regression-test: build
 	@./RegressionTests/runRegressionTests.sh
 
-# Whole runs on a pinned SwiftProjectLint, checked mutant by mutant: about 3.5 hours (AcceptanceTests/slow/README.md).
+# Whole runs on a pinned SwiftProjectLint, checked mutant by mutant: about 12 hours (AcceptanceTests/slow/README.md).
 slow-acceptance-test:
 	@./AcceptanceTests/slow/slow-acceptance.sh
 

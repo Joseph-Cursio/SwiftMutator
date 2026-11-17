@@ -57,7 +57,7 @@ foreign_cpu() { ps -Ao pcpu=,args= | grep -v "$CLONE" | awk '{s+=$1} END {printf
 
 setup() {
   mkdir -p "$WORK/conf" "$WORK/logs" "$WORK/reports" || die "can't make $WORK"
-  [ -f "$RUNS" ] || printf 'name\tstart\tend\twall_s\twait_s\tload_at_start\tload_mean\tforeign_cpu_mean\tstatus\tresults\n' > "$RUNS"
+  [ -f "$RUNS" ] || printf 'name\tstart\tend\twall_s\twait_s\tload_at_start\tload_mean\tforeign_cpu_mean\tstatus\tresults\tworkers\n' > "$RUNS"
   say "work folder: $WORK"
 
   say "building swift-mutator (release) from $REPO_ROOT"
@@ -72,6 +72,9 @@ setup() {
     git -C "$CLONE" checkout -q --detach "$PIN" || die "can't check out $PIN"
   fi
   git -C "$CLONE" merge-base --is-ancestor "$PIN" origin/main || die "$PIN isn't on the target's main"
+  # A work folder made for another pin would test that pin's tree.
+  [ "$(git -C "$CLONE" rev-parse HEAD)" = "$(git -C "$CLONE" rev-parse "$PIN^{commit}")" ] \
+    || die "the clone in $WORK is at another commit than $PIN: use a new work folder"
 
   if [ -f "$RESOLVED" ]; then
     cp "$RESOLVED" "$CLONE/Package.resolved"
@@ -102,6 +105,8 @@ write_configuration() {
     echo "exclude:"
     for exclude in "${EXCLUDES[@]}"; do echo "- '$exclude'"; done
     echo "excludeCalls: []"
+    echo "operators:"
+    for operator in "${OPERATORS[@]}"; do echo "- $operator"; done
     echo "mutationTestWorkers: $WORKERS"
     if [ "$kind" = no-stop ]; then echo "stopAtFirstFailure: false"; fi
   } > "$file"
@@ -145,16 +150,26 @@ launch() {
   end=$(date +%s)
   kill "$sampler" 2>/dev/null
   RESULTS=$(results_file "$WORK/logs/$name.console")
+  local mode; mode=$(workers_mode "$WORK/logs/$name.console")
   local stats; stats=$(awk '{s+=$1; f+=$2; n++} END {if (n) printf "%.1f\t%.0f", s/n, f/n; else printf "-\t-"}' \
     "$WORK/logs/$name.load")
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$start" "$end" "$((end - start))" \
-    "$((start - waited_from))" "$load_at_start" "$stats" "$STATUS" "$RESULTS" >> "$RUNS"
-  say "done $name: exit $STATUS, $(( (end - start) / 60 )) min, ${RESULTS:-no results file}"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$start" "$end" "$((end - start))" \
+    "$((start - waited_from))" "$load_at_start" "$stats" "$STATUS" "$RESULTS" "$mode" >> "$RUNS"
+  say "done $name: exit $STATUS, $(( (end - start) / 60 )) min, workers $mode, ${RESULTS:-no results file}"
 }
 
 # The results file a run's console names.
 results_file() {
   sed -n 's/^💾 SwiftMutator saves each mutant.s result as it finishes, in //p' "$1" | tail -1
+}
+
+# How a run's workers tested, as its console says: from one build ("shared"), each from a clone of its own
+# ("clones"), or "-" when it tested no mutant. The choice is SwiftMutator's own, made from the run with no mutant on.
+workers_mode() {
+  if grep -q 'mutants at a time, from one build' "$1"; then echo shared
+  elif grep -q 'mutants at a time' "$1"; then echo clones
+  else echo -
+  fi
 }
 
 # stop_when NAME PID AT: sends SIGINT to the run's process group, as Ctrl-C does, once AT is reached.
@@ -193,6 +208,8 @@ need_results() { # need_results NAME: fails the scenario when its run wrote no r
   echo "- ❌ $1: no results file (exit $STATUS); see $WORK/logs/$1.console" >> "$SUMMARY"
   return 1
 }
+
+real_path() { echo "$(cd "$(dirname "$1")" && pwd -P)/$(basename "$1")"; }
 
 restore() { git -C "$CLONE" checkout -q -- . && git -C "$CLONE" clean -fdq -e Package.resolved; }
 
@@ -243,12 +260,16 @@ if disabled == text:
 open(path, "w").write(disabled)
 EOF
   run reuse-testchange "$WORK/conf/full.yml" --reuse "$FULL"
-  local reuse=$RESULTS
+  local reuse=$RESULTS reuse_status=$STATUS
   run full-testchange "$WORK/conf/full.yml"
-  local fresh=$RESULTS
+  local fresh=$RESULTS fresh_status=$STATUS
   restore
-  need_results reuse-testchange && [ -n "$fresh" ] && check reuse-testchange expect-test-change "$FULL" "$reuse" \
-    "$fresh" --test-file "$TEST_CHANGE_FILE" --allowlist "$ALLOWLIST"
+  # Each run under its own name, so a missing file is never another run's, and neither check is skipped unsaid.
+  local ok=1
+  RESULTS=$reuse STATUS=$reuse_status need_results reuse-testchange || ok=0
+  RESULTS=$fresh STATUS=$fresh_status need_results full-testchange || ok=0
+  [ "$ok" = 1 ] && check reuse-testchange expect-test-change "$FULL" "$reuse" "$fresh" --test-file "$TEST_CHANGE_FILE" \
+    --allowlist "$ALLOWLIST"
 }
 
 # A comment at the end of a source file with no mutants, which no test reads: a plain reuse plans to test everything
@@ -257,10 +278,11 @@ scenario_reuse_sourcechange() {
   full_results
   printf '\n// The slow acceptance tier changed this file.\n' >> "$CLONE/$SOURCE_CHANGE_FILE"
   STOP_AT=header run reuse-sourcechange "$WORK/conf/full.yml" --reuse "$FULL"
-  local plain=$RESULTS
+  local plain=$RESULTS plain_status=$STATUS
   run reuse-sourcechange-ignoring "$WORK/conf/full.yml" --reuse "$FULL" --reuse-ignoring "$SOURCE_CHANGE_FILE"
   restore
-  [ -n "$plain" ] && check reuse-sourcechange expect-none-reused "$plain"
+  RESULTS=$plain STATUS=$plain_status need_results reuse-sourcechange \
+    && check reuse-sourcechange expect-none-reused "$plain"
   need_results reuse-sourcechange-ignoring || return
   check reuse-sourcechange-ignoring check "$RESULTS" --reference "$REFERENCE" --allowlist "$ALLOWLIST"
   check reuse-sourcechange-ignoring-kept expect-reuse "$FULL" "$RESULTS" --waived "$SOURCE_CHANGE_FILE"
@@ -280,6 +302,13 @@ scenario_stop_resume() {
   local stopped=$RESULTS
   # As a user would: the command it printed, whose words it quoted for the shell.
   eval "launch stop-resume-continued $continue_line"
+  # A refused or failed resume would otherwise show as hundreds of mutants neither session tested.
+  if [ "$STATUS" -ne 0 ] || [ -z "$RESULTS" ] || [ "$(real_path "$RESULTS")" != "$(real_path "$stopped")" ]; then
+    FAILED=1
+    echo "- ❌ stop-resume: the continued run exited $STATUS, results ${RESULTS:-none}, not $stopped's; see" \
+      "$WORK/logs/stop-resume-continued.console" >> "$SUMMARY"
+    return
+  fi
   check stop-resume expect-stop-resume "$stopped" --reference "$REFERENCE" --allowlist "$ALLOWLIST"
 }
 
@@ -313,18 +342,41 @@ preflight() {
   fi
 }
 
+# kept_run NAME: the results file of an earlier run NAME in this work folder that exited 0 with today's binary and
+# today's full.yml, or nothing. A reference the checker refuses then costs only its verdicts once allowlist.json
+# explains the refusal: the runs themselves are kept.
+kept_run() {
+  local name=$1 results
+  results=$(awk -F'\t' -v name="$1" '$1 == name && $9 == 0 {print $10}' "$RUNS" | tail -1)
+  [ -n "$results" ] && [ -f "$results" ] && cmp -s "$WORK/logs/$name.yml" "$WORK/conf/full.yml" || return 0
+  [ "$(head -1 "$results" | python3 -I -c 'import json, sys; print(json.load(sys.stdin)["provenance"]["swiftMutator"]["executableSHA256"])')" \
+    = "$(shasum -a 256 "$BIN" | cut -d' ' -f1)" ] && echo "$results"
+}
+
 reference() {
-  local runs=()
+  local runs=() name kept
   for i in $(seq 1 "$REFERENCE_RUNS"); do
-    run "reference-$i" "$WORK/conf/full.yml"
+    name=reference-$i
+    kept=$(kept_run "$name")
+    if [ -n "$kept" ]; then
+      say "keeping $name, made with this binary and configuration: $kept"
+      runs+=("$kept")
+      continue
+    fi
+    # Recorded only once the run finishes: a run of this name stopped or failed later must not vouch for an older one.
+    rm -f "$WORK/logs/$name.yml"
+    run "$name" "$WORK/conf/full.yml"
     [ -n "$RESULTS" ] || die "reference run $i wrote no results"
+    [ "$STATUS" -ne 0 ] || cp "$WORK/conf/full.yml" "$WORK/logs/$name.yml"
     runs+=("$RESULTS")
   done
   mkdir -p "$HERE/reference"
   cp "$CLONE/Package.resolved" "$RESOLVED"
   verdicts reference "${runs[@]}" --pin "$PIN" --resolved-sha256 "$(shasum -a 256 "$RESOLVED" | cut -d' ' -f1)" \
-    --allowlist "$ALLOWLIST" --out "$REFERENCE" || exit 1
-  awk 'NR == 1 || /^reference-/' "$RUNS" | sed 's/^reference-[0-9]*/full/' > "$WORK/full-runs.tsv"
+    --operators "${OPERATORS[@]}" --allowlist "$ALLOWLIST" --out "$REFERENCE" || exit 1
+  # The times of the runs that made it, not of earlier runs of the same name.
+  { head -1 "$RUNS"; for results in "${runs[@]}"; do awk -F'\t' -v r="$results" '$10 == r' "$RUNS" | tail -1; done; } \
+    | sed 's/^reference-[0-9]*/full/' > "$WORK/full-runs.tsv"
   rm -f "$TIMES" # a new reference, so every scenario's time is recorded again
   verdicts times "$WORK/full-runs.tsv" --baseline "$TIMES" --update
   say "a test file to disable for reuse-testchange: $(cd "$CLONE" && verdicts pick-test-change "${runs[0]}" \
@@ -337,6 +389,8 @@ case "$MODE" in
   reference) reference ;;
   check)
     [ -f "$REFERENCE" ] || die "no reference for $PIN: run --reference N first"
+    # Hours of runs would each fail on every mutant: say so before the first.
+    verdicts expect-operators "$REFERENCE" "${OPERATORS[@]}" >&2 || die "make a new reference (README)"
     echo "# Slow acceptance tier: $(date)" > "$SUMMARY"
     echo "" >> "$SUMMARY"
     echo "SwiftMutator $(git -C "$REPO_ROOT" rev-parse --short HEAD), target $PIN" >> "$SUMMARY"
