@@ -135,7 +135,7 @@ def operator_problems(run, reference):
         return []
     added, dropped = sorted(set(found) - set(expected)), sorted(set(expected) - set(found))
     return [f"the run mutated with other operators than the reference's (added {added}, missing {dropped}): "
-            "target.env's OPERATORS changed, so make a new reference"]
+            "the target's OPERATORS changed, so make a new reference"]
 
 
 def unfinished(run):
@@ -161,7 +161,7 @@ def command_reference(args):
     runs = [Results(path) for path in args.runs]
     keys = [set(run.latest) for run in runs]
     pinned = sorted(set(args.operators)) if args.operators is not None else None
-    problems = [f"{run.path} mutated with {operators(run)}, not {pinned} as target.env pins"
+    problems = [f"{run.path} mutated with {operators(run)}, not {pinned} as the target pins"
                 for run in runs if pinned is not None and operators(run) != pinned]
     # A run a check would refuse can't vote either.
     problems += [f"{run.path}: {problem}" for run in runs for problem in unfinished(run)]
@@ -256,7 +256,7 @@ def command_check(args):
 
 
 def command_expect_operators(args):
-    """The reference was made with the operators target.env pins: the driver's check before any run, as every run
+    """The reference was made with the operators the target pins: the driver's check before any run, as every run
     would otherwise fail on each mutant."""
     reference = load_json(args.reference)
     expected = reference.get("operators")
@@ -265,7 +265,7 @@ def command_expect_operators(args):
     pinned = sorted(set(args.operators))
     if pinned == expected:
         return 0
-    return fail([f"target.env's OPERATORS add {sorted(set(pinned) - set(expected))} and drop "
+    return fail([f"the target's OPERATORS add {sorted(set(pinned) - set(expected))} and drop "
                  f"{sorted(set(expected) - set(pinned))}, against the reference's"], "expect-operators")
 
 
@@ -315,17 +315,21 @@ def command_expect_none_reused(args):
 
 def command_expect_test_change(args):
     """A reuse after a test file changed: no kill only that file's tests made is kept, and kills by other files' tests
-    are; its verdicts are those of a full run of the same edited tree."""
+    are; its verdicts are those of a full run of the same edited tree. With --kills-never-hold, as for XCTest, whose
+    test names carry no file, no kill is kept at all."""
     full, run, fresh = Results(args.full), Results(args.reuse), Results(args.fresh)
     name = args.test_file.rsplit("/", 1)[-1]
     problems = []
     kept = reused(run)
-    for k, record in full.latest.items():
+    killed = {k for k, record in full.latest.items() if record["outcome"] in ("failed", "runtimeError")}
+    if args.kills_never_hold:
+        problems += [f"{k}: kept, though no kill holds once a test file changes" for k in sorted(kept & killed)]
+    for k, record in ([] if args.kills_never_hold else full.latest.items()):
         locations = [(test.get("location") or "").split(":")[0] for test in record.get("killedBy") or []]
         if record["outcome"] in ("failed", "runtimeError") and locations and all(loc == name for loc in locations):
             if k in kept:
                 problems.append(f"{k}: kept, though only {name}'s tests killed it")
-    if not any(full.latest[k]["outcome"] in ("failed", "runtimeError") for k in kept):
+    if not args.kills_never_hold and not kept & killed:
         problems.append("no kill was kept: every kill was tested again")
     if any(full.latest[k]["outcome"] == "passed" for k in kept):
         problems.append("a survivor was kept, though a test file changed")
@@ -467,13 +471,34 @@ def command_expect_since(args):
 
 # MARK: - choices made with the reference
 
+XCTEST_NAME = re.compile(r"^-\[(?:\w+\.)?(\w+) \w+\]$")
+
+
+def xctest_files(record, sources):
+    """The files declaring the classes of an XCTest kill's tests, `-[Module.Class testA]`, by name: "" for a class no
+    single test file declares. `sources` holds each test file's text by its path."""
+    files = set()
+    for test in record.get("killedBy") or []:
+        match = XCTEST_NAME.match(test.get("name") or "")
+        declaring = [path for path, text in sources.items()
+                     if match and re.search(rf"\bclass\s+{match.group(1)}\b", text)]
+        files.add(declaring[0].rsplit("/", 1)[-1] if len(declaring) == 1 else "")
+    return files
+
+
 def command_pick_test_change(args):
     """A test file whose tests alone killed some mutants, whose name no other test file shares, and which leaves
-    other files' kills: the test-change scenario empties it."""
+    other files' kills: the test-change scenario empties it. With --xctest, a test's file is the one declaring its
+    class, as XCTest's names carry none."""
     full = Results(args.full)
     sole = collections.Counter()
+    sources = {}
+    for path in args.test_files if args.xctest else []:
+        with open(path, errors="replace") as file:
+            sources[path] = file.read()
     for record in full.latest.values():
-        locations = {(test.get("location") or "").split(":")[0] for test in record.get("killedBy") or []}
+        locations = (xctest_files(record, sources) if args.xctest else
+                     {(test.get("location") or "").split(":")[0] for test in record.get("killedBy") or []})
         if record["outcome"] in ("failed", "runtimeError") and len(locations) == 1 and "" not in locations:
             sole[locations.pop()] += 1
     names = collections.Counter(path.rsplit("/", 1)[-1] for path in args.test_files)
@@ -560,6 +585,7 @@ def main():
     test_change.add_argument("reuse")
     test_change.add_argument("fresh")
     test_change.add_argument("--test-file", required=True)
+    test_change.add_argument("--kills-never-hold", action="store_true")
     test_change.add_argument("--allowlist")
 
     stop = commands.add_parser("expect-stop-resume")
@@ -578,6 +604,7 @@ def main():
     pick.add_argument("full")
     pick.add_argument("test_files", nargs="+")
     pick.add_argument("--minimum", type=int, default=3)
+    pick.add_argument("--xctest", action="store_true")
 
     times = commands.add_parser("times")
     times.add_argument("runs")

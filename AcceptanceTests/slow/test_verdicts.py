@@ -5,6 +5,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -145,14 +146,14 @@ class VerdictsTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("different mutations", output)
 
-    # The reference records the operators its runs mutated with, which must be those target.env pins, and the same.
+    # The reference records the operators its runs mutated with, which must be those the target pins, and the same.
     def test_theReference_recordsItsOperators_andRefusesRunsWithOthers(self):
         code, output, out = self.reference(self.full())
         self.assertEqual(code, 0, output)
         self.assertEqual(verdicts.load_json(out)["operators"], OPERATORS)
         code, output, _ = self.reference(self.full(), operators=[*OPERATORS, "NegateConditional"])
         self.assertEqual(code, 1, output)
-        self.assertIn("as target.env pins", output)
+        self.assertIn("as the target pins", output)
         fewer = self.write("b.jsonl", header(operators=["SwapTernary"]), mutant(1), mutant(2, "passed"),
                            mutant(3, "timeout"), end())
         code, output, _ = self.reference(self.full(), fewer)
@@ -208,7 +209,7 @@ class VerdictsTests(unittest.TestCase):
         self.assertEqual(code, 0, output)
         self.assertIn("0 timeout flips against the majority", output)
 
-    # SwiftMutator drops a repeated operator, so a repeat in target.env pins the same list.
+    # SwiftMutator drops a repeated operator, so a repeat in a target's OPERATORS pins the same list.
     def test_aRepeatedOperator_pinsTheSameList(self):
         code, output, reference = self.reference(self.full(), operators=[*OPERATORS, OPERATORS[0]])
         self.assertEqual(code, 0, output)
@@ -311,6 +312,51 @@ class VerdictsTests(unittest.TestCase):
         code, output = self.run_command("expect-test-change", full, bad, fresh, *args)
         self.assertEqual(code, 1)
         self.assertIn("only ATests.swift's tests killed it", output)
+
+    # XCTest's test names carry no file, so SwiftMutator keeps no kill once a test file changes: every kill is tested
+    # again, and the reuse's verdicts are still the edited tree's.
+    def test_expectTestChange_killsNeverHold_failsOnAnyKeptKill(self):
+        a = [{"name": "-[YamsTests.ATests testA]"}]
+        b = [{"name": "-[YamsTests.BTests testB]"}]
+        full = self.write("full.jsonl", header(), mutant(1, killed_by=a), mutant(2, killed_by=b), mutant(3, "passed"), end())
+        fresh = self.write("fresh.jsonl", header(), mutant(1, "passed"), mutant(2, killed_by=b), mutant(3, "passed"), end())
+        good = self.write("good.jsonl", header(), mutant(1, "passed"), mutant(2, killed_by=b), mutant(3, "passed"), end())
+        args = ["--test-file", "Tests/YamsTests/ATests.swift", "--kills-never-hold"]
+        code, output = self.run_command("expect-test-change", full, good, fresh, *args)
+        self.assertEqual(code, 0, output)
+        kept = {"reusedFrom": {"resultsFile": full, "session": 1}}
+        bad = self.write("bad.jsonl", header(reused=1), mutant(1, "passed"), mutant(2, killed_by=b, **kept),
+                         mutant(3, "passed"), end())
+        code, output = self.run_command("expect-test-change", full, bad, fresh, *args)
+        self.assertEqual(code, 1, output)
+        self.assertIn("A.swift:2:5:RelationalOperatorReplacement:0: kept, though no kill holds", output)
+
+    # An XCTest kill's file is the test file declaring its class, the only one whose name is unique and that alone
+    # killed enough mutants.
+    def test_pickTestChange_xctest_mapsClassesToTheirFiles(self):
+        tests = os.path.join(self.folder, "Tests")
+        os.makedirs(tests)
+        for name, text in [("ATests.swift", "final class ATests: XCTestCase {}"),
+                           ("BTests.swift", "class BTests: XCTestCase {}\nclass Helper {}")]:
+            with open(os.path.join(tests, name), "w") as file:
+                file.write(text)
+        a, b = [{"name": "-[YamsTests.ATests testA]"}], [{"name": "-[YamsTests.BTests testB]"}]
+        full = self.write("full.jsonl", header(discovered=5, to_test=5), *[mutant(n, killed_by=a) for n in (1, 2, 3)],
+                          mutant(4, killed_by=a + b), mutant(5, killed_by=b), end())
+        files = [os.path.join(tests, name) for name in ("ATests.swift", "BTests.swift")]
+        code, output = self.run_command("pick-test-change", full, "--xctest", *files)
+        self.assertEqual(code, 0, output)
+        self.assertEqual(output.split(), [files[0], "3"])
+
+    # The driver writes SwiftProjectLint's configurations byte for byte as the reference's runs had them: kept runs
+    # and the reference's configuration check compare them.
+    def test_theDriver_writesSwiftProjectLintsConfigurationsUnchanged(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        for kind in ("full", "release", "no-stop"):
+            written = subprocess.run([os.path.join(here, "slow-acceptance.sh"), "--print-configuration", kind],
+                                     env={**os.environ, "SLOW_TIER_AWAKE": "1"}, capture_output=True, text=True, check=True)
+            with open(os.path.join(here, "selftest", f"swiftprojectlint-{kind}.yml")) as file:
+                self.assertEqual(written.stdout, file.read(), kind)
 
     def test_expectStopResume_failsOnACancelledRunRecorded_orAMutantNeitherSessionTested(self):
         _, _, reference = self.reference(self.full())

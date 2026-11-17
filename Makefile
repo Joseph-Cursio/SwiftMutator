@@ -40,12 +40,20 @@ acceptance-test: build
 regression-test: build
 	@./RegressionTests/runRegressionTests.sh
 
-# Whole runs on a pinned SwiftProjectLint, checked mutant by mutant: about 12 hours (AcceptanceTests/slow/README.md).
+# Whole runs on a pinned project, checked mutant by mutant (AcceptanceTests/slow/README.md). SLOW_TARGET picks the
+# project, from AcceptanceTests/slow/targets: SwiftProjectLint by default, about 12 hours.
+SLOW_TARGET ?= swiftprojectlint
+
 slow-acceptance-test:
-	@./AcceptanceTests/slow/slow-acceptance.sh
+	@./AcceptanceTests/slow/slow-acceptance.sh --target $(SLOW_TARGET)
+
+# Every target in turn; fails if any does.
+slow-acceptance-test-all:
+	@status=0; for target in $$(./AcceptanceTests/slow/slow-acceptance.sh --targets); do \
+	  ./AcceptanceTests/slow/slow-acceptance.sh --target $$target || status=1; done; exit $$status
 
 slow-acceptance-reference:
-	@./AcceptanceTests/slow/slow-acceptance.sh --reference $(or $(RUNS),5)
+	@./AcceptanceTests/slow/slow-acceptance.sh --target $(SLOW_TARGET) --reference $(or $(RUNS),5)
 
 slow-acceptance-selftest:
 	@python3 -I AcceptanceTests/slow/test_verdicts.py
@@ -54,4 +62,4 @@ slow-acceptance-selftest:
 mutation-test:
 	swift-mutator
 
-.PHONY: build clean test run install uninstall release slow-acceptance-test slow-acceptance-reference slow-acceptance-selftest
+.PHONY: build clean test run install uninstall release slow-acceptance-test slow-acceptance-test-all slow-acceptance-reference slow-acceptance-selftest

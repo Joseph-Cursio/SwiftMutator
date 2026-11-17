@@ -1,0 +1,38 @@
+executable: /usr/bin/swift
+arguments:
+- test
+- -c
+- release
+- -Xswiftc
+- -enable-testing
+- --skip
+- cliBuildsItsLinterOnlyThroughMakeLinter
+- --skip
+- prescanWithholdsEveryOracleBuiltCatalog
+- --skip
+- reinspectionIsLinear
+- --skip
+- nestingCostsNothing
+- --skip
+- everyDefaultRule
+- --skip
+- analyzeProject_onNonCanonicalRootPath_withDuplicateBasenames_doesNotCrash
+exclude:
+- 'Packages/SwiftProjectLintRules/**'
+- 'Packages/SwiftProjectLintVisitors/**'
+- 'Packages/SwiftProjectLintConfig/**'
+- '**/BuiltInRules.swift'
+- '**/PatternCategory.swift'
+excludeCalls: []
+operators:
+- ChangeArithmeticOperator
+- ChangeLogicalConnector
+- FlipBooleanLiteral
+- NegateConditional
+- RelationalBoundary
+- RelationalOperatorReplacement
+- RemoveSideEffects
+- ReplaceBooleanValue
+- ReplaceReturnValue
+- SwapTernary
+mutationTestWorkers: 4

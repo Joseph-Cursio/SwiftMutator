@@ -8,11 +8,11 @@ make slow-acceptance-test
 
 ## What it checks
 
-Each scenario is a whole run, with 4 workers, `--skip-coverage` and the operators `target.env` pins. A check passes only when every mutant's verdict is the reference's, and its mutation too (`before` and `after`). A verdict is SwiftMutator's own: killed, survived, timed out, or not covered, a survivor whose code it saw didn't run (`activated: false`), which its reports count apart:
+Each scenario is a whole run, with 4 workers, `--skip-coverage` and the operators `targets/swiftprojectlint.env` pins. A check passes only when every mutant's verdict is the reference's, and its mutation too (`before` and `after`). A verdict is SwiftMutator's own: killed, survived, timed out, or not covered, a survivor whose code it saw didn't run (`activated: false`), which its reports count apart:
 
 - **A different mutation** always fails.
 - **A verdict that differs only by a timeout**, a kill or a survivor that timed out or the other way round, is reported. A check fails only on more than 3 in a run (`MAX_TIMEOUT_FLIPS`). SwiftProjectLint's tests now and then hang, or slow down past the time limit, under a random mutant, about one a run.
-- **Any other different verdict** fails, unless `allowlist.json` names the mutant with a reason.
+- **Any other different verdict** fails, unless `targets/swiftprojectlint.allowlist.json` names the mutant with a reason.
 
 Times are recorded, and never fail a check.
 
@@ -31,19 +31,19 @@ Times are recorded, and never fail a check.
 
 ## The target
 
-`target.env` names the target and its pin: SwiftProjectLint's `main` once its tests stopped giving different verdicts from run to run (SwiftProjectLint#324). Its causes, which that PR fixed:
+`targets/swiftprojectlint.env` names the target and its pin: SwiftProjectLint's `main` once its tests stopped giving different verdicts from run to run (SwiftProjectLint#324). Its causes, which that PR fixed:
 - tests that walked their files in hash-seed order;
 - tests that shared `UserDefaults.standard` across test processes.
 
 Its `Package.resolved` isn't in git, and several of its dependencies take `from:` versions. So the pin's resolved versions are kept here, in `reference/<pin>.Package.resolved`, and every run resolves from that file alone.
 
-- **Operators.** `target.env` pins the operators every run mutates with, so a new operator doesn't change the tier's mutants: it joins the tier only when it's added to `OPERATORS` and the reference is made again. The reference records its operators, and the driver refuses to start a suite against one made with others ([#280](https://github.com/Joseph-Cursio/SwiftMutator/issues/280)). A change to what a pinned operator mutates still fails every check it touches, as a different mutation should.
-- **Excludes and skipped tests.** `target.env` lists them, each with its reason.
+- **Operators.** `targets/swiftprojectlint.env` pins the operators every run mutates with, so a new operator doesn't change the tier's mutants: it joins the tier only when it's added to `OPERATORS` and the reference is made again. The reference records its operators, and the driver refuses to start a suite against one made with others ([#280](https://github.com/Joseph-Cursio/SwiftMutator/issues/280)). A change to what a pinned operator mutates still fails every check it touches, as a different mutation should.
+- **Excludes and skipped tests.** `targets/swiftprojectlint.env` lists them, each with its reason.
   - Three packages are left out: rules, visitors and config. Under the ten operators, visitors and config alone hold 1,936 of the 3,064 mutants outside the rules package. The other 1,128 still take every scenario through the behaviour it checks.
   - Some tests fail in the mutated copy whatever the mutant, and are skipped:
     - tests that parse the project's own sources from disk, once those sources hold mutant switches;
     - a deeply recursive test, which overflows a test thread's stack once the switches enlarge each frame.
-  - Tests that gave a mutant another verdict than the reference's, whatever the mutant, are skipped too: a speed ratio timed under the workers' load, and a lint's 30-second ceiling, which a loaded machine trips. One more is skipped for a kill that depends on test order, which `allowlist.json` now covers.
+  - Tests that gave a mutant another verdict than the reference's, whatever the mutant, are skipped too: a speed ratio timed under the workers' load, and a lint's 30-second ceiling, which a loaded machine trips. One more is skipped for a kill that depends on test order, which `targets/swiftprojectlint.allowlist.json` now covers.
   - `--preflight` runs once, stopping when the baseline passes, to show that the list is enough.
 - **Scenario choices.** `TEST_CHANGE_FILE`, `SOURCE_CHANGE_FILE` and `SINCE_BASE` are chosen when the reference is made.
 
@@ -58,17 +58,17 @@ Its `Package.resolved` isn't in git, and several of its dependencies take `from:
 
 A new pin, a change to `OPERATORS`, or a SwiftMutator change that rightly changes verdicts or mutations needs a new reference:
 
-1. **Pin.** Set `PIN` in `target.env` to a commit on the target's `main`.
+1. **Pin.** Set `PIN` in `targets/swiftprojectlint.env` to a commit on the target's `main`.
 2. **Preflight.** Run `./AcceptanceTests/slow/slow-acceptance.sh --preflight`. If the baseline fails, add the failing test to `SKIP_TESTS`, or its file to `EXCLUDES`, with a reason.
 3. **Reference.** Run `make slow-acceptance-reference RUNS=5`: five full runs, about 9 hours. It writes:
    - `reference/<pin>.json`: each mutant's majority verdict and its mutation;
    - `reference/<pin>.Package.resolved`;
    - the full runs' median time, in `reference/<pin>-times.json`.
 
-   It refuses runs that discover different mutants or mutations, that mutated with operators other than `OPERATORS`, that ran with another configuration than the first (skipped tests, workers), or that a check would refuse: a session that didn't finish, or timeouts it never ran again. It also refuses a mutant the runs disagree on, unless `allowlist.json` names it with a reason, or the runs differ only by timeouts and one verdict has more than half the runs. That verdict is kept, even when it is a timeout. It prints each run's timeout flips against the majority, the count a check holds to `MAX_TIMEOUT_FLIPS`.
+   It refuses runs that discover different mutants or mutations, that mutated with operators other than `OPERATORS`, that ran with another configuration than the first (skipped tests, workers), or that a check would refuse: a session that didn't finish, or timeouts it never ran again. It also refuses a mutant the runs disagree on, unless `targets/swiftprojectlint.allowlist.json` names it with a reason, or the runs differ only by timeouts and one verdict has more than half the runs. That verdict is kept, even when it is a timeout. It prints each run's timeout flips against the majority, the count a check holds to `MAX_TIMEOUT_FLIPS`.
 
-   After a refusal that `allowlist.json` should explain, add the mutant there and run the same command with the same `--work`: it keeps each run that finished with the same binary and configuration, and only makes the reference again.
-4. **Scenario choices.** Choose `TEST_CHANGE_FILE` (the reference run prints a candidate), `SOURCE_CHANGE_FILE` and `SINCE_BASE`, as `target.env` describes.
+   After a refusal that `targets/swiftprojectlint.allowlist.json` should explain, add the mutant there and run the same command with the same `--work`: it keeps each run that finished with the same binary and configuration, and only makes the reference again.
+4. **Scenario choices.** Choose `TEST_CHANGE_FILE` (the reference run prints a candidate), `SOURCE_CHANGE_FILE` and `SINCE_BASE`, as `targets/swiftprojectlint.env` describes.
 5. **Times.** The first idle suite records each other scenario's time: `verdicts.py times <work>/runs.tsv --baseline reference/<pin>-times.json --update`.
 
 ## Not covered
