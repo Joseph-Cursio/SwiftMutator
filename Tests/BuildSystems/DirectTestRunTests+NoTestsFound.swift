@@ -24,7 +24,8 @@ extension DirectTestRunTests {
 
         XCTAssertTrue(filtered.script(in: worker).contains("[ $status -eq 0 ] || [ $status -eq 69 ] || failed=1"))
         XCTAssertTrue(unfiltered.script(in: worker).contains("[ $status -eq 0 ] || failed=1"))
-        XCTAssertFalse(unfiltered.script(in: worker).contains("69"))
+        // The status test itself: the worker's path is a temporary folder's, which can hold "69".
+        XCTAssertFalse(unfiltered.script(in: worker).contains("-eq 69"))
         XCTAssertTrue(unfiltered.adding(["--skip", "Properties"]).script(in: worker).contains("$status -eq 69"))
     }
 }

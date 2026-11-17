@@ -1,9 +1,8 @@
-import Foundation
-
 /// xcodebuild's line for a test runner it launches again, after the runner crashed, exited partway through, or ran a
 /// test past XCTest's own time allowance. Each of those fails the test in xcodebuild's summary, so a run that went on
-/// to its end would fail. xcodebuild then runs the tests left, in a runner of its own, which makes a run with a crash
-/// take far longer than its baseline: a crash in every test reaches the time limit before the summary.
+/// to its end would fail. xcodebuild then runs the tests left in a new runner, and starts another at each further
+/// crash, which makes a run with a crash take far longer than its baseline: a crash in every test reaches the time
+/// limit before the summary.
 ///
 /// It names no signal, so it can't tell a crash that running out of stack caused from any other
 /// (`MutationTestingAbortReason.crashThatMayBeAStackOverflow`).
