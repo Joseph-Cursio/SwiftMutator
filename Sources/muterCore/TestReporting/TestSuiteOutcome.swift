@@ -45,8 +45,8 @@ enum TestSuiteOutcome: String, Codable, CaseIterable {
         self == .passed && activated == .didNotRun ? .noCoverage : self
     }
 
-    /// `failedTestLinesAreReliable` is false once a passing baseline has printed a line `FailedTestLine`
-    /// matches; see `MuterConfiguration.failedTestLinesAreReliable`.
+    /// `failedTestLinesAreReliable` is false once a passing baseline has printed a line shaped like a failed
+    /// test or a crash; see `MuterConfiguration.failedTestLinesAreReliable`.
     static func from(
         testLog: String,
         terminationStatus: Int32,
@@ -88,14 +88,20 @@ enum TestSuiteOutcome: String, Codable, CaseIterable {
     /// nothing else. That last line counts only while such lines are reliable: a passing baseline that
     /// printed one has tests that print text shaped like it. A crash is common here: after one,
     /// xcodebuild collects diagnostics and relaunches the runner for each remaining test, which can take
-    /// several times as long as the baseline run the limit is derived from.
+    /// several times as long as the baseline run the limit is derived from. A crash shows as SwiftPM's
+    /// report of a signal, the Swift runtime's message for a trap (`TrapLine`), or xcodebuild's restart line
+    /// (`XcodebuildRestartLine`), which also follows a crash with no message, such as a bad access. The last
+    /// two count only while failed-test lines are reliable: a passing baseline prints them when a test
+    /// catches a trap, or under a test plan that retries failed tests, and that makes the lines unreliable.
     private static func outcomeOfStoppedRun(_ testLog: String, failedTestLinesAreReliable: Bool) -> Self {
         let firstFailedTestLine = FailedTestLine.first(inLog: testLog)
         let showsFailedTestLine = failedTestLinesAreReliable && firstFailedTestLine != nil
         if logContainsTestFailure(testLog) || logContainsFailedTestCase(testLog) || showsFailedTestLine {
             return .failed
         }
-        if logContainsCrash(testLog) {
+        let showsTrapOrRestart = failedTestLinesAreReliable
+            && (TrapLine.first(inLog: testLog) ?? XcodebuildRestartLine.first(inLog: testLog)) != nil
+        if logContainsSignal(testLog) || showsTrapOrRestart {
             return .runtimeError
         }
 
@@ -113,20 +119,18 @@ enum TestSuiteOutcome: String, Codable, CaseIterable {
         NSRegularExpression.regexWithPattern(#"Test Case '[^']*' failed \("#)
     }
 
-    /// The Swift runtime's message for a trap (`file.swift:12: Fatal error: …`), or SwiftPM's report
-    /// of a test process killed by a signal (`exited with unexpected signal code 5`; older versions
-    /// say `Exited with signal code 4`). Signal 9 is left out: stopping a run sends SIGKILL to the
-    /// test processes before `swift test` itself, which can report that as a signal exit. Used only
-    /// for stopped runs: a finished run's exit status is better evidence, and a `Fatal error` line
-    /// alone with exit status 0 still counts as passed.
-    private static func logContainsCrash(_ testLog: String) -> Bool {
+    /// SwiftPM's report of a test process killed by a signal (`exited with unexpected signal code 5`;
+    /// older versions say `Exited with signal code 4`). Signal 9 is left out: stopping a run sends SIGKILL
+    /// to the test processes before `swift test` itself, which can report that as a signal exit. Used only
+    /// for stopped runs: a finished run's exit status is better evidence.
+    private static func logContainsSignal(_ testLog: String) -> Bool {
         let entireTestLog = NSRange(testLog.startIndex..., in: testLog)
-        return crashRegEx.numberOfMatches(in: testLog, options: [], range: entireTestLog) > 0
+        return signalRegEx.numberOfMatches(in: testLog, options: [], range: entireTestLog) > 0
     }
 
-    private static var crashRegEx: NSRegularExpression {
+    private static var signalRegEx: NSRegularExpression {
         NSRegularExpression.regexWithPattern(
-            #"(^|: )Fatal error: |[Ee]xited with (unexpected )?signal code (?!9\b)[0-9]+"#,
+            #"[Ee]xited with (unexpected )?signal code (?!9\b)[0-9]+"#,
             .anchorsMatchLines
         )
     }

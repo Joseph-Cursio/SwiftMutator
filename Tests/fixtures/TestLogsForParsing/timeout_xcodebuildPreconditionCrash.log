@@ -1,0 +1,36 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -destination platform=macOS,arch=arm64 -xctestrun muter.xctestrun -only-test-configuration UTF8 -parallel-testing-enabled NO
+
+Build settings from command line:
+    CI = true
+    MACOSX_DEPLOYMENT_TARGET = 12.0
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00000000-0000000000000000, name:My Mac }
+2026-11-17 11:28:55.923 xcodebuild[96625:181989337]  DVTAssertions: Warning in IDEFrameworks/IDEFoundation/Execution/LaunchSystem/IDELaunchSession.m:395
+Details:  setRunnablePIDWithDiagnostics:logSection:andCompletionHandler: called without a completion handler - blocking until diagnostics setup completes. Callers should migrate to using a completion handler for better performance.
+Object:   <IDELaunchSession: 0x776ac26880>
+Method:   -setRunnablePIDWithDiagnostics:logSection:andCompletionHandler:
+Thread:   <NSThread: 0x776d7f9f00>{number = 4, name = (null)}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+Test Suite 'Selected tests' started at 2026-11-17 11:28:56.002.
+Test Suite 'YamsTests.xctest' started at 2026-11-17 11:28:56.002.
+Test Suite 'AnchorAliasingTests' started at 2026-11-17 11:28:56.002.
+Test Case '-[YamsTests.AnchorAliasingTests testCyamlDoesNotAutoAlias_duplicateAnchor]' started.
+`Parser.Encoding.default` was set to `utf8` by the `YAMS_DEFAULT_ENCODING` environment variable.
+`Parser.Encoding.default` was set to `utf8` by the `YAMS_DEFAULT_ENCODING` environment variable.
+Yams/Encoder.swift:124: Precondition failed: Attempt to push new keyed encoding container when already previously encoded at this path.
+2026-11-17 11:28:56.004776-0600 xctest[96628:181989359] Yams/Encoder.swift:124: Precondition failed: Attempt to push new keyed encoding container when already previously encoded at this path.
+2026-11-17 11:28:56.419 xcodebuild[96625:181989344]  DVTAssertions: Warning in IDEFrameworks/IDEFoundation/Execution/LaunchSystem/IDELaunchSession.m:395
+Details:  setRunnablePIDWithDiagnostics:logSection:andCompletionHandler: called without a completion handler - blocking until diagnostics setup completes. Callers should migrate to using a completion handler for better performance.
+Object:   <IDELaunchSession: 0x776ac27d80>
+Method:   -setRunnablePIDWithDiagnostics:logSection:andCompletionHandler:
+Thread:   <NSThread: 0x776dd12540>{number = 8, name = (null)}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+
+Restarting after unexpected exit, crash, or test timeout; summary will include totals from previous launches.
+
+Test Suite 'Selected tests' started at 2026-11-17 11:28:56.523.
+Test Suite 'YamsTests.xctest' started at 2026-11-17 11:28:56.523.
+Test Suite 'AnchorAliasingTests' started at 2026-11-17 11:28:56.523.
+Test Case '-[YamsTests.AnchorAliasingTests testCyamlDoesNotAutoAlias_noAnchor]' started.

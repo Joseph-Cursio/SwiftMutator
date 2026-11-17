@@ -70,6 +70,44 @@ extension PerformMutationTestingTests {
         XCTAssertEqual(sent().count, 0)
     }
 
+    // A test plan that retries failed tests can pass after xcodebuild relaunched a crashed runner, so its restart line
+    // would count a mutant's timed-out run killed though every test passed.
+    func test_whenThePassingBaselinePrintsXcodebuildsRestartLine_thenItDoesNotCount() async throws {
+        try await assertMutantsRunWithUnreliableLines(afterAPassingBaselinePrinting: """
+        Test Case '-[ExampleTests.ExampleTests testParse]' started.
+
+        Restarting after unexpected exit, crash, or test timeout; summary will include totals from previous launches.
+
+        Test Case '-[ExampleTests.ExampleTests testParse]' passed (0.001 seconds).
+        ** TEST SUCCEEDED **
+        """)
+    }
+
+    // A test that catches a trap (Nimble's `throwAssertion`) prints the runtime's message, and passes.
+    func test_whenThePassingBaselinePrintsATrapMessage_thenItDoesNotCount() async throws {
+        try await assertMutantsRunWithUnreliableLines(afterAPassingBaselinePrinting: """
+        Test Case '-[ExampleTests.ExampleTests testEmptyInput]' started.
+        Example/Parser.swift:10: Precondition failed: empty input
+        Test Case '-[ExampleTests.ExampleTests testEmptyInput]' passed (0.001 seconds).
+        ** TEST SUCCEEDED **
+        """)
+    }
+
+    private func assertMutantsRunWithUnreliableLines(
+        afterAPassingBaselinePrinting log: String,
+        line: UInt = #line
+    ) async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: .disabled
+        )
+        ioDelegate.baselineTestLog = log
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.configurations.map(\.failedTestLinesAreReliable), [false, false], line: line)
+    }
+
     // With the key unset: stopping at the first failed test is the default.
     func test_whenThePassingBaselineHasNoFailureLikeLine_thenMutantsStopAtTheirFirstFailure() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])

@@ -44,6 +44,9 @@ extension PerformMutationTestingSuspectRerunTests {
     func test_aRunThatMayNotHaveRunTheTest_saysNothingOfIt() {
         XCTAssertNil(alone(.runtimeError, "signal 11"))
         XCTAssertNil(alone(.failed, sum + "\nerror: Exited with unexpected signal code 11"))
+        // xcodebuild prints no failed line for a test that crashed, only its restart line.
+        XCTAssertNil(alone(.failed, sum + "\n\nRestarting after unexpected exit, crash, or test timeout; summary "
+            + "will include totals from previous launches.\n"))
         XCTAssertNil(alone(.failed, sum, ending: .timedOut))
         XCTAssertNil(alone(.passed, allPassed, ending: .timedOut))
         // A failed run that names nothing failing may be one whose lines this can't read.

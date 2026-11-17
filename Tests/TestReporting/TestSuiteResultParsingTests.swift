@@ -58,7 +58,7 @@ final class TestSuiteResultParsingTests: MuterTestCase {
         XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 0), .buildError)
     }
 
-    private func loadLogFile(named name: String) -> String {
+    func loadLogFile(named name: String) -> String {
         guard let data = FileManager.default
             .contents(atPath: "\(fixturesDirectory)/TestLogsForParsing/\(name)"),
             let string = String(data: data, encoding: .utf8)

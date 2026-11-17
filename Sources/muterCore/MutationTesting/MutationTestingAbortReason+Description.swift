@@ -218,9 +218,7 @@ private extension MutationTestingAbortReason {
         if let line = CrashLine.firstMemoryFault(inLog: log) {
             return (line, "the likely reason is")
         }
-        let restarted = log.split(whereSeparator: \.isNewline)
-            .first { $0.hasPrefix("Restarting after unexpected exit, crash, or test timeout") }
-        return restarted.map { (String($0), "one possible reason is") }
+        return XcodebuildRestartLine.first(inLog: log).map { ($0, "one possible reason is") }
     }
 
     static func baselineTestFailedEvidence(log: String) -> String {

@@ -120,9 +120,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// for none), over however many sessions it takes: nil leaves it to `defaultPropertySurvivorRerunLimit`. It
     /// changes no result, so a resume lets it change.
     let propertySurvivorRerunLimit: Int?
-    /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
-    /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
-    /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
+    /// Whether a line `FailedTestLine` matches shows a failed test, and whether the Swift runtime's trap message
+    /// (`TrapLine`) or xcodebuild's restart line (`XcodebuildRestartLine`) shows a crash. Not a configuration key:
+    /// false once a passing baseline, or a simulator worker's check run, has printed such a line, or one `CrashLine`
+    /// matches, as its tests print text shaped like a failure or a crash. Such a line then neither stops a mutant's
+    /// run nor counts a timed-out run killed; and runs no longer stop at their first failed test. A `var` only so
     /// `withUnreliableFailedTestLines` can copy `self` and change just this field.
     var failedTestLinesAreReliable = true
     /// Whether a mutant's run goes on past its first failed test, whatever `stopsAtFirstFailure` says, so that its log

@@ -106,7 +106,8 @@ extension PerformMutationTesting {
         sessionShowsActivation: Bool = false
     ) -> [MutantResult.TestAlone] {
         let failed = FailedTestLine.failedTestIdentities(inLog: run.testLog).subtracting(lookalikes)
-        let crash = CrashLine.first(inLog: run.testLog)
+        // Under xcodebuild a crash shows only as its restart line: the crashed test gets no failed line.
+        let crash = CrashLine.first(inLog: run.testLog) ?? XcodebuildRestartLine.first(inLog: run.testLog)
         let reachedItsEnd = run.ending == .exited && crash == nil
         let saysWhatFailed = run.outcome == .passed || run.outcome == .failed && !failed.isEmpty
         let ranEveryTest = reachedItsEnd && saysWhatFailed
