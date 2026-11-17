@@ -316,7 +316,9 @@ def command_expect_none_reused(args):
 def command_expect_test_change(args):
     """A reuse after a test file changed: no kill only that file's tests made is kept, and kills by other files' tests
     are; its verdicts are those of a full run of the same edited tree. With --kills-never-hold, as for XCTest, whose
-    test names carry no file, no kill is kept at all."""
+    test names carry no file, no kill is kept at all. Either way the run must have reused `full`, and its console
+    must say it tested mutants again as test files changed, never as other project files did: a reuse that saw the
+    edit as some other change, or no reuse at all, keeps nothing too."""
     full, run, fresh = Results(args.full), Results(args.reuse), Results(args.fresh)
     name = args.test_file.rsplit("/", 1)[-1]
     problems = []
@@ -333,6 +335,15 @@ def command_expect_test_change(args):
         problems.append("no kill was kept: every kill was tested again")
     if any(full.latest[k]["outcome"] == "passed" for k in kept):
         problems.append("a survivor was kept, though a test file changed")
+    if not (run.headers and run.headers[-1].get("reusedFrom")):
+        problems.append("the run's header names no results it reused")
+    if args.console:
+        with open(args.console, errors="replace") as file:
+            console = file.read()
+        if "as test files changed" not in console:
+            problems.append("the console names no mutant tested again as test files changed")
+        if "as other project files changed" in console:
+            problems.append("the console says it tested mutants again as other project files changed")
     found, expected = set(run.latest), set(fresh.latest)
     problems += [f"{k}: not discovered" for k in sorted(expected - found)]
     problems += [f"{k}: not in the full run" for k in sorted(found - expected)]
@@ -586,6 +597,7 @@ def main():
     test_change.add_argument("fresh")
     test_change.add_argument("--test-file", required=True)
     test_change.add_argument("--kills-never-hold", action="store_true")
+    test_change.add_argument("--console")
     test_change.add_argument("--allowlist")
 
     stop = commands.add_parser("expect-stop-resume")

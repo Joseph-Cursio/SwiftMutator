@@ -81,7 +81,7 @@ RESOLVED=$HERE/reference/$REFERENCE_STEM.Package.resolved
 TIMES=$HERE/reference/$REFERENCE_STEM-times.json
 ALLOWLIST=$HERE/targets/$TARGET.allowlist.json
 # --allowlist ALLOWLIST when the target has one.
-ALLOW=(); [ -f "$ALLOWLIST" ] && ALLOW=(${ALLOW[@]+"${ALLOW[@]}"})
+ALLOW=(); [ -f "$ALLOWLIST" ] && ALLOW=(--allowlist "$ALLOWLIST")
 RUNS=$WORK/runs.tsv
 SUMMARY=$WORK/summary.md
 FAILED=0
@@ -328,7 +328,11 @@ import re, sys
 path, edit = sys.argv[1:]
 text = open(path).read()
 if edit == "xctest":  # XCTest runs only the methods whose names start with "test"
+    names = set(re.findall(r'\bfunc (test\w*)\s*\(', text))
     disabled = re.sub(r'\bfunc test(\w*)\s*\(', r'func disabled_test\1(', text)
+    # Other references to them, as in an `allTests` list, follow; a quoted name stays as it was.
+    for name in names:
+        disabled = re.sub(rf'(?<!["\w])\b{name}\b(?!")', f'disabled_{name}', disabled)
 else:
     disabled = re.sub(r'@Suite\b(\((.*?)\))?', lambda m: f'@Suite({m.group(2) + ", " if m.group(2) else ""}.disabled("slow tier"))', text)
 if disabled == text:
@@ -345,7 +349,7 @@ EOF
   RESULTS=$reuse STATUS=$reuse_status need_results reuse-testchange || ok=0
   RESULTS=$fresh STATUS=$fresh_status need_results full-testchange || ok=0
   [ "$ok" = 1 ] && check reuse-testchange expect-test-change "$FULL" "$reuse" "$fresh" --test-file "$TEST_CHANGE_FILE" \
-    $([ "$TEST_CHANGE_EDIT" = xctest ] && echo --kills-never-hold) \
+    --console "$WORK/logs/reuse-testchange.console" $([ "$TEST_CHANGE_EDIT" = xctest ] && echo --kills-never-hold) \
     ${ALLOW[@]+"${ALLOW[@]}"}
 }
 

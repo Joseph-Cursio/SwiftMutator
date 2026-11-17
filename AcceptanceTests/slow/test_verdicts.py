@@ -49,6 +49,12 @@ class VerdictsTests(unittest.TestCase):
                 file.write(json.dumps(record) + "\n")
         return path
 
+    def write_text(self, name, text):
+        path = os.path.join(self.folder, name)
+        with open(path, "w") as file:
+            file.write(text)
+        return path
+
     def run_command(self, *argv):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
@@ -297,17 +303,17 @@ class VerdictsTests(unittest.TestCase):
                           mutant(3, "passed"), end())
         fresh = self.write("fresh.jsonl", header(), mutant(1, "passed"), mutant(2, killed_by=other), mutant(3, "passed"), end())
         kept = {"reusedFrom": {"resultsFile": full, "session": 1}}
-        good = self.write("good.jsonl", header(reused=1), mutant(1, "passed"), mutant(2, killed_by=other, **kept),
-                          mutant(3, "passed"), end())
+        good = self.write("good.jsonl", header(reused=1, reusedFrom=full), mutant(1, "passed"),
+                          mutant(2, killed_by=other, **kept), mutant(3, "passed"), end())
         args = ["--test-file", "Tests/X/ATests.swift"]
         self.assertEqual(self.run_command("expect-test-change", full, good, fresh, *args)[0], 0)
         # A timeout against the edited tree's survivor is a timeout flip, as against the reference.
-        hung = self.write("hung.jsonl", header(reused=1), mutant(1, "passed"), mutant(2, killed_by=other, **kept),
+        hung = self.write("hung.jsonl", header(reused=1, reusedFrom=full), mutant(1, "passed"), mutant(2, killed_by=other, **kept),
                           mutant(3, "timeout"), end())
         code, output = self.run_command("expect-test-change", full, hung, fresh, *args)
         self.assertEqual(code, 0, output)
         self.assertIn("a timeout flip, tolerated", output)
-        bad = self.write("bad.jsonl", header(reused=2), mutant(1, killed_by=only, **kept),
+        bad = self.write("bad.jsonl", header(reused=2, reusedFrom=full), mutant(1, killed_by=only, **kept),
                          mutant(2, killed_by=other, **kept), mutant(3, "passed"), end())
         code, output = self.run_command("expect-test-change", full, bad, fresh, *args)
         self.assertEqual(code, 1)
@@ -320,16 +326,38 @@ class VerdictsTests(unittest.TestCase):
         b = [{"name": "-[YamsTests.BTests testB]"}]
         full = self.write("full.jsonl", header(), mutant(1, killed_by=a), mutant(2, killed_by=b), mutant(3, "passed"), end())
         fresh = self.write("fresh.jsonl", header(), mutant(1, "passed"), mutant(2, killed_by=b), mutant(3, "passed"), end())
-        good = self.write("good.jsonl", header(), mutant(1, "passed"), mutant(2, killed_by=b), mutant(3, "passed"), end())
+        good = self.write("good.jsonl", header(reused=0, reusedFrom=full), mutant(1, "passed"), mutant(2, killed_by=b),
+                          mutant(3, "passed"), end())
         args = ["--test-file", "Tests/YamsTests/ATests.swift", "--kills-never-hold"]
         code, output = self.run_command("expect-test-change", full, good, fresh, *args)
         self.assertEqual(code, 0, output)
         kept = {"reusedFrom": {"resultsFile": full, "session": 1}}
-        bad = self.write("bad.jsonl", header(reused=1), mutant(1, "passed"), mutant(2, killed_by=b, **kept),
-                         mutant(3, "passed"), end())
+        bad = self.write("bad.jsonl", header(reused=1, reusedFrom=full), mutant(1, "passed"),
+                         mutant(2, killed_by=b, **kept), mutant(3, "passed"), end())
         code, output = self.run_command("expect-test-change", full, bad, fresh, *args)
         self.assertEqual(code, 1, output)
         self.assertIn("A.swift:2:5:RelationalOperatorReplacement:0: kept, though no kill holds", output)
+
+    # Keeping nothing passes only for a reuse that saw a test file change: one that took the edit for another kind of
+    # change, or never reused, keeps nothing too.
+    def test_expectTestChange_needsAReuseThatSawATestFileChange(self):
+        b = [{"name": "-[YamsTests.BTests testB]"}]
+        full = self.write("full.jsonl", header(), mutant(1, killed_by=b), mutant(2, "passed"), mutant(3, "passed"), end())
+        fresh = self.write("fresh.jsonl", header(), mutant(1, "passed"), mutant(2, "passed"), mutant(3, "passed"), end())
+        reuse = self.write("reuse.jsonl", header(reused=0, reusedFrom=full), mutant(1, "passed"), mutant(2, "passed"),
+                           mutant(3, "passed"), end())
+        plain = self.write("plain.jsonl", header(), mutant(1, "passed"), mutant(2, "passed"), mutant(3, "passed"), end())
+        tests = self.write_text("tests.console", "Tested again: 3 as test files changed")
+        other = self.write_text("other.console", "Tested again: 3 as other project files changed")
+        args = ["--test-file", "Tests/YamsTests/ATests.swift", "--kills-never-hold"]
+        self.assertEqual(self.run_command("expect-test-change", full, reuse, fresh, *args, "--console", tests)[0], 0)
+        code, output = self.run_command("expect-test-change", full, plain, fresh, *args, "--console", tests)
+        self.assertEqual(code, 1, output)
+        self.assertIn("the run's header names no results it reused", output)
+        code, output = self.run_command("expect-test-change", full, reuse, fresh, *args, "--console", other)
+        self.assertEqual(code, 1, output)
+        self.assertIn("the console names no mutant tested again as test files changed", output)
+        self.assertIn("as other project files changed", output)
 
     # An XCTest kill's file is the test file declaring its class, the only one whose name is unique and that alone
     # killed enough mutants.
