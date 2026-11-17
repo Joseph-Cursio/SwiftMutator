@@ -130,7 +130,8 @@ That run fails as it records them, and the next passes.
 
 `make slow-acceptance-test` runs whole SwiftMutator runs on a pinned SwiftProjectLint and checks
 every mutant's verdict against reference verdicts. It takes hours, so it isn't run for every pull
-request. See [AcceptanceTests/slow/README.md](AcceptanceTests/slow/README.md), which also covers
+request. Two more targets run Yams, through `swift test` for XCTest and through `xcodebuild`:
+`make slow-acceptance-test SLOW_TARGET=yams-xcodebuild`, or `make slow-acceptance-test-all` for every target. See [AcceptanceTests/slow/README.md](AcceptanceTests/slow/README.md), which also covers
 `make slow-acceptance-reference` and `make slow-acceptance-selftest`.
 
 ### Mutation testing SwiftMutator itself

@@ -1,6 +1,6 @@
 #!/bin/bash
-# The slow acceptance tier: whole SwiftMutator runs on a pinned SwiftProjectLint, checked mutant by mutant against
-# the reference verdicts in reference/. See README.md.
+# The slow acceptance tier: whole SwiftMutator runs on pinned projects, the targets in targets/, checked mutant by
+# mutant against the reference verdicts in reference/. See README.md.
 #
 #   slow-acceptance.sh [--target T] [--scenarios a,b,...] [--work DIR]   run the scenarios (all by default) and check them
 #   slow-acceptance.sh [--target T] --preflight [--work DIR]             one run, stopped once its baseline passes
