@@ -1,0 +1,38 @@
+{
+ "full": {
+  "runs": 5,
+  "wall_s": 1807.0
+ },
+ "release": {
+  "runs": 1,
+  "wall_s": 1588.0
+ },
+ "reuse-nochange": {
+  "runs": 1,
+  "wall_s": 107.0
+ },
+ "reuse-sourcechange": {
+  "runs": 1,
+  "wall_s": 25.0
+ },
+ "reuse-sourcechange-ignoring": {
+  "runs": 1,
+  "wall_s": 107.0
+ },
+ "since": {
+  "runs": 1,
+  "wall_s": 59.0
+ },
+ "since-nothing": {
+  "runs": 1,
+  "wall_s": 0.0
+ },
+ "stop-resume": {
+  "runs": 1,
+  "wall_s": 486.0
+ },
+ "stop-resume-continued": {
+  "runs": 1,
+  "wall_s": 1355.0
+ }
+}
