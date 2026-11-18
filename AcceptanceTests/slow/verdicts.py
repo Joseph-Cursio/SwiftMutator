@@ -335,8 +335,11 @@ def command_expect_test_change(args):
         problems.append("no kill was kept: every kill was tested again")
     if any(full.latest[k]["outcome"] == "passed" for k in kept):
         problems.append("a survivor was kept, though a test file changed")
-    if not (run.headers and run.headers[-1].get("reusedFrom")):
+    reused_from = run.headers[-1].get("reusedFrom") if run.headers else None
+    if not reused_from:
         problems.append("the run's header names no results it reused")
+    elif os.path.realpath(reused_from) != os.path.realpath(args.full):
+        problems.append(f"the run's header says it reused {reused_from}, not {args.full}")
     if args.console:
         with open(args.console, errors="replace") as file:
             console = file.read()

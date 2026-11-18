@@ -338,8 +338,8 @@ class VerdictsTests(unittest.TestCase):
         self.assertEqual(code, 1, output)
         self.assertIn("A.swift:2:5:RelationalOperatorReplacement:0: kept, though no kill holds", output)
 
-    # Keeping nothing passes only for a reuse that saw a test file change: one that took the edit for another kind of
-    # change, or never reused, keeps nothing too.
+    # Keeping nothing passes only for a reuse of `full` that saw a test file change: one that took the edit for another
+    # kind of change, reused other results, or never reused, keeps nothing too.
     def test_expectTestChange_needsAReuseThatSawATestFileChange(self):
         b = [{"name": "-[YamsTests.BTests testB]"}]
         full = self.write("full.jsonl", header(), mutant(1, killed_by=b), mutant(2, "passed"), mutant(3, "passed"), end())
@@ -347,6 +347,8 @@ class VerdictsTests(unittest.TestCase):
         reuse = self.write("reuse.jsonl", header(reused=0, reusedFrom=full), mutant(1, "passed"), mutant(2, "passed"),
                            mutant(3, "passed"), end())
         plain = self.write("plain.jsonl", header(), mutant(1, "passed"), mutant(2, "passed"), mutant(3, "passed"), end())
+        elsewhere = self.write("elsewhere.jsonl", header(reused=0, reusedFrom=os.path.join(self.folder, "old.jsonl")),
+                               mutant(1, "passed"), mutant(2, "passed"), mutant(3, "passed"), end())
         tests = self.write_text("tests.console", "Tested again: 3 as test files changed")
         other = self.write_text("other.console", "Tested again: 3 as other project files changed")
         args = ["--test-file", "Tests/YamsTests/ATests.swift", "--kills-never-hold"]
@@ -354,6 +356,9 @@ class VerdictsTests(unittest.TestCase):
         code, output = self.run_command("expect-test-change", full, plain, fresh, *args, "--console", tests)
         self.assertEqual(code, 1, output)
         self.assertIn("the run's header names no results it reused", output)
+        code, output = self.run_command("expect-test-change", full, elsewhere, fresh, *args, "--console", tests)
+        self.assertEqual(code, 1, output)
+        self.assertIn("old.jsonl, not", output)
         code, output = self.run_command("expect-test-change", full, reuse, fresh, *args, "--console", other)
         self.assertEqual(code, 1, output)
         self.assertIn("the console names no mutant tested again as test files changed", output)

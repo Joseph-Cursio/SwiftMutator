@@ -20,7 +20,8 @@ if [ -z "${SLOW_TIER_AWAKE:-}" ]; then SLOW_TIER_AWAKE=1 exec caffeinate -i -s "
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$HERE/../.." && pwd)
-SCENARIOS="full release no-stop reuse-nochange reuse-testchange reuse-sourcechange stop-resume since"
+ALL_SCENARIOS="full release no-stop reuse-nochange reuse-testchange reuse-sourcechange stop-resume since"
+SCENARIOS=$ALL_SCENARIOS
 MODE=check
 REFERENCE_RUNS=0
 WORK=""
@@ -40,6 +41,13 @@ while [ $# -gt 0 ]; do
     --targets) for file in "$HERE"/targets/*.env; do basename "$file" .env; done; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
+done
+
+# Each scenario by its hyphen name, which NOT_APPLICABLE uses: an unknown name would otherwise check nothing and pass.
+SCENARIOS=$(echo "$SCENARIOS" | tr '_' '-')
+[ -n "${SCENARIOS// /}" ] || { echo "no scenarios given: see --list" >&2; exit 2; }
+for scenario in $SCENARIOS; do
+  case " $ALL_SCENARIOS " in *" $scenario "*) ;; *) echo "unknown scenario: $scenario (see --list)" >&2; exit 2 ;; esac
 done
 
 [ -f "$HERE/targets/$TARGET.env" ] || { echo "no target $TARGET: see --targets" >&2; exit 2; }

@@ -45,7 +45,7 @@ regression-test: build
 SLOW_TARGET ?= swiftprojectlint
 
 slow-acceptance-test:
-	@./AcceptanceTests/slow/slow-acceptance.sh --target $(SLOW_TARGET)
+	@./AcceptanceTests/slow/slow-acceptance.sh --target $(SLOW_TARGET) $(if $(WORK),--work $(WORK))
 
 # Every target in turn; fails if any does.
 slow-acceptance-test-all:
@@ -53,7 +53,7 @@ slow-acceptance-test-all:
 	  ./AcceptanceTests/slow/slow-acceptance.sh --target $$target || status=1; done; exit $$status
 
 slow-acceptance-reference:
-	@./AcceptanceTests/slow/slow-acceptance.sh --target $(SLOW_TARGET) --reference $(or $(RUNS),5)
+	@./AcceptanceTests/slow/slow-acceptance.sh --target $(SLOW_TARGET) --reference $(or $(RUNS),5) $(if $(WORK),--work $(WORK))
 
 slow-acceptance-selftest:
 	@python3 -I AcceptanceTests/slow/test_verdicts.py

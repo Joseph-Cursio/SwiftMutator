@@ -21,7 +21,7 @@ make slow-acceptance-test-all
 
 ## What it checks
 
-Each scenario is a whole run, with `--skip-coverage`, and the operators and workers the target's file pins. A check passes only when every mutant's verdict is the reference's, and its mutation too (`before` and `after`). A verdict is SwiftMutator's own: killed, survived, timed out, or not covered, a survivor whose code it saw didn't run (`activated: false`), which its reports count apart:
+Each scenario is a whole run, with `--skip-coverage`, and the operators and workers the target's file pins. A check passes only when every mutant's verdict is the reference's, and its mutation too (`before` and `after`). A verdict is SwiftMutator's own: killed, survived, timed out, a build error (`buildError`), or not covered, a survivor whose code it saw didn't run (`activated: false`), which its reports count apart:
 
 - **A different mutation** always fails.
 - **A verdict that differs only by a timeout**, a kill or a survivor that timed out or the other way round, is reported. A check fails only on more than 3 in a run (`MAX_TIMEOUT_FLIPS`). SwiftProjectLint's tests now and then hang, or slow down past the time limit, under a random mutant, about one a run.
@@ -31,7 +31,7 @@ Times are recorded, and never fail a check. `--list` shows a target's scenarios,
 
 | Scenario | The run | It checks | swiftprojectlint | yams-swiftpm | yams-xcodebuild |
 |---|---|---|---|---|---|
-| `full` | A plain run | The same mutants as the reference, each with its mutation and verdict | 1 h 40 min | 4.5 min | 30 min |
+| `full` | A plain run | The same mutants as the reference, each with its mutation and verdict | 1 h 45 min | 4.5 min | 30 min |
 | `release` | Tests built for release: `-c release -Xswiftc -enable-testing`, or the target's `XCODEBUILD_RELEASE_ARGUMENTS` | As `full` | 32 min | 4.7 min | 26 min |
 | `no-stop` | `stopAtFirstFailure: false` | As `full` | 2 h 35 min | 4.9 min | not applicable: `swift test` only |
 | `reuse-nochange` | `--reuse` of `full`'s results, nothing changed | As `full`; and it kept exactly what `ResumePlan` keeps: every result but timeouts, build errors and repeated places | 50 min | 2.1 min | 1.8 min |
@@ -85,7 +85,7 @@ Its `Package.resolved` isn't in git, and several of its dependencies take `from:
 ## Running it
 
 - **Where.** Everything happens in a work folder, by default `~/Library/Caches/SwiftMutatorSlowTier/<time>-<target>`. It holds a fresh clone of the target, each run's configuration (outside the clone, so the reuse checks never see it), and each run's console, report and load samples. `summary.md` there gives each check and each run's time, and `runs.tsv` each run's load and how its workers tested: from one build (`shared`), each from a clone (`clones`), or one mutant at a time (`one`). SwiftMutator chooses between the first two from the run with no mutant on.
-- **Choosing.** `--target T` picks a target, `--scenarios full,since` runs some of its scenarios, and `--work DIR` reuses a work folder. The folder remembers its target, and the driver refuses another. A reuse scenario makes `full` first if this suite hasn't.
+- **Choosing.** `--target T` picks a target, `--scenarios full,since` runs some of its scenarios, and `--work DIR` reuses a work folder (`WORK=DIR` with `make`). The folder remembers its target, and the driver refuses another. A reuse scenario makes `full` first if this suite hasn't.
 - **Idle and awake.** Each run starts only once the 1-minute load average is under 4 (`MAX_LOAD`). The driver keeps the Mac awake from start to end, the waits included: a Mac that sleeps goes on only in short dark wakes, and the tests it runs then time out. Builds or other measurements meanwhile make runs slower, and can turn a slow kill into a timeout.
 - **Exit status.** The driver exits 1 when a check fails, and 2 when the setup does. `make slow-acceptance-test-all` runs each target in turn, and fails if any does.
 
@@ -102,9 +102,9 @@ A new pin, a change to `OPERATORS`, or a SwiftMutator change that rightly change
 
    The stem is the pin, or the target's `REFERENCE_STEM`. It refuses runs that discover different mutants or mutations, that mutated with operators other than `OPERATORS`, that ran with another configuration than the first (skipped tests, workers), or that a check would refuse: a session that didn't finish, or timeouts it never ran again. It also refuses a mutant the runs disagree on, unless the target's allowlist names it with a reason, or the runs differ only by timeouts and one verdict has more than half the runs. That verdict is kept, even when it is a timeout. It prints each run's timeout flips against the majority, the count a check holds to `MAX_TIMEOUT_FLIPS`.
 
-   After a refusal that the allowlist should explain, add the mutant there and run the same command with the same `--work`: it keeps each run that finished with the same binary and configuration, and only makes the reference again.
+   After a refusal that the allowlist should explain, add the mutant there and run the same command with `WORK=<folder>`, the work folder the refused run printed first: it keeps each run that finished with the same binary and configuration, and only makes the reference again.
 4. **Scenario choices.** Choose `TEST_CHANGE_FILE` (the reference run prints a candidate), `SOURCE_CHANGE_FILE` and `SINCE_BASE`, as the target's file describes.
-5. **Times.** The first idle suite records each other scenario's time: `verdicts.py times <work>/runs.tsv --baseline reference/<stem>-times.json --update`.
+5. **Times.** The first idle suite records each other scenario's time: `python3 AcceptanceTests/slow/verdicts.py times <work>/runs.tsv --baseline AcceptanceTests/slow/reference/<stem>-times.json --update`.
 
 ## Not covered
 
