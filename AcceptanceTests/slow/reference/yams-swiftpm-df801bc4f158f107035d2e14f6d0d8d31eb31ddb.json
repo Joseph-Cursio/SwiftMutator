@@ -1,0 +1,3015 @@
+{
+ "mutants": {
+  "Sources/Yams/AliasDereferencingStrategy.swift:40:15:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "map[key]",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Anchor.swift:23:79:ReplaceBooleanValue:0": {
+   "after": "false",
+   "before": "Anchor.permittedCharacters.isSuperset(of: .init(charactersIn: string))",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Anchor.swift:23:9:ReplaceBooleanValue:0": {
+   "after": "true",
+   "before": "Anchor.permittedCharacters.isSuperset(of: .init(charactersIn: string))",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Anchor.swift:39:38:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "rawValue",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Constructor.swift:142:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "UUID(uuidString: scalar.string)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:155:12:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "scalar.tag.name == .str",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:155:35:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "scalar.tag.name == .str",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:160:20:FlipBooleanLiteral:0": {
+   "after": "false",
+   "before": "true",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:160:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "true",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:162:20:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:162:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:178:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Data(base64Encoded: scalar.string, options: .ignoreUnknownCharacters)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:193:13:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "result.range.location != NSNotFound",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Constructor.swift:193:48:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "result.range.location != NSNotFound",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:211:23:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Constructor.swift:211:23:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Constructor.swift:211:26:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "length < 9",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:213:48:ChangeArithmeticOperator:0": {
+   "after": "+",
+   "before": "-",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:218:49:ChangeArithmeticOperator:0": {
+   "after": "*",
+   "before": "/",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:222:79:ChangeArithmeticOperator:0": {
+   "after": "/",
+   "before": "*",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:222:84:ChangeArithmeticOperator:0": {
+   "after": "/",
+   "before": "*",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:225:82:ChangeArithmeticOperator:0": {
+   "after": "/",
+   "before": "*",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Constructor.swift:228:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "components[8] == \"-\"",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Constructor.swift:228:36:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "components[8] == \"-\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:233:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "datecomponents.date.map { nanoseconds.map($0.addingTimeInterval) ?? $0 }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:269:15:NegateConditional:0": {
+   "after": "!(scalar.style == .any || scalar.style == .plain)",
+   "before": "scalar.style == .any || scalar.style == .plain",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:269:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "scalar.style == .any",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:269:35:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "scalar.style == .any",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:269:36:ChangeLogicalConnector:0": {
+   "after": "&&",
+   "before": "||",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:269:39:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "scalar.style == .plain",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:269:61:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "scalar.style == .plain",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:275:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": ".infinity",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:277:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "-.infinity",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:279:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": ".nan",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:282:16:NegateConditional:0": {
+   "after": "!(string.contains(\":\"))",
+   "before": "string.contains(\":\")",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:283:24:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Self(sexagesimal: string)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:285:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": ".create(from: string)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:292:15:NegateConditional:0": {
+   "after": "!(scalar.style == .any || scalar.style == .plain)",
+   "before": "scalar.style == .any || scalar.style == .plain",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:292:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "scalar.style == .any",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:292:35:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "scalar.style == .any",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:292:36:ChangeLogicalConnector:0": {
+   "after": "&&",
+   "before": "||",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:292:39:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "scalar.style == .plain",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:292:61:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "scalar.style == .plain",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:298:12:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "scalarWithSign == \"0\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:298:33:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "scalarWithSign == \"0\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:299:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:304:15:NegateConditional:0": {
+   "after": "!(isSigned || !negative)",
+   "before": "isSigned || !negative",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:304:24:ChangeLogicalConnector:0": {
+   "after": "&&",
+   "before": "||",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:306:45:SwapTernary:0": {
+   "after": "negative ? \"\" :  \"-\"",
+   "before": "negative ? \"-\" : \"\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:307:23:ReplaceBooleanValue:0": {
+   "after": "true",
+   "before": "negative || scalarWithSign.hasPrefix(\"+\")",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:307:32:ChangeLogicalConnector:0": {
+   "after": "&&",
+   "before": "||",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:307:64:ReplaceBooleanValue:0": {
+   "after": "false",
+   "before": "negative || scalarWithSign.hasPrefix(\"+\")",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:316:62:SwapTernary:0": {
+   "after": "hasSign ? 0 :  1",
+   "before": "hasSign ? 1 : 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:318:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Self(signPrefix + scalar.dropFirst(prefix.count), radix: radix)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:320:12:NegateConditional:0": {
+   "after": "!(scalar.contains(\":\"))",
+   "before": "scalar.contains(\":\")",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:321:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Self(sexagesimal: scalarWithSign)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:323:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Self(scalarWithSign)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:336:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "private_construct(from: scalar)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:349:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "private_construct(from: scalar)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:362:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "private_construct(from: scalar)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:375:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "private_construct(from: scalar)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:388:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar.string",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:399:47:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "key.tag.name == .value",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Constructor.swift:399:69:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "key.tag.name == .value",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:400:24:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "construct(from: value)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:404:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "node.scalar?.string",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:423:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "NSNull()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:439:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "private_construct_mapping(from: mapping)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Constructor.swift:447:16:ReplaceReturnValue:0": {
+   "after": "[:]",
+   "before": "[AnyHashable: Any]( mapping.map { (String.construct(from: $0.key)!, mapping.tag.constructor.any(from: $0.value)) }, uniquingKeysWith: { _, second in second } )",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:468:10:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "mapping.forEach { key, value in if let keyString = String.construct(from: key) { result[keyString] = mapping.tag.constructor.any(from: value) } }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:469:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "result",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:481:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Set<AnyHashable>(mapping.map({ String.construct(from: $0.key)! as AnyHashable }))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:497:53:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "result.add(keyString as AnyHashable)",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Constructor.swift:499:10:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "mapping.forEach { key, _ in if let keyString = String.construct(from: key) { result.add(keyString as AnyHashable) } }",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Constructor.swift:500:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "result",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Constructor.swift:513:16:ReplaceReturnValue:0": {
+   "after": "[]",
+   "before": "sequence.map(sequence.tag.constructor.any)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:523:16:ReplaceReturnValue:0": {
+   "after": "[]",
+   "before": "sequence.compactMap { subnode -> (Any, Any)? in // TODO: Should raise error if subnode is not mapping or mapping.count != 1 guard let (key, value) = subnode.mapping?.first else { return nil } return (sequence.tag.constructor.any(from: key), sequence.tag.constructor.any(from: value)) }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:526:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "(sequence.tag.constructor.any(from: key), sequence.tag.constructor.any(from: value))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:537:16:ReplaceReturnValue:0": {
+   "after": "[]",
+   "before": "sequence.compactMap { subnode -> (Any, Any)? in // TODO: Should raise error if subnode is not mapping or mapping.count != 1 guard let (key, value) = subnode.mapping?.first else { return nil } return (sequence.tag.constructor.any(from: key), sequence.tag.constructor.any(from: value)) }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:540:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "(sequence.tag.constructor.any(from: key), sequence.tag.constructor.any(from: value))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:555:10:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "sequence.forEach { subnode in result.add(sequence.tag.constructor.any(from: subnode)) }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:569:113:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "result.add((sequence.tag.constructor.any(from: key), sequence.tag.constructor.any(from: value)))",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Constructor.swift:571:10:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "sequence.forEach { subnode in // TODO: Should raise error if subnode is not mapping or mapping.count != 1 if let (key, value) = subnode.mapping?.first { result.add((sequence.tag.constructor.any(from: key), sequence.tag.constructor.any(from: value))) } }",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Constructor.swift:584:113:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "result.add((sequence.tag.constructor.any(from: key), sequence.tag.constructor.any(from: value)))",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Constructor.swift:586:10:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "sequence.forEach { subnode in if let (key, value) = subnode.mapping?.first { result.add((sequence.tag.constructor.any(from: key), sequence.tag.constructor.any(from: value))) } }",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Constructor.swift:593:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "range.location != NSNotFound",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:593:43:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "range.location != NSNotFound",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:600:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "self[lowerBound..<upperBound]",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:650:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Self(string)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:663:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Self(string, radix: 10)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:686:12:NegateConditional:0": {
+   "after": "!(scalar.hasPrefix(\"-\"))",
+   "before": "scalar.hasPrefix(\"-\")",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:689:19:NegateConditional:0": {
+   "after": "!(scalar.hasPrefix(\"+\"))",
+   "before": "scalar.hasPrefix(\"+\")",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:697:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "mappedComponents.count == components.count",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:697:57:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "mappedComponents.count == components.count",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:702:40:ChangeArithmeticOperator:0": {
+   "after": "-",
+   "before": "+",
+   "verdict": "buildError"
+  },
+  "Sources/Yams/Constructor.swift:702:49:ChangeArithmeticOperator:0": {
+   "after": "/",
+   "before": "*",
+   "verdict": "buildError"
+  },
+  "Sources/Yams/Constructor.swift:703:39:ChangeArithmeticOperator:0": {
+   "after": "/",
+   "before": "*",
+   "verdict": "buildError"
+  },
+  "Sources/Yams/Constructor.swift:706:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "sign * value",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Constructor.swift:706:21:ChangeArithmeticOperator:0": {
+   "after": "/",
+   "before": "*",
+   "verdict": "buildError"
+  },
+  "Sources/Yams/Constructor.swift:81:117:SwapTernary:0": {
+   "after": "MemoryLayout<Int>.size == 8 ? { Int.construct(from: $0) ?? Int64.construct(from: $0) } :  Int.construct",
+   "before": "MemoryLayout<Int>.size == 8 ? Int.construct : { Int.construct(from: $0) ?? Int64.construct(from: $0) }",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Constructor.swift:81:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "MemoryLayout<Int>.size == 8",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Constructor.swift:81:42:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "MemoryLayout<Int>.size == 8",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Decoder.swift:234:41:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "keys.contains(.anchorKeyNode) == false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Decoder.swift:234:74:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:234:79:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "keys.contains(.anchorKeyNode) == false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:240:12:NegateConditional:0": {
+   "after": "!(mapping.tag.name != .implicit && keys.contains(.tagKeyNode) == false)",
+   "before": "mapping.tag.name != .implicit && keys.contains(.tagKeyNode) == false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:240:12:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "mapping.tag.name != .implicit",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:240:41:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "mapping.tag.name != .implicit",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:240:42:ChangeLogicalConnector:0": {
+   "after": "||",
+   "before": "&&",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:240:45:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "keys.contains(.tagKeyNode) == false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Decoder.swift:240:75:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:240:80:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "keys.contains(.tagKeyNode) == false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:267:42:ReplaceReturnValue:0": {
+   "after": "[]",
+   "before": "decoder.codingPath",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:269:16:ReplaceReturnValue:0": {
+   "after": "[]",
+   "before": "mapping.keys .filter { $0 != .anchorKeyNode && $0 != .tagKeyNode } .compactMap { $0.string.flatMap(Key.init(stringValue:)) }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:270:23:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "$0 != .anchorKeyNode",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:270:43:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "$0 != .anchorKeyNode",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:270:44:ChangeLogicalConnector:0": {
+   "after": "||",
+   "before": "&&",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:270:47:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "$0 != .tagKeyNode",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:270:64:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "$0 != .tagKeyNode",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:273:48:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "mapping[key.stringValue] != nil",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:273:79:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "mapping[key.stringValue] != nil",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:276:16:ReplaceBooleanValue:0": {
+   "after": "true",
+   "before": "try decoder(for: key).decodeNil()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:276:49:ReplaceBooleanValue:0": {
+   "after": "false",
+   "before": "try decoder(for: key).decodeNil()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:326:42:ReplaceReturnValue:0": {
+   "after": "[]",
+   "before": "decoder.codingPath",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:327:30:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "sequence.count",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Decoder.swift:328:32:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "currentIndex >= sequence.count",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:328:45:RelationalBoundary:0": {
+   "after": ">",
+   "before": ">=",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:328:45:RelationalOperatorReplacement:0": {
+   "after": "==",
+   "before": ">=",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Decoder.swift:332:41:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try throwErrorIfAtEnd(Any?.self)",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Decoder.swift:333:16:ReplaceBooleanValue:0": {
+   "after": "true",
+   "before": "try currentDecoder { $0.decodeNil() }",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Decoder.swift:333:53:ReplaceBooleanValue:0": {
+   "after": "false",
+   "before": "try currentDecoder { $0.decodeNil() }",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Decoder.swift:360:12:NegateConditional:0": {
+   "after": "!(isAtEnd)",
+   "before": "isAtEnd",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:364:38:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try throwErrorIfAtEnd(T.self)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Decoder.swift:366:22:ChangeArithmeticOperator:0": {
+   "after": "-=",
+   "before": "+=",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:375:39:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "node.null == NSNull()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:375:60:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "node.null == NSNull()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:389:12:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "anchorCoding.yamlAnchor == nil",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Decoder.swift:389:42:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "anchorCoding.yamlAnchor == nil",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:395:34:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "recordAnchor(constructed)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:434:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "existing",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:477:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Int64.construct(from: scalar).flatMap(Self.init(exactly:))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:490:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "UInt64.construct(from: scalar).flatMap(Self.init(exactly:))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:516:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Decimal(string: scalar.string)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:529:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "URL(string: scalar.string)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Decoder.swift:538:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "(self as? _Decoder)?.node.mark",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:100:26:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:102:27:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:103:25:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:105:22:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:110:12:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "try serialize( node: object.represented(), canonical: canonical, indent: indent, width: width, allowUnicode: allowUnicode, lineBreak: lineBreak, explicitStart: explicitStart, explicitEnd: explicitEnd, version: version, sortKeys: sortKeys, sequenceStyle: sequenceStyle, mappingStyle: mappingStyle, newLineScalarStyle: newLineScalarStyle, redundancyAliasingStrategy: redundancyAliasingStrategy )",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:148:23:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:151:26:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:153:27:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:154:25:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:156:22:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:177:23:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emitter.open()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:178:41:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try nodes.forEach(emitter.serialize)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:179:24:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emitter.close()",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:180:12:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "String(data: emitter.data, encoding: .utf8)!",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:203:23:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:206:26:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:208:27:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:209:25:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:211:22:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:216:12:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "try serialize( nodes: [node], canonical: canonical, indent: indent, width: width, allowUnicode: allowUnicode, lineBreak: lineBreak, explicitStart: explicitStart, explicitEnd: explicitEnd, version: version, sortKeys: sortKeys, sequenceStyle: sequenceStyle, mappingStyle: mappingStyle, newLineScalarStyle: newLineScalarStyle, redundancyAliasingStrategy: redundancyAliasingStrategy )",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:252:38:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:258:41:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:262:42:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:264:40:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:270:37:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:301:100:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:301:39:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:303:43:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:304:41:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:306:38:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:329:36:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "applyOptionsToEmitter()",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:350:35:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:353:38:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:355:39:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:356:37:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:358:34:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Emitter.swift:377:42:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "// configure emitter yaml_emitter_initialize(&emitter)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:381:53:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "emitter.data.append(buffer, count: size)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:383:66:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_emitter_set_output(&self.emitter, { pointer, buffer, size in guard let buffer = buffer else { return 0 } let emitter = unsafeBitCast(pointer, to: Emitter.self) emitter.data.append(buffer, count: size) return 1 }, unsafeBitCast(self, to: UnsafeMutableRawPointer.self))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:385:32:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "applyOptionsToEmitter()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:391:38:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_emitter_delete(&emitter)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:401:75:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_stream_start_event_initialize(&event, YAML_UTF8_ENCODING)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:402:29:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emit(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:40:23:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:420:53:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_stream_end_event_initialize(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:421:29:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emit(&event)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:43:26:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:446:116:SwapTernary:0": {
+   "after": "options.explicitStart ? 1 :  0",
+   "before": "options.explicitStart ? 0 : 1",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:446:117:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "// TODO: Support tags yaml_document_start_event_initialize(&event, &versionDirective, nil, nil, options.explicitStart ? 0 : 1)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:449:102:SwapTernary:0": {
+   "after": "options.explicitStart ? 1 :  0",
+   "before": "options.explicitStart ? 0 : 1",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:449:103:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "// TODO: Support tags yaml_document_start_event_initialize(&event, nil, nil, nil, options.explicitStart ? 0 : 1)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:452:25:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emit(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:453:32:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try serializeNode(node)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:454:79:SwapTernary:0": {
+   "after": "options.explicitEnd ? 1 :  0",
+   "before": "options.explicitEnd ? 0 : 1",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:454:80:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_document_end_event_initialize(&event, options.explicitEnd ? 0 : 1)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:455:25:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emit(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:45:27:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:465:71:SwapTernary:0": {
+   "after": "options.canonical ? 0 :  1",
+   "before": "options.canonical ? 1 : 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:465:72:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_emitter_set_canonical(&emitter, options.canonical ? 1 : 0)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:466:65:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_emitter_set_indent(&emitter, Int32(options.indent))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:467:63:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_emitter_set_width(&emitter, Int32(options.width))",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:468:72:SwapTernary:0": {
+   "after": "options.allowUnicode ? 0 :  1",
+   "before": "options.allowUnicode ? 1 : 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:468:73:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_emitter_set_unicode(&emitter, options.allowUnicode ? 1 : 0)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:46:25:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:470:66:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_emitter_set_break(&emitter, YAML_CR_BREAK)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:471:66:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_emitter_set_break(&emitter, YAML_LN_BREAK)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:472:70:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_emitter_set_break(&emitter, YAML_CRLN_BREAK)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:481:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "yaml_emitter_emit(&emitter, event) == 1",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:481:54:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "yaml_emitter_emit(&emitter, event) == 1",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:488:62:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try serializeScalar(scalar)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:489:70:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try serializeSequence(sequence)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:48:22:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:490:66:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try serializeMapping(mapping)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:491:58:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try serializeAlias(alias)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:499:44:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_alias_event_initialize(&event, anchor)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:500:25:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emit(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:514:39:ChangeArithmeticOperator:0": {
+   "after": "+",
+   "before": "-",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:519:10:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "_ = value.withUnsafeMutableBytes { value in tag.withUnsafeMutableBytes { tag in yaml_scalar_event_initialize( &event, scalar.anchor?.rawValue, tag.baseAddress?.assumingMemoryBound(to: UInt8.self), value.baseAddress?.assumingMemoryBound(to: UInt8.self), Int32(value.count - 1), 1, 1, scalarStyle) } }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:520:25:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emit(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:525:31:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "sequence.tag.name == .seq",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Emitter.swift:525:56:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "sequence.tag.name == .seq",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:525:64:SwapTernary:0": {
+   "after": "sequence.tag.name == .seq ? 0 :  1",
+   "before": "sequence.tag.name == .seq ? 1 : 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:535:10:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "_ = tag.withUnsafeMutableBytes { tag in yaml_sequence_start_event_initialize( &event, sequence.anchor?.rawValue, tag.baseAddress?.assumingMemoryBound(to: UInt8.self), implicit, sequenceStyle) }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:536:25:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emit(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:537:49:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try sequence.forEach(self.serializeNode)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:538:51:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_sequence_end_event_initialize(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:539:25:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emit(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:544:31:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "mapping.tag.name == .map",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:544:55:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "mapping.tag.name == .map",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:544:63:SwapTernary:0": {
+   "after": "mapping.tag.name == .map ? 0 :  1",
+   "before": "mapping.tag.name == .map ? 1 : 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:554:10:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "_ = tag.withUnsafeMutableBytes { tag in yaml_mapping_start_event_initialize( &event, mapping.anchor?.rawValue, tag.baseAddress?.assumingMemoryBound(to: UInt8.self), implicit, mappingStyle) }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:555:25:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emit(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:556:12:NegateConditional:0": {
+   "after": "!(options.sortKeys)",
+   "before": "options.sortKeys",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:558:43:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try self.serializeNode($0)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:559:96:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try self.serializeNode(mapping[$0]!) // swiftlint:disable:this force_unwrapping",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:560:14:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try mapping.keys.sorted().forEach { try self.serializeNode($0) try self.serializeNode(mapping[$0]!) // swiftlint:disable:this force_unwrapping }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:563:47:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try self.serializeNode($0.key)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:564:49:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try self.serializeNode($0.value)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:565:14:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try mapping.forEach { try self.serializeNode($0.key) try self.serializeNode($0.value) }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:567:50:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_mapping_end_event_initialize(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:568:25:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try emit(&event)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:60:12:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "try serialize( nodes: nodes, canonical: canonical, indent: indent, width: width, allowUnicode: allowUnicode, lineBreak: lineBreak, explicitStart: explicitStart, explicitEnd: explicitEnd, version: version, sortKeys: sortKeys, sequenceStyle: sequenceStyle, mappingStyle: mappingStyle, newLineScalarStyle: newLineScalarStyle )",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Emitter.swift:97:23:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:123:50:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "node == .unused",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:123:65:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "node == .unused",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:172:42:ReplaceReturnValue:0": {
+   "after": "[]",
+   "before": "encoder.codingPath",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:174:117:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try encoder(for: key).encode(value)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:176:43:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "key.stringValue == Node.anchorKeyNode.string",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:176:87:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "key.stringValue == Node.anchorKeyNode.string",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:178:44:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "key.stringValue == Node.tagKeyNode.string",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:178:85:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "key.stringValue == Node.tagKeyNode.string",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:181:48:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try encoder(for: key).encode(value)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:211:42:ReplaceReturnValue:0": {
+   "after": "[]",
+   "before": "encoder.codingPath",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:212:29:ReplaceReturnValue:0": {
+   "after": "0",
+   "before": "encoder.sequence.count",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:213:72:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "encoder.sequence.append(.null)",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Encoder.swift:214:97:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try currentEncoder.encode(value)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:215:93:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try currentEncoder.encode(value)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:227:45:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "encoder.sequence.append(\"\")",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:237:34:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "assertCanEncodeNewValue()",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Encoder.swift:242:34:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "assertCanEncodeNewValue()",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Encoder.swift:243:41:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try encode(yamlEncodable: value)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:247:34:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "assertCanEncodeNewValue()",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Encoder.swift:249:49:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try encode(yamlEncodable: encodable)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:253:14:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try resolveAlias(for: value) { try value.encode(to: self) }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:260:70:NegateConditional:0": {
+   "after": "!(stringValue.contains(\"\\n\"))",
+   "before": "stringValue.contains(\"\\n\")",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:264:61:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try resolveAlias(for: encodable, encode: encodeNode)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:272:29:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try encode()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:274:23:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "self.node.anchor != anchor",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Encoder.swift:274:49:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "self.node.anchor != anchor",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:278:59:NegateConditional:0": {
+   "after": "!(self.node.isScalar)",
+   "before": "self.node.isScalar",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:284:81:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "// our sub-tree was a single value container which declared an anchor // that anchor will not be represented in the final tree // because `anchor` is the prevailing value in this context // therefore the encoding strategy must remit the anchor, // allowing it to be deallocated, so no aliases can be made to it. try redundancyAliasingStrategy.remit(anchor: orphanedAnchor)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:290:20:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "self.node.anchor == nil",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:290:43:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "self.node.anchor == nil",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:300:29:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try encode()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:303:25:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try encode()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:360:12:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "try serialize( nodes: [node], canonical: options.canonical, indent: options.indent, width: options.width, allowUnicode: options.allowUnicode, lineBreak: options.lineBreak, explicitStart: options.explicitStart, explicitEnd: options.explicitEnd, version: options.version, sortKeys: options.sortKeys)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:40:40:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try container.encode(value)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:41:78:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try options.redundancyAliasingStrategy?.releaseAnchorReferences()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:42:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "try serialize(node: encoder.node, options: options)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:76:12:NegateConditional:0": {
+   "after": "!(canEncodeNewValue)",
+   "before": "canEncodeNewValue",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Encoder.swift:88:12:NegateConditional:0": {
+   "after": "!(canEncodeNewValue)",
+   "before": "canEncodeNewValue",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Mark.swift:21:45:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "\"\\(line):\\(column)\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Mark.swift:29:48:ChangeArithmeticOperator:0": {
+   "after": "+",
+   "before": "-",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Mark.swift:32:37:ChangeArithmeticOperator:0": {
+   "after": "+",
+   "before": "-",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Mark.swift:36:16:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "contents.endingWithNewLine + String(repeating: \" \", count: columnInUTF16) + \"^\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Alias.swift:36:29:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Alias.swift:36:29:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Alias.swift:36:50:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.anchor.rawValue < rhs.anchor.rawValue",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Alias.swift:43:33:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.anchor == rhs.anchor",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Alias.swift:43:9:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "lhs.anchor == rhs.anchor",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Alias.swift:50:31:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "hasher.combine(anchor)",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Mapping.swift:152:21:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:152:21:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Mapping.swift:152:34:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "index < pairs.count",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:154:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "pair.key.tag.name == .merge",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:154:43:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "pair.key.tag.name == .merge",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:155:40:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "pairs.remove(at: index)",
+   "verdict": "timedOut"
+  },
+  "Sources/Yams/Node.Mapping.swift:158:64:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "merge.append(contentsOf: mapping.flatten())",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:165:22:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "submerge.forEach { merge.append(contentsOf: $0) }",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:169:23:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "pair.key.tag.name == .value",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Mapping.swift:169:50:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "pair.key.tag.name == .value",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Mapping.swift:171:23:ChangeArithmeticOperator:0": {
+   "after": "-=",
+   "before": "+=",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Mapping.swift:173:23:ChangeArithmeticOperator:0": {
+   "after": "-=",
+   "before": "+=",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:196:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "self[Node(string, tag.copy(with: .implicit))]",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:206:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "pairs.reversed().first(where: { $0.key == node })?.value",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:206:59:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "==",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:213:55:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "pairs.append(Pair(node, newValue))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:217:44:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "pairs.remove(at: index)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:225:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "pairs.reversed().firstIndex(where: { $0.key == key }).map({ pairs.index(before: $0.base) })",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:225:60:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "==",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:239:24:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Mapping.swift:239:24:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Mapping.swift:239:33:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.key < rhs.key",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Mapping.swift:55:24:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "mapping",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:70:26:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "buildError"
+  },
+  "Sources/Yams/Node.Mapping.swift:70:26:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Mapping.swift:70:37:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.pairs < rhs.pairs",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Mapping.swift:77:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "lhs.pairs == rhs.pairs",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Mapping.swift:77:16:ReplaceBooleanValue:0": {
+   "after": "true",
+   "before": "lhs.pairs == rhs.pairs && lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Mapping.swift:77:38:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.pairs == rhs.pairs",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:77:39:ChangeLogicalConnector:0": {
+   "after": "||",
+   "before": "&&",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Mapping.swift:77:42:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Mapping.swift:77:76:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:77:76:ReplaceBooleanValue:0": {
+   "after": "false",
+   "before": "lhs.pairs == rhs.pairs && lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Mapping.swift:84:30:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "hasher.combine(pairs)",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Mapping.swift:85:36:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "hasher.combine(resolvedTag)",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Scalar.swift:100:27:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Scalar.swift:100:27:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:100:39:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.string < rhs.string",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:107:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "lhs.string == rhs.string",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:107:16:ReplaceBooleanValue:0": {
+   "after": "true",
+   "before": "lhs.string == rhs.string && lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:107:40:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.string == rhs.string",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:107:41:ChangeLogicalConnector:0": {
+   "after": "||",
+   "before": "&&",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:107:44:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Scalar.swift:107:78:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:107:78:ReplaceBooleanValue:0": {
+   "after": "false",
+   "before": "lhs.string == rhs.string && lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:114:31:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "hasher.combine(string)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Scalar.swift:115:36:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "hasher.combine(resolvedTag)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Scalar.swift:122:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "tag.name == .implicit",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Scalar.swift:122:37:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "tag.name == .implicit",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:122:84:SwapTernary:0": {
+   "after": "tag.name == .implicit ? tag.name :  resolver.resolveTag(from: string)",
+   "before": "tag.name == .implicit ? resolver.resolveTag(from: string) : tag.name",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:70:24:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Scalar.swift:85:24:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "alias",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Sequence.swift:182:63:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "nodes.replaceSubrange(subrange, with: newElements)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Sequence.swift:57:24:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "sequence",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Sequence.swift:74:26:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "buildError"
+  },
+  "Sources/Yams/Node.Sequence.swift:74:26:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Sequence.swift:74:37:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.nodes < rhs.nodes",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Sequence.swift:81:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "lhs.nodes == rhs.nodes",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Sequence.swift:81:16:ReplaceBooleanValue:0": {
+   "after": "true",
+   "before": "lhs.nodes == rhs.nodes && lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Sequence.swift:81:38:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.nodes == rhs.nodes",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Sequence.swift:81:39:ChangeLogicalConnector:0": {
+   "after": "||",
+   "before": "&&",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Sequence.swift:81:42:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.Sequence.swift:81:76:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Sequence.swift:81:76:ReplaceBooleanValue:0": {
+   "after": "false",
+   "before": "lhs.nodes == rhs.nodes && lhs.resolvedTag == rhs.resolvedTag",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.Sequence.swift:88:30:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "hasher.combine(nodes)",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.Sequence.swift:89:36:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "hasher.combine(resolvedTag)",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:105:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "String.construct(from: self)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:110:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar.flatMap(Bool.construct)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:115:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar.flatMap(Double.construct)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:120:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar.flatMap(NSNull.construct)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:125:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar.flatMap(Int.construct)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:130:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar.flatMap(Data.construct)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:135:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar.flatMap(Date.construct)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:140:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar.flatMap(UUID.construct)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:148:16:ReplaceReturnValue:0": {
+   "after": "[]",
+   "before": "sequence.map(Array.init) ?? []",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:157:16:ReplaceReturnValue:0": {
+   "after": "[]",
+   "before": "sequence?.compactMap { $0.scalar.flatMap(type.construct) } ?? []",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:167:24:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "mapping[node]",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:169:45:NegateConditional:0": {
+   "after": "!(sequence.indices ~= index)",
+   "before": "sequence.indices ~= index",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:170:24:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "sequence[index]",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:181:45:NegateConditional:0": {
+   "after": "!(sequence.indices ~= index)",
+   "before": "sequence.indices ~= index",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:194:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "self[node]",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:206:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "self[Node(string, tag.copy(with: .implicit))]",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:226:24:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.swift:226:24:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:226:29:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs < rhs",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:228:24:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:228:24:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:228:29:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs < rhs",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:230:24:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:230:24:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:230:29:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs < rhs",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:232:20:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:240:20:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:240:20:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:240:25:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs < rhs",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:241:24:FlipBooleanLiteral:0": {
+   "after": "false",
+   "before": "true",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:242:27:RelationalBoundary:0": {
+   "after": ">=",
+   "before": ">",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:242:27:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": ">",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:242:32:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs > rhs",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:243:24:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:246:26:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:246:26:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:246:37:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.count < rhs.count",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:305:20:FlipBooleanLiteral:0": {
+   "after": "false",
+   "before": "true",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:307:16:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:312:20:FlipBooleanLiteral:0": {
+   "after": "false",
+   "before": "true",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:314:16:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.swift:319:20:FlipBooleanLiteral:0": {
+   "after": "false",
+   "before": "true",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:321:16:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:79:42:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar.mark",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:80:44:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "mapping.mark",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:81:46:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "sequence.mark",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:82:40:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "alias.mark",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Node.swift:89:42:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "scalar.anchor",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:90:44:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "mapping.anchor",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Node.swift:91:46:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "sequence.anchor",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Node.swift:92:40:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "alias.anchor",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Parser.swift:103:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "try closure()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:144:100:SwapTernary:0": {
+   "after": "key.utf8.withContiguousStorageIfAvailable({ _ in true }) != nil ? .utf16 :  .utf8",
+   "before": "key.utf8.withContiguousStorageIfAvailable({ _ in true }) != nil ? .utf8 : .utf16",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:144:20:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "key.utf8.withContiguousStorageIfAvailable({ _ in true }) != nil",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:144:69:FlipBooleanLiteral:0": {
+   "after": "false",
+   "before": "true",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:144:83:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "key.utf8.withContiguousStorageIfAvailable({ _ in true }) != nil",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:177:40:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_parser_initialize(&parser)",
+   "verdict": "timedOut"
+  },
+  "Sources/Yams/Parser.swift:180:66:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_parser_set_encoding(&parser, YAML_UTF8_ENCODING)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:183:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "try utf8View.withContiguousStorageIfAvailable(startParse(with:)) != nil",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:183:87:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "try utf8View.withContiguousStorageIfAvailable(startParse(with:)) != nil",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:193:34:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "1 == 1.littleEndian",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:193:53:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "1 == 1.littleEndian",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:194:109:SwapTernary:0": {
+   "after": "isLittleEndian ? YAML_UTF16BE_ENCODING :  YAML_UTF16LE_ENCODING",
+   "before": "isLittleEndian ? YAML_UTF16LE_ENCODING : YAML_UTF16BE_ENCODING",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:194:110:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_parser_set_encoding(&parser, isLittleEndian ? YAML_UTF16LE_ENCODING : YAML_UTF16BE_ENCODING)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:195:98:SwapTernary:0": {
+   "after": "isLittleEndian ? .utf16BigEndian :  .utf16LittleEndian",
+   "before": "isLittleEndian ? .utf16LittleEndian : .utf16BigEndian",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:227:36:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_parser_delete(&parser)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:236:15:NegateConditional:0": {
+   "after": "!(!streamEndProduced)",
+   "before": "!streamEndProduced",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:236:35:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "try parse().type != YAML_STREAM_END_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:236:76:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "try parse().type != YAML_STREAM_END_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:237:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "try loadDocument()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:246:15:NegateConditional:0": {
+   "after": "!(!streamEndProduced)",
+   "before": "!streamEndProduced",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:246:35:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "try parse().type != YAML_STREAM_END_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:246:76:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "try parse().type != YAML_STREAM_END_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:249:12:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "event.type != YAML_STREAM_END_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:249:47:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "event.type != YAML_STREAM_END_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:257:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "node",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:264:43:ReplaceReturnValue:0": {
+   "after": "[:]",
+   "before": "_anchorMap",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:277:39:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "_anchorList.append(anchor)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:292:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "parser.stream_end_produced != 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:292:47:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "parser.stream_end_produced != 0",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:297:52:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try parse() // Drop YAML_DOCUMENT_END_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:317:117:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_parser_set_input_string(&parser, buffer.baseAddress?.assumingMemoryBound(to: UInt8.self), buffer.count)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:318:52:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try parse() // Drop YAML_STREAM_START_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:322:80:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_parser_set_input_string(&parser, buffer.baseAddress, buffer.count)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:323:52:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try parse() // Drop YAML_STREAM_START_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:329:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "yaml_parser_parse(&parser, &event.event) == 1",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:329:60:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "yaml_parser_parse(&parser, &event.event) == 1",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:354:43:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "register(anchor: anchor, to: node)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:361:52:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "event.type != YAML_SEQUENCE_END_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:362:52:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "array.append(try loadNode(from: event))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:371:43:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "register(anchor: anchor, to: node)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:378:51:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "event.type != YAML_MAPPING_END_EVENT",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:382:39:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "pairs.append((key, value))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:386:47:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "try checkDuplicates(mappingKeys: keys)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:393:43:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "register(anchor: anchor, to: node)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:398:101:RelationalBoundary:0": {
+   "after": ">=",
+   "before": ">",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:398:101:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": ">",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:399:15:NegateConditional:0": {
+   "after": "!(duplicates.isEmpty)",
+   "before": "duplicates.isEmpty",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:419:40:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "yaml_event_delete(&event)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:427:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "string(from: event.data.alias.anchor).map(Anchor.init(stringLiteral: ))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:432:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "string(from: event.data.scalar.anchor).map(Anchor.init(stringLiteral: ))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:439:12:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "event.data.scalar.quoted_implicit == 1",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:439:50:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "event.data.scalar.quoted_implicit == 1",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:440:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Tag.Name.str.rawValue",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:442:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "string(from: event.data.scalar.tag)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:449:16:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "String(bytes: buffer, encoding: .utf8)!",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:454:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "string(from: event.data.sequence_start.anchor).map(Anchor.init(stringLiteral: ))",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:461:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "event.data.sequence_start.implicit != 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:461:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "event.data.sequence_start.implicit != 0 ? nil : string(from: event.data.sequence_start.tag)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:461:55:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "event.data.sequence_start.implicit != 0",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:462:64:SwapTernary:0": {
+   "after": "event.data.sequence_start.implicit != 0 ? string(from: event.data.sequence_start.tag) :  nil",
+   "before": "event.data.sequence_start.implicit != 0 ? nil : string(from: event.data.sequence_start.tag)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:467:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "string(from: event.data.mapping_start.anchor).map(Anchor.init(stringLiteral: ))",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:474:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "event.data.mapping_start.implicit != 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:474:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "event.data.mapping_start.implicit != 0 ? nil : string(from: event.data.sequence_start.tag)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:474:54:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "event.data.mapping_start.implicit != 0",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:475:64:SwapTernary:0": {
+   "after": "event.data.mapping_start.implicit != 0 ? string(from: event.data.sequence_start.tag) :  nil",
+   "before": "event.data.mapping_start.implicit != 0 ? nil : string(from: event.data.sequence_start.tag)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:480:49:ChangeArithmeticOperator:0": {
+   "after": "-",
+   "before": "+",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:480:86:ChangeArithmeticOperator:0": {
+   "after": "-",
+   "before": "+",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:485:12:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "String.decodeCString(pointer, as: UTF8.self, repairingInvalidCodeUnits: true)?.result",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:485:84:FlipBooleanLiteral:0": {
+   "after": "false",
+   "before": "true",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Parser.swift:55:12:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "try Parser(yaml: yaml, resolver: resolver, constructor: constructor, encoding: encoding).singleRoot()?.any",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Parser.swift:92:12:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "try Parser(yaml: yaml, resolver: resolver, constructor: constructor, encoding: encoding).singleRoot()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/RedundancyAliasingStrategy.swift:109:35:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "codedToAliases.removeAll()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/RedundancyAliasingStrategy.swift:113:52:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "codedToAliases.remove(keysForValue: anchor)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/RedundancyAliasingStrategy.swift:125:21:ChangeArithmeticOperator:0": {
+   "after": "-=",
+   "before": "+=",
+   "verdict": "killed"
+  },
+  "Sources/Yams/RedundancyAliasingStrategy.swift:139:40:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "value != keysForValue",
+   "verdict": "killed"
+  },
+  "Sources/Yams/RedundancyAliasingStrategy.swift:139:61:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "value != keysForValue",
+   "verdict": "killed"
+  },
+  "Sources/Yams/RedundancyAliasingStrategy.swift:76:36:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "hashesToAliases.removeAll()",
+   "verdict": "killed"
+  },
+  "Sources/Yams/RedundancyAliasingStrategy.swift:80:53:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "hashesToAliases.remove(keysForValue: anchor)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:105:45:SwapTernary:0": {
+   "after": "self ? \"false\" :  \"true\"",
+   "before": "self ? \"true\" : \"false\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:124:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "millisecond != 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:124:31:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "millisecond != 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:124:46:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "iso8601Formatter.string(from: self)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:127:16:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "iso8601WithoutZFormatter.string(from: dateWithoutMillisecond) + String(format: \".%03d\", millisecond).trimmingCharacters(in: characterSetZero) + \"Z\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:133:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "nanosecond != 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:133:30:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "nanosecond != 0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:133:45:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "iso8601Formatter.string(from: self)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:136:16:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "iso8601WithoutZFormatter.string(from: dateWithoutNanosecond) + String(format: \".%09d\", nanosecond).trimmingCharacters(in: characterSetZero) + \"Z\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:152:39:ChangeArithmeticOperator:0": {
+   "after": "/",
+   "before": "*",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:153:32:ChangeArithmeticOperator:0": {
+   "after": "*",
+   "before": "/",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:154:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "quotient != 0",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Representer.swift:154:29:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "quotient != 0",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Representer.swift:155:57:ChangeArithmeticOperator:0": {
+   "after": "*",
+   "before": "%",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Representer.swift:156:32:SwapTernary:0": {
+   "after": "quotient != 0 ? (integral, rounded) :  (integral + TimeInterval(quotient), rounded % Int(radix))",
+   "before": "quotient != 0 ? // carry-up? (integral + TimeInterval(quotient), rounded % Int(radix)) : (integral, rounded)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Representer.swift:203:39:FlipBooleanLiteral:0": {
+   "after": "false",
+   "before": "true",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Representer.swift:266:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "scalar.resolvedTag.name == .str",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:266:47:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "scalar.resolvedTag.name == .str",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:266:96:SwapTernary:0": {
+   "after": "scalar.resolvedTag.name == .str ? .init(self, Tag(.str), .singleQuoted) :  scalar",
+   "before": "scalar.resolvedTag.name == .str ? scalar : .init(self, Tag(.str), .singleQuoted)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:274:104:SwapTernary:0": {
+   "after": "scalar.resolvedTag.name == .str ? .init(String(self), Tag(.str), .singleQuoted) :  scalar",
+   "before": "scalar.resolvedTag.name == .str ? scalar : .init(String(self), Tag(.str), .singleQuoted)",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Representer.swift:274:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "scalar.resolvedTag.name == .str",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Representer.swift:274:47:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "scalar.resolvedTag.name == .str",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Representer.swift:345:15:NegateConditional:0": {
+   "after": "!(string.lazy.suffix(5).contains(\"e\"))",
+   "before": "string.lazy.suffix(5).contains(\"e\")",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:346:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "doubleFormatter.string(for: self)!.replacingOccurrences(of: \"+-\", with: \"-\")",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:348:16:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "string",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:60:43:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Representer.swift:60:43:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Representer.swift:68:43:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Representer.swift:68:43:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Representer.swift:75:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "(value as? NSDictionary)?.count == 0",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Representer.swift:75:51:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "(value as? NSDictionary)?.count == 0",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Resolver.swift:171:20:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "match.range.location != NSNotFound",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Resolver.swift:171:54:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "match.range.location != NSNotFound",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Resolver.swift:173:16:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Resolver.swift:19:45:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "regexp.pattern",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Resolver.swift:68:34:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "$0.tag == rule.tag",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Resolver.swift:68:52:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "$0.tag == rule.tag",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Resolver.swift:68:65:SwapTernary:0": {
+   "after": "$0.tag == rule.tag ? $0 :  rule",
+   "before": "$0.tag == rule.tag ? rule : $0",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Resolver.swift:73:38:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "$0.tag == tag",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Resolver.swift:73:51:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "$0.tag == tag",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Resolver.swift:73:85:SwapTernary:0": {
+   "after": "$0.tag == tag ? $0 :  try Rule($0.tag, pattern)",
+   "before": "$0.tag == tag ? try Rule($0.tag, pattern) : $0",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Resolver.swift:78:44:RelationalOperatorReplacement:0": {
+   "after": "==",
+   "before": "!=",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:22:16:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "index(startIndex, offsetBy: offset, limitedBy: endIndex).flatMap(lineNumberColumnAndContents)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:37:51:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "getLineStart(&outStartIndex, end: &outEndIndex, contentsEnd: &outContentsEndIndex, for: startIndex..<startIndex)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:38:15:NegateConditional:0": {
+   "after": "!(outEndIndex <= index && outEndIndex < endIndex)",
+   "before": "outEndIndex <= index && outEndIndex < endIndex",
+   "verdict": "timedOut"
+  },
+  "Sources/Yams/String+Yams.swift:38:15:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "outEndIndex <= index",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:38:27:RelationalBoundary:0": {
+   "after": "<",
+   "before": "<=",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:38:27:RelationalOperatorReplacement:0": {
+   "after": "==",
+   "before": "<=",
+   "verdict": "survived"
+  },
+  "Sources/Yams/String+Yams.swift:38:36:ChangeLogicalConnector:0": {
+   "after": "||",
+   "before": "&&",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:38:51:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/String+Yams.swift:38:51:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/String+Yams.swift:38:61:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "outEndIndex < endIndex",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:39:20:ChangeArithmeticOperator:0": {
+   "after": "-=",
+   "before": "+=",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:42:37:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "getLineStart(&outStartIndex, end: &outEndIndex, contentsEnd: &outContentsEndIndex, for: range)",
+   "verdict": "timedOut"
+  },
+  "Sources/Yams/String+Yams.swift:62:51:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "getLineStart(&outStartIndex, end: &outEndIndex, contentsEnd: &outContentsEndIndex, for: startIndex..<startIndex)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:63:15:NegateConditional:0": {
+   "after": "!(number < line && outEndIndex < endIndex)",
+   "before": "number < line && outEndIndex < endIndex",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:63:22:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:63:22:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/String+Yams.swift:63:28:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "number < line",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:63:29:ChangeLogicalConnector:0": {
+   "after": "||",
+   "before": "&&",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:63:44:RelationalBoundary:0": {
+   "after": "<=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/String+Yams.swift:63:44:RelationalOperatorReplacement:0": {
+   "after": "!=",
+   "before": "<",
+   "verdict": "survived"
+  },
+  "Sources/Yams/String+Yams.swift:63:54:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "outEndIndex < endIndex",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:64:20:ChangeArithmeticOperator:0": {
+   "after": "-=",
+   "before": "+=",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:67:37:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "getLineStart(&outStartIndex, end: &outEndIndex, contentsEnd: &outContentsEndIndex, for: range)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:69:16:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "String(self[outStartIndex..<outEndIndex])",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:74:93:FlipBooleanLiteral:0": {
+   "after": "true",
+   "before": "false",
+   "verdict": "survived"
+  },
+  "Sources/Yams/String+Yams.swift:75:12:NegateConditional:0": {
+   "after": "!(isEndsWithNewLines)",
+   "before": "isEndsWithNewLines",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:76:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "self",
+   "verdict": "killed"
+  },
+  "Sources/Yams/String+Yams.swift:78:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "self + \"\\n\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Tag.swift:170:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "tag.name == .implicit",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Tag.swift:170:37:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "tag.name == .implicit",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Tag.swift:170:70:SwapTernary:0": {
+   "after": "tag.name == .implicit ? tag.name :  Self.defaultTagName",
+   "before": "tag.name == .implicit ? Self.defaultTagName : tag.name",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Tag.swift:57:12:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "name == .implicit",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Tag.swift:57:29:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "name == .implicit",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Tag.swift:59:19:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "name == .nonSpecific",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Tag.swift:59:39:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "name == .nonSpecific",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Tag.swift:72:16:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "name.rawValue",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/Tag.swift:79:29:RemoveSideEffects:0": {
+   "after": "removed line",
+   "before": "hasher.combine(name)",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Tag.swift:84:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "lhs.name == rhs.name",
+   "verdict": "survived"
+  },
+  "Sources/Yams/Tag.swift:84:36:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "lhs.name == rhs.name",
+   "verdict": "killed"
+  },
+  "Sources/Yams/Tag.swift:93:9:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "name.rawValue",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:107:20:ReplaceReturnValue:0": {
+   "after": "nil",
+   "before": "Context( text: String(cString: context), mark: Mark(line: parser.context_mark.line + 1, column: parser.context_mark.column + 1) )",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:109:59:ChangeArithmeticOperator:0": {
+   "after": "-",
+   "before": "+",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:109:99:ChangeArithmeticOperator:0": {
+   "after": "-",
+   "before": "+",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:114:56:ChangeArithmeticOperator:0": {
+   "after": "-",
+   "before": "+",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:114:96:ChangeArithmeticOperator:0": {
+   "after": "-",
+   "before": "+",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:122:16:RelationalOperatorReplacement:0": {
+   "after": "true",
+   "before": "parser.encoding == YAML_UTF8_ENCODING",
+   "verdict": "survived"
+  },
+  "Sources/Yams/YamlError.swift:122:53:RelationalOperatorReplacement:0": {
+   "after": "false",
+   "before": "parser.encoding == YAML_UTF8_ENCODING",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:128:83:ChangeArithmeticOperator:0": {
+   "after": "*",
+   "before": "/",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/YamlError.swift:170:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "\"No error is produced\"",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/YamlError.swift:172:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "\"Memory error\"",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/YamlError.swift:175:24:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "\"\\(problem) at offset: \\(String(describing: offset)), value: \\(value)\"",
+   "verdict": "notCovered"
+  },
+  "Sources/Yams/YamlError.swift:177:40:ChangeArithmeticOperator:0": {
+   "after": "-",
+   "before": "+",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:177:60:ChangeArithmeticOperator:0": {
+   "after": "-",
+   "before": "+",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:178:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "\"\\(mark): error: reader: \\(problem):\\n\" + contents.endingWithNewLine + String(repeating: \" \", count: column) + \"^\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:181:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "\"\\(mark): error: scanner: \\(context?.description ?? \"\")\\(problem):\\n\" + mark.snippet(from: yaml)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:183:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "\"\\(mark): error: parser: \\(context?.description ?? \"\")\\(problem):\\n\" + mark.snippet(from: yaml)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:185:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "\"\\(mark): error: composer: \\(context?.description ?? \"\")\\(problem):\\n\" + mark.snippet(from: yaml)",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:187:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "problem",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:189:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "\"String could not be decoded from data using '\\(encoding)' encoding\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:192:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "\"\"\" Parser: expected all keys to be unique but found the following duplicated key(s): \\(duplicateKeys). Context: \\(context.description) \"\"\"",
+   "verdict": "killed"
+  },
+  "Sources/Yams/YamlError.swift:98:20:ReplaceReturnValue:0": {
+   "after": "\"\"",
+   "before": "text + \" in line \\(mark.line), column \\(mark.column)\\n\"",
+   "verdict": "killed"
+  }
+ },
+ "operators": [
+  "ChangeArithmeticOperator",
+  "ChangeLogicalConnector",
+  "FlipBooleanLiteral",
+  "NegateConditional",
+  "RelationalBoundary",
+  "RelationalOperatorReplacement",
+  "RemoveSideEffects",
+  "ReplaceBooleanValue",
+  "ReplaceReturnValue",
+  "SwapTernary"
+ ],
+ "packageResolvedSHA256": "none",
+ "pin": "df801bc4f158f107035d2e14f6d0d8d31eb31ddb",
+ "runs": [
+  {
+   "mutantsDiscovered": 594,
+   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/xctest-yams-swiftpm/Yams_muter_logs/Nov 17, 2026 at 10:40 AM/results.jsonl",
+   "swiftMutatorSHA256": "f62118188ac0e12c9f52c1090747f40339590742aaf9e8ef1090179819743d9a"
+  },
+  {
+   "mutantsDiscovered": 594,
+   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/xctest-yams-swiftpm/Yams_muter_logs/Nov 17, 2026 at 10:44 AM/results.jsonl",
+   "swiftMutatorSHA256": "f62118188ac0e12c9f52c1090747f40339590742aaf9e8ef1090179819743d9a"
+  },
+  {
+   "mutantsDiscovered": 594,
+   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/xctest-yams-swiftpm/Yams_muter_logs/Nov 17, 2026 at 10:49 AM/results.jsonl",
+   "swiftMutatorSHA256": "f62118188ac0e12c9f52c1090747f40339590742aaf9e8ef1090179819743d9a"
+  },
+  {
+   "mutantsDiscovered": 594,
+   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/xctest-yams-swiftpm/Yams_muter_logs/Nov 17, 2026 at 10:54 AM/results.jsonl",
+   "swiftMutatorSHA256": "f62118188ac0e12c9f52c1090747f40339590742aaf9e8ef1090179819743d9a"
+  },
+  {
+   "mutantsDiscovered": 594,
+   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/xctest-yams-swiftpm/Yams_muter_logs/Nov 17, 2026 at 10:58 AM/results.jsonl",
+   "swiftMutatorSHA256": "f62118188ac0e12c9f52c1090747f40339590742aaf9e8ef1090179819743d9a"
+  }
+ ]
+}

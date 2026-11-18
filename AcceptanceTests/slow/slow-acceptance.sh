@@ -1,14 +1,17 @@
 #!/bin/bash
-# The slow acceptance tier: whole SwiftMutator runs on a pinned SwiftProjectLint, checked mutant by mutant against
-# the reference verdicts in reference/. See README.md.
+# The slow acceptance tier: whole SwiftMutator runs on pinned projects, the targets in targets/, checked mutant by
+# mutant against the reference verdicts in reference/. See README.md.
 #
-#   slow-acceptance.sh [--scenarios a,b,...] [--work DIR]   run the scenarios (all by default) and check them
-#   slow-acceptance.sh --preflight [--work DIR]             one run, stopped once its baseline passes
-#   slow-acceptance.sh --reference N [--work DIR]           N full runs, and the reference made from them
-#   slow-acceptance.sh --list                               the scenarios
+#   slow-acceptance.sh [--target T] [--scenarios a,b,...] [--work DIR]   run the scenarios (all by default) and check them
+#   slow-acceptance.sh [--target T] --preflight [--work DIR]             one run, stopped once its baseline passes
+#   slow-acceptance.sh [--target T] --reference N [--work DIR]           N full runs, and the reference made from them
+#   slow-acceptance.sh [--target T] --list                               the target's scenarios
+#   slow-acceptance.sh --targets                                         the targets
+#   slow-acceptance.sh [--target T] --print-configuration KIND           a configuration, written as a run gets it
 #
-# Everything happens in the work folder (by default ~/Library/Caches/SwiftMutatorSlowTier/<time>): a fresh clone of
-# the target, the configurations, the runs' logs and reports. Exits 1 if a check fails, 2 if the setup does.
+# A target is a file in targets/: swiftprojectlint by default. Everything happens in the work folder (by default
+# ~/Library/Caches/SwiftMutatorSlowTier/<time>-<target>): a fresh clone of the target, the configurations, the runs'
+# logs and reports. Exits 1 if a check fails, 2 if the setup does.
 set -u -o pipefail
 set -m # Each background run gets a process group of its own, which keeps SIGINT's default action: see `stop_when`.
 # Awake from start to end, the waits between runs included: once the Mac sleeps, a run goes on only in short dark
@@ -17,32 +20,76 @@ if [ -z "${SLOW_TIER_AWAKE:-}" ]; then SLOW_TIER_AWAKE=1 exec caffeinate -i -s "
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$HERE/../.." && pwd)
-# shellcheck source=target.env
-. "$HERE/target.env"
-SCENARIOS="full release no-stop reuse-nochange reuse-testchange reuse-sourcechange stop-resume since"
+ALL_SCENARIOS="full release no-stop reuse-nochange reuse-testchange reuse-sourcechange stop-resume since"
+SCENARIOS=$ALL_SCENARIOS
 MODE=check
 REFERENCE_RUNS=0
 WORK=""
+TARGET=swiftprojectlint
+LIST=""
 MAX_LOAD=${MAX_LOAD:-4}
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --target) TARGET=$2; shift 2 ;;
     --scenarios) SCENARIOS=$(echo "$2" | tr ',' ' '); shift 2 ;;
     --work) WORK=$2; shift 2 ;;
     --preflight) MODE=preflight; shift ;;
     --reference) MODE=reference; REFERENCE_RUNS=$2; shift 2 ;;
-    --list) echo "$SCENARIOS"; exit 0 ;;
+    --list) LIST=1; shift ;;
+    --print-configuration) MODE=print; PRINT_KIND=$2; shift 2 ;; # for the self-test: full, release or no-stop
+    --targets) for file in "$HERE"/targets/*.env; do basename "$file" .env; done; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
-WORK=${WORK:-$HOME/Library/Caches/SwiftMutatorSlowTier/$(date +%Y%m%d-%H%M%S)}
-CLONE=$WORK/SwiftProjectLint
+# Each scenario by its hyphen name, which NOT_APPLICABLE uses: an unknown name would otherwise check nothing and pass.
+SCENARIOS=$(echo "$SCENARIOS" | tr '_' '-')
+[ -n "${SCENARIOS// /}" ] || { echo "no scenarios given: see --list" >&2; exit 2; }
+for scenario in $SCENARIOS; do
+  case " $ALL_SCENARIOS " in *" $scenario "*) ;; *) echo "unknown scenario: $scenario (see --list)" >&2; exit 2 ;; esac
+done
+
+[ -f "$HERE/targets/$TARGET.env" ] || { echo "no target $TARGET: see --targets" >&2; exit 2; }
+# What a target's file may set, with the values a SwiftPM target on main takes. Arrays stay empty unless it sets them.
+BRANCH=main
+BUILD_SYSTEM=swift        # swift: `swift test`; xcodebuild: XCODEBUILD_ARGUMENTS, then `test`
+XCODEBUILD_ARGUMENTS=()   # an xcodebuild target's arguments for every run but the release scenario's
+XCODEBUILD_RELEASE_ARGUMENTS=()
+PINS_PACKAGES=yes         # whether the target's Package.resolved is kept in reference/ (no: it has no dependencies)
+RELEASE_DEBUG_LINK=""     # where the release scenario points .build/debug, for tests that look for products there
+TEST_CHANGE_EDIT=suites   # suites: disable each @Suite; xctest: rename each XCTest `func test…`
+TEST_FILES_GLOB='Tests/*Tests.swift'
+NOT_APPLICABLE=()         # "scenario: why", for scenarios the target can't take
+SKIP_TESTS=() EXCLUDES=() OPERATORS=()
+TEST_CHANGE_FILE="" SOURCE_CHANGE_FILE="" SINCE_BASE="" REFERENCE_STEM=""
+# shellcheck source=targets/swiftprojectlint.env
+. "$HERE/targets/$TARGET.env"
+REFERENCE_STEM=${REFERENCE_STEM:-$PIN}
+
+# not_applicable SCENARIO: why the target can't take it, or nothing.
+not_applicable() {
+  local entry
+  for entry in ${NOT_APPLICABLE[@]+"${NOT_APPLICABLE[@]}"}; do
+    [ "${entry%%:*}" = "$1" ] && { echo "${entry#*: }"; return; }
+  done
+}
+if [ -n "$LIST" ]; then
+  for scenario in $SCENARIOS; do
+    why=$(not_applicable "$scenario"); echo "$scenario${why:+ (not applicable: $why)}"
+  done
+  exit 0
+fi
+
+WORK=${WORK:-$HOME/Library/Caches/SwiftMutatorSlowTier/$(date +%Y%m%d-%H%M%S)-$TARGET}
+CLONE=$WORK/$(basename "$REPO" .git)
 BIN=$WORK/swift-mutator
-REFERENCE=$HERE/reference/$PIN.json
-RESOLVED=$HERE/reference/$PIN.Package.resolved
-TIMES=$HERE/reference/$PIN-times.json
-ALLOWLIST=$HERE/allowlist.json
+REFERENCE=$HERE/reference/$REFERENCE_STEM.json
+RESOLVED=$HERE/reference/$REFERENCE_STEM.Package.resolved
+TIMES=$HERE/reference/$REFERENCE_STEM-times.json
+ALLOWLIST=$HERE/targets/$TARGET.allowlist.json
+# --allowlist ALLOWLIST when the target has one.
+ALLOW=(); [ -f "$ALLOWLIST" ] && ALLOW=(--allowlist "$ALLOWLIST")
 RUNS=$WORK/runs.tsv
 SUMMARY=$WORK/summary.md
 FAILED=0
@@ -57,6 +104,13 @@ foreign_cpu() { ps -Ao pcpu=,args= | grep -v "$CLONE" | awk '{s+=$1} END {printf
 
 setup() {
   mkdir -p "$WORK/conf" "$WORK/logs" "$WORK/reports" || die "can't make $WORK"
+  # One target a work folder: its clone, configurations and runs are that target's. One with no stamp predates targets.
+  local stamped=$TARGET
+  if [ -f "$WORK/target" ]; then stamped=$(cat "$WORK/target")
+  elif [ -f "$RUNS" ]; then stamped=swiftprojectlint
+  fi
+  [ "$stamped" = "$TARGET" ] || die "$WORK is a work folder for $stamped, not $TARGET"
+  echo "$TARGET" > "$WORK/target"
   [ -f "$RUNS" ] || printf 'name\tstart\tend\twall_s\twait_s\tload_at_start\tload_mean\tforeign_cpu_mean\tstatus\tresults\tworkers\n' > "$RUNS"
   say "work folder: $WORK"
 
@@ -71,12 +125,14 @@ setup() {
     git -C "$CLONE" fetch -q origin "$PIN" || die "can't fetch $PIN"
     git -C "$CLONE" checkout -q --detach "$PIN" || die "can't check out $PIN"
   fi
-  git -C "$CLONE" merge-base --is-ancestor "$PIN" origin/main || die "$PIN isn't on the target's main"
+  git -C "$CLONE" merge-base --is-ancestor "$PIN" "origin/$BRANCH" || die "$PIN isn't on the target's $BRANCH"
   # A work folder made for another pin would test that pin's tree.
   [ "$(git -C "$CLONE" rev-parse HEAD)" = "$(git -C "$CLONE" rev-parse "$PIN^{commit}")" ] \
     || die "the clone in $WORK is at another commit than $PIN: use a new work folder"
 
-  if [ -f "$RESOLVED" ]; then
+  if [ "$PINS_PACKAGES" = no ]; then
+    : # no dependencies to resolve
+  elif [ -f "$RESOLVED" ]; then
     cp "$RESOLVED" "$CLONE/Package.resolved"
     (cd "$CLONE" && swift package --only-use-versions-from-resolved-file resolve > "$WORK/logs/resolve.log" 2>&1) \
       || die "resolving from $RESOLVED failed: $WORK/logs/resolve.log"
@@ -90,26 +146,46 @@ setup() {
   # Outside the clone, so the reuse and resume checks never see them as project files.
   write_configuration full "$WORK/conf/full.yml"
   write_configuration release "$WORK/conf/release.yml"
-  write_configuration no-stop "$WORK/conf/no-stop.yml"
+  [ -n "$(not_applicable no-stop)" ] || write_configuration no-stop "$WORK/conf/no-stop.yml"
   assert_clean
 }
 
 write_configuration() {
-  local kind=$1 file=$2
+  local kind=$1 file=$2 argument
   {
-    echo "executable: /usr/bin/swift"
-    echo "arguments:"
-    echo "- test"
-    if [ "$kind" = release ]; then printf -- '- -c\n- release\n- -Xswiftc\n- -enable-testing\n'; fi
-    for test in "${SKIP_TESTS[@]}"; do printf -- '- --skip\n- %s\n' "$test"; done
-    echo "exclude:"
-    for exclude in "${EXCLUDES[@]}"; do echo "- '$exclude'"; done
+    if [ "$BUILD_SYSTEM" = xcodebuild ]; then
+      echo "executable: /usr/bin/xcodebuild"
+      echo "arguments:"
+      if [ "$kind" = release ]; then
+        for argument in "${XCODEBUILD_RELEASE_ARGUMENTS[@]}"; do yaml_item "$argument"; done
+      else
+        for argument in "${XCODEBUILD_ARGUMENTS[@]}"; do yaml_item "$argument"; done
+      fi
+      for test in ${SKIP_TESTS[@]+"${SKIP_TESTS[@]}"}; do yaml_item "-skip-testing:$test"; done
+      echo "- test"
+    else
+      echo "executable: /usr/bin/swift"
+      echo "arguments:"
+      echo "- test"
+      if [ "$kind" = release ]; then printf -- '- -c\n- release\n- -Xswiftc\n- -enable-testing\n'; fi
+      for test in ${SKIP_TESTS[@]+"${SKIP_TESTS[@]}"}; do printf -- '- --skip\n- %s\n' "$test"; done
+    fi
+    if [ ${#EXCLUDES[@]} -eq 0 ]; then echo "exclude: []"; else echo "exclude:"; fi
+    for exclude in ${EXCLUDES[@]+"${EXCLUDES[@]}"}; do echo "- '$exclude'"; done
     echo "excludeCalls: []"
     echo "operators:"
     for operator in "${OPERATORS[@]}"; do echo "- $operator"; done
     echo "mutationTestWorkers: $WORKERS"
     if [ "$kind" = no-stop ]; then echo "stopAtFirstFailure: false"; fi
   } > "$file"
+}
+
+# yaml_item VALUE: a YAML sequence item, quoted only when a plain scalar couldn't hold it.
+yaml_item() {
+  case "$1" in
+    *[!A-Za-z0-9_./=,:+-]*|[!A-Za-z0-9./-]*|*:|*': '*) printf -- "- '%s'\n" "$(printf %s "$1" | sed "s/'/''/g")" ;;
+    *) printf -- '- %s\n' "$1" ;;
+  esac
 }
 
 # The clone as the pin has it: no scenario sees another's edits.
@@ -150,7 +226,7 @@ launch() {
   end=$(date +%s)
   kill "$sampler" 2>/dev/null
   RESULTS=$(results_file "$WORK/logs/$name.console")
-  local mode; mode=$(workers_mode "$WORK/logs/$name.console")
+  local mode; mode=$(workers_mode "$WORK/logs/$name.console" "$RESULTS")
   local stats; stats=$(awk '{s+=$1; f+=$2; n++} END {if (n) printf "%.1f\t%.0f", s/n, f/n; else printf "-\t-"}' \
     "$WORK/logs/$name.load")
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$start" "$end" "$((end - start))" \
@@ -164,10 +240,14 @@ results_file() {
 }
 
 # How a run's workers tested, as its console says: from one build ("shared"), each from a clone of its own
-# ("clones"), or "-" when it tested no mutant. The choice is SwiftMutator's own, made from the run with no mutant on.
+# ("clones"), one mutant at a time ("one"), or "-" when it tested no mutant. The choice is SwiftMutator's own, made
+# from the run with no mutant on. One worker, as on an xcodebuild Mac destination, may print no line, so its results
+# header says.
 workers_mode() {
   if grep -q 'mutants at a time, from one build' "$1"; then echo shared
   elif grep -q 'mutants at a time' "$1"; then echo clones
+  elif grep -q 'one mutant at a time' "$1" || { [ -n "${2:-}" ] && [ -f "$2" ] && grep -q '"kind":"mutant"' "$2" \
+    && head -1 "$2" | grep -q '"workers":1[,}]'; }; then echo one
   else echo -
   fi
 }
@@ -222,27 +302,28 @@ full_results() { # The full run, which the reuse scenarios start from: this suit
 
 scenario_full() {
   run full "$WORK/conf/full.yml"
-  need_results full && FULL=$RESULTS && check full check "$RESULTS" --reference "$REFERENCE" --allowlist "$ALLOWLIST"
+  need_results full && FULL=$RESULTS && check full check "$RESULTS" --reference "$REFERENCE" ${ALLOW[@]+"${ALLOW[@]}"}
 }
 
-# Release-mode tests look for the CLI in .build/debug, which links to the release products during this run only.
+# Release-mode tests that look for products in .build/debug get a link there to the release products, during this run
+# only (RELEASE_DEBUG_LINK).
 scenario_release() {
-  ln -s out/Products/Release "$CLONE/.build/debug" || die "can't link .build/debug"
+  if [ -n "$RELEASE_DEBUG_LINK" ]; then ln -s "$RELEASE_DEBUG_LINK" "$CLONE/.build/debug" || die "can't link .build/debug"; fi
   run release "$WORK/conf/release.yml"
   rm -f "$CLONE/.build/debug"
-  need_results release && check release check "$RESULTS" --reference "$REFERENCE" --allowlist "$ALLOWLIST"
+  need_results release && check release check "$RESULTS" --reference "$REFERENCE" ${ALLOW[@]+"${ALLOW[@]}"}
 }
 
 scenario_no_stop() {
   run no-stop "$WORK/conf/no-stop.yml"
-  need_results no-stop && check no-stop check "$RESULTS" --reference "$REFERENCE" --allowlist "$ALLOWLIST"
+  need_results no-stop && check no-stop check "$RESULTS" --reference "$REFERENCE" ${ALLOW[@]+"${ALLOW[@]}"}
 }
 
 scenario_reuse_nochange() {
   full_results
   run reuse-nochange "$WORK/conf/full.yml" --reuse "$FULL"
   need_results reuse-nochange || return
-  check reuse-nochange check "$RESULTS" --reference "$REFERENCE" --allowlist "$ALLOWLIST"
+  check reuse-nochange check "$RESULTS" --reference "$REFERENCE" ${ALLOW[@]+"${ALLOW[@]}"}
   check reuse-nochange-kept expect-reuse "$FULL" "$RESULTS"
 }
 
@@ -250,13 +331,20 @@ scenario_reuse_nochange() {
 # become what a full run of the edited tree finds; other files' kills are kept.
 scenario_reuse_testchange() {
   full_results
-  python3 -I - "$CLONE/$TEST_CHANGE_FILE" <<'EOF' || die "can't disable $TEST_CHANGE_FILE's suites"
+  python3 -I - "$CLONE/$TEST_CHANGE_FILE" "$TEST_CHANGE_EDIT" <<'EOF' || die "can't disable $TEST_CHANGE_FILE's tests"
 import re, sys
-path = sys.argv[1]
+path, edit = sys.argv[1:]
 text = open(path).read()
-disabled = re.sub(r'@Suite\b(\((.*?)\))?', lambda m: f'@Suite({m.group(2) + ", " if m.group(2) else ""}.disabled("slow tier"))', text)
+if edit == "xctest":  # XCTest runs only the methods whose names start with "test"
+    names = set(re.findall(r'\bfunc (test\w*)\s*\(', text))
+    disabled = re.sub(r'\bfunc test(\w*)\s*\(', r'func disabled_test\1(', text)
+    # Other references to them, as in an `allTests` list, follow; a quoted name stays as it was.
+    for name in names:
+        disabled = re.sub(rf'(?<!["\w])\b{name}\b(?!")', f'disabled_{name}', disabled)
+else:
+    disabled = re.sub(r'@Suite\b(\((.*?)\))?', lambda m: f'@Suite({m.group(2) + ", " if m.group(2) else ""}.disabled("slow tier"))', text)
 if disabled == text:
-    sys.exit(f"{path} has no @Suite")
+    sys.exit(f"{path} has nothing to disable as {edit}")
 open(path, "w").write(disabled)
 EOF
   run reuse-testchange "$WORK/conf/full.yml" --reuse "$FULL"
@@ -269,7 +357,8 @@ EOF
   RESULTS=$reuse STATUS=$reuse_status need_results reuse-testchange || ok=0
   RESULTS=$fresh STATUS=$fresh_status need_results full-testchange || ok=0
   [ "$ok" = 1 ] && check reuse-testchange expect-test-change "$FULL" "$reuse" "$fresh" --test-file "$TEST_CHANGE_FILE" \
-    --allowlist "$ALLOWLIST"
+    --console "$WORK/logs/reuse-testchange.console" $([ "$TEST_CHANGE_EDIT" = xctest ] && echo --kills-never-hold) \
+    ${ALLOW[@]+"${ALLOW[@]}"}
 }
 
 # A comment at the end of a source file with no mutants, which no test reads: a plain reuse plans to test everything
@@ -284,7 +373,7 @@ scenario_reuse_sourcechange() {
   RESULTS=$plain STATUS=$plain_status need_results reuse-sourcechange \
     && check reuse-sourcechange expect-none-reused "$plain"
   need_results reuse-sourcechange-ignoring || return
-  check reuse-sourcechange-ignoring check "$RESULTS" --reference "$REFERENCE" --allowlist "$ALLOWLIST"
+  check reuse-sourcechange-ignoring check "$RESULTS" --reference "$REFERENCE" ${ALLOW[@]+"${ALLOW[@]}"}
   check reuse-sourcechange-ignoring-kept expect-reuse "$FULL" "$RESULTS" --waived "$SOURCE_CHANGE_FILE"
 }
 
@@ -309,7 +398,7 @@ scenario_stop_resume() {
       "$WORK/logs/stop-resume-continued.console" >> "$SUMMARY"
     return
   fi
-  check stop-resume expect-stop-resume "$stopped" --reference "$REFERENCE" --allowlist "$ALLOWLIST"
+  check stop-resume expect-stop-resume "$stopped" --reference "$REFERENCE" ${ALLOW[@]+"${ALLOW[@]}"}
 }
 
 # --since --changed-lines from SINCE_BASE: between what git's own diff requires and the changed files. And --since the
@@ -319,9 +408,9 @@ scenario_since() {
   base=$(git -C "$CLONE" merge-base "$SINCE_BASE" HEAD) || die "no merge base for $SINCE_BASE"
   git -C "$CLONE" diff -U0 --no-renames "$base" -- '*.swift' > "$WORK/logs/since.diff"
   run since "$WORK/conf/full.yml" --since "$SINCE_BASE" --changed-lines
-  local excludes=(); for e in "${EXCLUDES[@]}"; do excludes+=(--exclude "$e"); done
+  local excludes=(); for e in ${EXCLUDES[@]+"${EXCLUDES[@]}"}; do excludes+=(--exclude "$e"); done
   need_results since && check since expect-since "$RESULTS" --reference "$REFERENCE" --diff "$WORK/logs/since.diff" \
-    "${excludes[@]}" --allowlist "$ALLOWLIST"
+    ${excludes[@]+"${excludes[@]}"} ${ALLOW[@]+"${ALLOW[@]}"}
   run since-nothing "$WORK/conf/full.yml" --since HEAD
   if [ "$STATUS" -eq 0 ] && [ -z "$RESULTS" ] && grep -q "No Swift file changed" "$WORK/logs/since-nothing.console"; then
     echo "- ✅ since-nothing" >> "$SUMMARY"
@@ -343,7 +432,7 @@ preflight() {
 }
 
 # kept_run NAME: the results file of an earlier run NAME in this work folder that exited 0 with today's binary and
-# today's full.yml, or nothing. A reference the checker refuses then costs only its verdicts once allowlist.json
+# today's full.yml, or nothing. A reference the checker refuses then costs only its verdicts once the target's allowlist
 # explains the refusal: the runs themselves are kept.
 kept_run() {
   local name=$1 results
@@ -371,31 +460,41 @@ reference() {
     runs+=("$RESULTS")
   done
   mkdir -p "$HERE/reference"
-  cp "$CLONE/Package.resolved" "$RESOLVED"
-  verdicts reference "${runs[@]}" --pin "$PIN" --resolved-sha256 "$(shasum -a 256 "$RESOLVED" | cut -d' ' -f1)" \
-    --operators "${OPERATORS[@]}" --allowlist "$ALLOWLIST" --out "$REFERENCE" || exit 1
+  local resolved_sha256=none
+  if [ "$PINS_PACKAGES" != no ]; then
+    cp "$CLONE/Package.resolved" "$RESOLVED"
+    resolved_sha256=$(shasum -a 256 "$RESOLVED" | cut -d' ' -f1)
+  fi
+  verdicts reference "${runs[@]}" --pin "$PIN" --resolved-sha256 "$resolved_sha256" \
+    --operators "${OPERATORS[@]}" ${ALLOW[@]+"${ALLOW[@]}"} --out "$REFERENCE" || exit 1
   # The times of the runs that made it, not of earlier runs of the same name.
   { head -1 "$RUNS"; for results in "${runs[@]}"; do awk -F'\t' -v r="$results" '$10 == r' "$RUNS" | tail -1; done; } \
     | sed 's/^reference-[0-9]*/full/' > "$WORK/full-runs.tsv"
   rm -f "$TIMES" # a new reference, so every scenario's time is recorded again
   verdicts times "$WORK/full-runs.tsv" --baseline "$TIMES" --update
+  [ -n "$(not_applicable reuse-testchange)" ] && return
+  # Test files' paths have no spaces in a target worth choosing; one that has would be split here.
+  # shellcheck disable=SC2046
   say "a test file to disable for reuse-testchange: $(cd "$CLONE" && verdicts pick-test-change "${runs[0]}" \
-    $(git ls-files 'Tests/*Tests.swift'))"
+    $([ "$TEST_CHANGE_EDIT" = xctest ] && echo --xctest) $(git ls-files "$TEST_FILES_GLOB"))"
 }
 
+if [ "$MODE" = print ]; then write_configuration "$PRINT_KIND" /dev/stdout; exit 0; fi
 setup
 case "$MODE" in
   preflight) preflight ;;
   reference) reference ;;
   check)
-    [ -f "$REFERENCE" ] || die "no reference for $PIN: run --reference N first"
+    [ -f "$REFERENCE" ] || die "no reference for $TARGET at $PIN: run --reference N first"
     # Hours of runs would each fail on every mutant: say so before the first.
     verdicts expect-operators "$REFERENCE" "${OPERATORS[@]}" >&2 || die "make a new reference (README)"
-    echo "# Slow acceptance tier: $(date)" > "$SUMMARY"
+    echo "# Slow acceptance tier, $TARGET: $(date)" > "$SUMMARY"
     echo "" >> "$SUMMARY"
-    echo "SwiftMutator $(git -C "$REPO_ROOT" rev-parse --short HEAD), target $PIN" >> "$SUMMARY"
+    echo "SwiftMutator $(git -C "$REPO_ROOT" rev-parse --short HEAD), target $TARGET ($BUILD_SYSTEM) at $PIN" >> "$SUMMARY"
     echo "" >> "$SUMMARY"
     for scenario in $SCENARIOS; do
+      why=$(not_applicable "$scenario")
+      if [ -n "$why" ]; then echo "- ⏭️ $scenario: not applicable to $TARGET: $why" >> "$SUMMARY"; continue; fi
       assert_clean
       "scenario_$(echo "$scenario" | tr '-' '_')"
     done
