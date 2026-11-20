@@ -96,6 +96,7 @@ final class DirectTestRunTests: MuterTestCase {
     // A mutant whose tests write a fixed key could otherwise fail the runs after it in that folder, and another
     // worker's.
     func test_eachRunStartsWithEmptyDefaults_thatNoOtherWorkerShares() async throws {
+        try skipUnlessDefaultsIsThere()
         let otherWorker = directory.appendingPathComponent("it's a project_worker1")
         try FileManager.default.createDirectory(at: otherWorker, withIntermediateDirectories: true)
         let unwrappedWorker = try XCTUnwrap(worker)
@@ -118,6 +119,7 @@ final class DirectTestRunTests: MuterTestCase {
 
     // Nothing of the folder's is left in the user's preferences, and the helper the link led to stays.
     func test_removeOwnDefaults_removesTheLinkAndTheDomain_butNotTheHelper() async throws {
+        try skipUnlessDefaultsIsThere()
         _ = try await runAMutant(bundles: ["UserDefaults"])
         let domain = DirectTestRun.defaultsDomain(forWorkerIn: worker)
         XCTAssertEqual(try defaults("read", domain, "sharedKey"), "written by \(domain)\n")
@@ -134,7 +136,8 @@ final class DirectTestRunTests: MuterTestCase {
     }
 
     // A folder whose helper couldn't be linked ran the helper itself, whose domain other `swift test` runs share.
-    func test_removeOwnDefaults_touchesNoDomainWithoutALink() {
+    func test_removeOwnDefaults_touchesNoDomainWithoutALink() throws {
+        try skipUnlessDefaultsIsThere()
         let domain = DirectTestRun.defaultsDomain(forWorkerIn: worker)
         XCTAssertNoThrow(try defaults("write", domain, "sharedKey", "kept"))
         addTeardownBlock { DirectTestRun.removeDefaultsDomain(domain) }
@@ -228,6 +231,12 @@ final class DirectTestRunTests: MuterTestCase {
     }
 
     // MARK: - Helpers
+
+    /// Skips a test of the tests' `UserDefaults` domains where there is no `defaults` to read and remove them with, as
+    /// on Linux, where direct test runs aren't made and `removeDefaultsDomain(_:)` does nothing.
+    func skipUnlessDefaultsIsThere() throws {
+        try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: "/usr/bin/defaults"), "no /usr/bin/defaults")
+    }
 
     /// What `defaults` printed with `arguments`, run as the tests' helpers would, outside this process: reading the
     /// domains here would leave a copy of them that is written back to disk when the tests end.

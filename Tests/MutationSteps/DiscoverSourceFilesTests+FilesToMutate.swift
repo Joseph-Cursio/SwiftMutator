@@ -76,6 +76,8 @@ extension DiscoverSourceFilesTests {
             "Sources/App/notes.md", "Sources/Lib/Lib.swift", "Other/Other.swift",
         ]
         try makeFiles(files, in: project)
+        // On a disk that tells names apart by case, as Linux's do, an entry in another case names no file.
+        let diskIgnoresCase = FileManager.default.fileExists(atPath: "\(project)/SOURCES")
 
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
         state.projectDirectoryURL = URL(fileURLWithPath: "/Users/me/Project", isDirectory: true)
@@ -101,7 +103,10 @@ extension DiscoverSourceFilesTests {
             let result = try await sut.run(with: state)
             XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(expected.map { "\(project)/\($0)" })], "\(entries)")
         }
-        XCTAssertEqual(warnings.entries, [])
+        XCTAssertEqual(
+            warnings.entries,
+            diskIgnoresCase ? [] : [.init(entry: "sources/lib/Lib.swift", reason: .noSwiftFile)]
+        )
     }
 
     func test_theFilesToMutate_keepTheExcludes_theDefaultsToo() async throws {
