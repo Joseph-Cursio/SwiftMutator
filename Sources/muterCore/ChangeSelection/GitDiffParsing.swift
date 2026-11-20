@@ -1,5 +1,3 @@
-import Foundation
-
 /// Reads what `git diff` prints, as `GitChanges` asks for it.
 enum GitDiffParsing {
     /// How a file in `git diff --name-status -z` changed.
