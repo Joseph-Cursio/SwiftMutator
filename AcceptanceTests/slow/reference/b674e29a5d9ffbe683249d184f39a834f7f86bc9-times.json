@@ -1,23 +1,23 @@
 {
  "full": {
   "runs": 5,
-  "wall_s": 6302.0
+  "wall_s": 6136.0
  },
  "full-testchange": {
   "runs": 1,
-  "wall_s": 6084.0
+  "wall_s": 6057.0
  },
  "no-stop": {
   "runs": 1,
-  "wall_s": 9287.0
+  "wall_s": 9653.0
  },
  "release": {
   "runs": 1,
-  "wall_s": 1939.0
+  "wall_s": 1909.0
  },
  "reuse-nochange": {
   "runs": 1,
-  "wall_s": 3008.0
+  "wall_s": 2890.0
  },
  "reuse-sourcechange": {
   "runs": 1,
@@ -25,15 +25,15 @@
  },
  "reuse-sourcechange-ignoring": {
   "runs": 1,
-  "wall_s": 2910.0
+  "wall_s": 2825.0
  },
  "reuse-testchange": {
   "runs": 1,
-  "wall_s": 5563.0
+  "wall_s": 5385.0
  },
  "since": {
   "runs": 1,
-  "wall_s": 1270.0
+  "wall_s": 1277.0
  },
  "since-nothing": {
   "runs": 1,
@@ -41,10 +41,10 @@
  },
  "stop-resume": {
   "runs": 1,
-  "wall_s": 1609.0
+  "wall_s": 1562.0
  },
  "stop-resume-continued": {
   "runs": 1,
-  "wall_s": 4948.0
+  "wall_s": 5024.0
  }
 }
