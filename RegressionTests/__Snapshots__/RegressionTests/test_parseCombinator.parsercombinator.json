@@ -242,10 +242,32 @@
             "line" : 92
           },
           "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:109:20 ReplaceNilCoalescing",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceNilCoalescing",
+            "position" : {
+              "column" : 20,
+              "line" : 109
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "other.parse(stream)",
+            "before" : "self.parse(stream) ?? other.parse(stream)",
+            "description" : "replaced the coalescing with its fallback"
+          },
+          "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift",
+          "sourceChange" : {
+            "after" : "            return other.parse(stream)",
+            "before" : "            return self.parse(stream) ?? other.parse(stream)",
+            "line" : 109
+          },
+          "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "FFCParserCombinator.swift",
-      "mutationScore" : 90,
+      "mutationScore" : 91,
       "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift"
     },
     {
@@ -335,6 +357,28 @@
             "after" : "                guard let (_, newRemainder) = character(condition: { $0 != char }).parse(remainder) else {",
             "before" : "                guard let (_, newRemainder) = character(condition: { $0 == char }).parse(remainder) else {",
             "line" : 103
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:145:101 ReplaceNilCoalescing",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceNilCoalescing",
+            "position" : {
+              "column" : 101,
+              "line" : 145
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "$0 ?? \"\"",
+            "description" : "replaced the coalescing with its fallback"
+          },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "            } <^> BasicParser.negation.optional.followed(by: BasicParser.numericString, combine: { (\"\") + $1 } )",
+            "before" : "            } <^> BasicParser.negation.optional.followed(by: BasicParser.numericString, combine: { ($0 ?? \"\") + $1 } )",
+            "line" : 145
           },
           "testSuiteOutcome" : "failed"
         },
@@ -604,19 +648,19 @@
         }
       ],
       "fileName" : "StringParsing.swift",
-      "mutationScore" : 75,
+      "mutationScore" : 76,
       "path" : "Sources\/FFCParserCombinator\/StringParsing.swift"
     }
   ],
-  "globalMutationScore" : 81,
+  "globalMutationScore" : 82,
   "mutantsByOutcome" : {
     "buildErrors" : 0,
-    "killed" : 22,
+    "killed" : 24,
     "notCovered" : 1,
     "survived" : 4,
     "timedOut" : 0
   },
-  "numberOfKilledMutants" : 22,
+  "numberOfKilledMutants" : 24,
   "operatorExplanations" : {
     "ChangeArithmeticOperator" : "Swaps arithmetic: plus and minus swap, as do times and divide, and remainder becomes times.",
     "ChangeLogicalConnector" : "Swaps a logical AND for OR, and OR for AND.",
@@ -624,8 +668,9 @@
     "RelationalBoundary" : "Moves a comparison's boundary: less than and at most swap, as do greater than and at least.",
     "RelationalOperatorReplacement" : "Replaces a comparison with true or false, and turns less than and greater than into not equal, and at most and at least into equal.",
     "RemoveSideEffects" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone.",
+    "ReplaceNilCoalescing" : "Replaces a nil-coalescing expression with its fallback, so the code always takes the value on the right.",
     "ReplaceReturnValue" : "Replaces a returned value with an empty one of its type: nil, an empty array, dictionary or string, or zero.",
     "SwapTernary" : "Swaps the two branches of a ternary expression."
   },
-  "totalAppliedMutationOperators" : 27
+  "totalAppliedMutationOperators" : 29
 }

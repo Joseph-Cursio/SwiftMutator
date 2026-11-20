@@ -14,6 +14,7 @@ enum MutationOperator {
         case flipBooleanLiteral = "FlipBooleanLiteral"
         case replaceBooleanValue = "ReplaceBooleanValue"
         case replaceReturnValue = "ReplaceReturnValue"
+        case replaceNilCoalescing = "ReplaceNilCoalescing"
 
         var visitor: VisitorInitializer {
             switch self {
@@ -46,6 +47,9 @@ enum MutationOperator {
 
             case .replaceReturnValue:
                 return { ReplaceReturnValueOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
+
+            case .replaceNilCoalescing:
+                return { ReplaceNilCoalescingOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
             }
         }
 
@@ -66,6 +70,7 @@ enum MutationOperator {
             case .flipBooleanLiteral: "Flip Boolean Literal"
             case .replaceBooleanValue: "Replace Boolean Value"
             case .replaceReturnValue: "Replace Return Value"
+            case .replaceNilCoalescing: "Replace Nil Coalescing"
             }
         }
 
@@ -103,6 +108,10 @@ enum MutationOperator {
             case .replaceReturnValue:
                 return "Replaces a returned value with an empty one of its type: nil, an empty array, dictionary or "
                     + "string, or zero."
+
+            case .replaceNilCoalescing:
+                return "Replaces a nil-coalescing expression with its fallback, so the code always takes the value on "
+                    + "the right."
             }
         }
     }

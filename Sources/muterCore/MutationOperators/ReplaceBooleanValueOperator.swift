@@ -15,6 +15,16 @@ enum ReplaceBooleanValueOperator {
         /// with this operator alone reported.
         var leavesComparisonsAlone = false
 
+        /// Whether to leave the mutant of a value that is a whole `??` term whose fallback is that mutant's literal, as
+        /// `false` for `b() ?? false`, alone, as ReplaceNilCoalescing's mutant of it is the same code. The other
+        /// literal's is kept. Set when that operator is on, but not for `--mutant`.
+        var leavesCoalescingsAlone = false
+
+        /// Whether the file declares a `??` of its own, which ReplaceNilCoalescing leaves alone
+        /// (`NilCoalescing.isDeclared`). Worked out once, when first needed.
+        private var declaresACoalescingOperator = false
+        private var hasLookedForACoalescingOperator = false
+
         convenience init(
             sourceCodeInfo: SourceCodeInfo,
             configuration: MuterConfiguration? = nil,
@@ -50,7 +60,8 @@ enum ReplaceBooleanValueOperator {
             ]
             // The pair is one value's: a directive that leaves out where either is placed leaves out both.
             guard !mutants.contains(where: { isLeftOutByADirective($0.position, in: value.root) }) else { return next }
-            for (keyword, position) in mutants {
+            let fallback = literalLeftToReplaceNilCoalescing(value)
+            for (keyword, position) in mutants where keyword != fallback {
                 let after = keyword == .true ? "true" : "false"
                 add(
                     mutation: replacement(of: value, with: keyword),
@@ -74,6 +85,26 @@ enum ReplaceBooleanValueOperator {
             }
             let places = placesOfTheMutants(ofTheComparisonWith: comparison)
             return !places.contains { isLeftOutByADirective($0, in: value.root) }
+        }
+
+        /// The Bool literal that is the fallback of the whole `??` term `value` is, when ReplaceNilCoalescing mutates
+        /// it, so its mutant is the one with that literal. Not when a directive leaves that mutant out.
+        private func literalLeftToReplaceNilCoalescing(_ value: ExprSyntax) -> Keyword? {
+            guard leavesCoalescingsAlone, let coalescing = NilCoalescing(wholeOf: value) else { return nil }
+            if !hasLookedForACoalescingOperator {
+                declaresACoalescingOperator = NilCoalescing.isDeclared(in: value.root)
+                hasLookedForACoalescingOperator = true
+            }
+            guard !declaresACoalescingOperator else { return nil }
+            var fallback = coalescing.fallback
+            while let tuple = fallback.as(TupleExprSyntax.self), tuple.elements.count == 1,
+                  let only = tuple.elements.first, only.label == nil {
+                fallback = only.expression
+            }
+            guard let literal = fallback.as(BooleanLiteralExprSyntax.self)?.literal.tokenKind,
+                  !isLeftOutByADirective(startLocation(for: coalescing.first, afterLeadingTrivia: true), in: value.root)
+            else { return nil }
+            return literal == .keyword(.true) ? .true : .false
         }
 
         /// The literal in place of `value`, kept apart from a name or keyword it would otherwise touch

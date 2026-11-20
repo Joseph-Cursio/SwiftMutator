@@ -65,7 +65,7 @@ day, three of them with a fix. It has things SwiftMutator doesn't, among them:
 Its default run uses three of its seven operators: logical operators, negated conditions and
 swapped ternaries. So by default it doesn't replace relational operators, as in `==` becoming `!=`,
 or remove calls, arithmetic or boolean literals. `--operator-tier experimental` runs all seven.
-SwiftMutator runs its ten by default.
+SwiftMutator runs its eleven by default.
 
 SwiftMutator differs in how it keeps tests apart. Each of its workers tests in its own full
 copy of the project, `.git` included, unless a run of the tests with no mutant on writes nothing
@@ -262,6 +262,23 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   naming that run's operators with `--operators`, and a baseline file written before it is refused,
   as it records the run's operators (see [Failing on new survivors](#failing-on-new-survivors)). See
   [mutation_operators.md](Docs/mutation_operators.md#replace-return-value).
+- **Nil coalescing** ([#257](https://github.com/Joseph-Cursio/SwiftMutator/issues/257)):
+  `ReplaceNilCoalescing` replaces a nil-coalescing expression, `a ?? b`, with its fallback, `b`, so
+  the code always takes the value on the right. A test that never sees the left side nil, or never
+  sees it not nil, lets the mutant survive. Each link of a chain gets its own mutant, and the
+  expression comes from the standard operators' precedence. A fallback that takes its type from
+  where it is, as a literal, `nil`, `.zero` or a closure, is left alone where the expression is the
+  whole value of a place that gives it no type, as in `let y = x ?? 0`: a `let` or `var` with no
+  type written, an `if let`, a capture list, what a `for` loop goes over, and, for `nil`, `[]`,
+  `[:]`, `.zero` or a closure, a member's base, as in `(x ?? []).sorted()`, or what a closure with
+  no return type written gives. Elsewhere such a mutant may be left out as a build error, as
+  `Array(x ?? [])` can be. A `try` or `await` that would cover no call is left alone too, and so is
+  a fallback that is what the expression is assigned to, as in `one = other.one ?? one`, since
+  Swift won't assign a variable to itself. It runs by default. A run recorded before it is
+  continued as above, by naming that run's operators with
+  `--operators`, and a baseline file written before it is refused, as it records the run's
+  operators (see [Failing on new survivors](#failing-on-new-survivors)). See
+  [mutation_operators.md](Docs/mutation_operators.md#replace-nil-coalescing).
 - **Comparisons:** `RelationalOperatorReplacement` gives an ordering comparison the mutants of
   Kaminski, Ammann and Offutt's sufficient set, whose tests, with `RelationalBoundary`'s, kill every
   other mutant of its operator, and an equality check both constants in place of the set's `<=` and
@@ -728,10 +745,10 @@ is read as the run starts, and replaced at the end.
   override them, discovers or judges other mutants, so the file is refused as the run starts, with
   status 8, and every difference listed. An `--exclude` adds to `exclude`, so a run with one needs a
   baseline file written with it. An upgrade that adds an operator that runs by default, as
-  `ReplaceBooleanValue` and `ReplaceReturnValue` did, changes the operators of a run that names
-  none, so a file written before it is refused until a whole run writes a new one; to keep the old
-  file meanwhile, leave the new operator out, as with `skipOperators: [ReplaceReturnValue]` in
-  `muter.conf.yml`. An upgrade
+  `ReplaceBooleanValue`, `ReplaceReturnValue` and `ReplaceNilCoalescing` did, changes the operators
+  of a run that names none, so a file written before it is refused until a whole run writes a new
+  one; to keep the old file meanwhile, leave the new operator out, as with
+  `skipOperators: [ReplaceNilCoalescing]` in `muter.conf.yml`. An upgrade
   that changes what an operator's mutants are, as `RelationalOperatorReplacement`'s Kaminski set
   did, isn't refused, as the operators are the same: the file's survivors of the old mutants are
   not tested, and the new mutants' survivors are new, so the check fails. Its mutants are harder
@@ -1922,8 +1939,8 @@ For one run:
 
 Every operator runs by default: `RelationalOperatorReplacement`, `RelationalBoundary`,
 `RemoveSideEffects`, `ChangeLogicalConnector`, `SwapTernary`, `NegateConditional`,
-`ChangeArithmeticOperator`, `FlipBooleanLiteral`, `ReplaceBooleanValue` and `ReplaceReturnValue`.
-`swift-mutator operator all` explains them, as does
+`ChangeArithmeticOperator`, `FlipBooleanLiteral`, `ReplaceBooleanValue`, `ReplaceReturnValue` and
+`ReplaceNilCoalescing`. `swift-mutator operator all` explains them, as does
 [Docs/mutation_operators.md](Docs/mutation_operators.md). To use fewer, name them in
 `muter.conf.yml`, or on the command line for one run, where `--operators` and `--skip-operators`
 take several names separated by spaces:

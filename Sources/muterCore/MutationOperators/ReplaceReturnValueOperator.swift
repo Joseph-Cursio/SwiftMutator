@@ -12,6 +12,8 @@ private struct NamedDeclaration {
 private struct FileDeclarations {
     private(set) var typeNames: Set<String> = []
     private(set) var requirementsWithAttributes: Set<String> = []
+    /// Whether it declares a `??` of its own, which ReplaceNilCoalescing leaves alone (`NilCoalescing.isDeclared`).
+    private(set) var declaresACoalescingOperator = false
 
     /// Walks the whole file with a loop, not recursion, so a deep tree can't run out of a discovery thread's stack.
     init(in root: Syntax) {
@@ -20,6 +22,9 @@ private struct FileDeclarations {
             stack.append(contentsOf: node.children(viewMode: .sourceAccurate))
             if let name = node.declaredTypeName {
                 typeNames.insert(name)
+            }
+            if node.as(FunctionDeclSyntax.self)?.name.text == "??" {
+                declaresACoalescingOperator = true
             }
             guard let protocolDecl = node.as(ProtocolDeclSyntax.self) else { continue }
             for requirement in protocolDecl.requirements where requirement.attributes.mayHoldAResultBuilder {
@@ -39,6 +44,12 @@ enum ReplaceReturnValueOperator {
         /// The names the file declares that a written return type could mean instead of the standard library's, and
         /// those of its protocols' requirements a builder may be inferred for. Worked out once, from the whole file.
         private var declarations: FileDeclarations?
+
+        /// Whether to leave a value that is a whole `??` term whose fallback already is the empty value, as `n() ?? 0`,
+        /// alone, as ReplaceNilCoalescing's mutant of it is the same code. Set when that operator is on, but not for
+        /// `--mutant`, which discovers every operator and must still find the mutant a run with this operator alone
+        /// reported.
+        var leavesCoalescingsAlone = false
 
         convenience init(
             sourceCodeInfo: SourceCodeInfo,
@@ -65,7 +76,8 @@ enum ReplaceReturnValueOperator {
                   let writtenType = site.writtenType,
                   let empty = EmptyValue(writtenAs: writtenType, unless: declarations(in: value.root).typeNames),
                   value.canBeReplaced(by: empty),
-                  !isLeftOut(value, of: site.kind, in: owner)
+                  !isLeftOut(value, of: site.kind, in: owner),
+                  !isLeftToReplaceNilCoalescing(value, replacedBy: empty)
             else {
                 return next
             }
@@ -81,6 +93,18 @@ enum ReplaceReturnValueOperator {
                 )
             )
             return next
+        }
+
+        /// Whether ReplaceNilCoalescing's mutant of `value` is this one: `value` is a whole `??` term, which that
+        /// operator mutates, and its fallback is `empty`. Not when a directive leaves that mutant out.
+        private func isLeftToReplaceNilCoalescing(_ value: ExprSyntax, replacedBy empty: EmptyValue) -> Bool {
+            guard leavesCoalescingsAlone,
+                  !declarations(in: value.root).declaresACoalescingOperator,
+                  let coalescing = NilCoalescing(wholeOf: value),
+                  empty.isWritten(as: coalescing.fallback)
+            else { return false }
+            let place = startLocation(for: coalescing.first, afterLeadingTrivia: true)
+            return !isLeftOutByADirective(place, in: value.root)
         }
 
         /// Whether `value`, which `owner` returns, is left out though its type has an empty value, as its mutant may

@@ -178,6 +178,7 @@ extension GeneratedCodeShapesTests {
         let compiled = try compileMutated(["Paths.swift": paths], plain: ["main.swift": main])
 
         let mutants = { compiled.operators(in: "Paths.swift", onTheLineHolding: $0) }
+        // `let found = "none"` would make `found` a String, and `guard let found` wouldn't compile: so no `??` mutant.
         XCTAssertEqual(mutants("let found ="), [.arithmeticOperator], "an arithmetic operator")
         XCTAssertEqual(mutants("look(if: $0 > 0)"), [.ror, .relationalBoundary], "a comparison")
         XCTAssertEqual(mutants("look(if: other"), [.ror, .logicalOperator], "a logical operator")
@@ -186,8 +187,13 @@ extension GeneratedCodeShapesTests {
         XCTAssertEqual(mutants("(key.map"), [.arithmeticOperator], "parentheses")
         XCTAssertEqual(mutants("Optional($0).map"), [.arithmeticOperator], "a closure in that closure")
         XCTAssertEqual(mutants("let global"), [.arithmeticOperator], "a global's value")
-        XCTAssertEqual(mutants("func defaulted"), [.arithmeticOperator], "a default argument")
-        XCTAssertEqual(mutants("func given"), [.arithmeticOperator], "a local function's default argument")
+        XCTAssertEqual(mutants("func defaulted"), [.arithmeticOperator, .replaceNilCoalescing], "a default argument")
+        XCTAssertEqual(
+            mutants("func given"),
+            [.arithmeticOperator, .replaceNilCoalescing],
+            "a local function's default argument"
+        )
+        XCTAssertEqual(mutants("return Inner()"), [.replaceNilCoalescing], "a returned coalescing")
 
         let everything = Array(repeating: "found", count: 11).joined(separator: ",")
         XCTAssertEqual(try run(compiled.program).output, everything + "\n", "no mutant named")

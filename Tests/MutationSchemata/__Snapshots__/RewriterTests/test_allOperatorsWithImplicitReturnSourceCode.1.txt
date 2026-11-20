@@ -1015,6 +1015,29 @@ extension String {
     }
   }
 }
+
+struct Coalescings {
+  func name(_ nickname: String?, _ fullName: String?) -> String {
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_ReplaceReturnValue_172_16_3977"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      return ""
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_ReplaceNilCoalescing_172_28_3989"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      return nickname ?? "anonymous"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_ReplaceNilCoalescing_172_16_3977"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      return fullName ?? "anonymous"
+    } else {
+      return nickname ?? fullName ?? "anonymous"
+    }
+  }
+}
 @usableFromInline internal enum __SwiftMutator_c132952c484be782 {
   @usableFromInline nonisolated static let environment: [String: String] = {
     var environment = ProcessInfo.processInfo.environment

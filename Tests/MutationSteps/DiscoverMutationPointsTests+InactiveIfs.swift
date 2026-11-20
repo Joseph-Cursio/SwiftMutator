@@ -37,7 +37,7 @@ extension DiscoverMutationPointsTests {
             let chosen = flag ? 1 : 2
             if !flag { total = 3 }
             let isDone = !flag || true
-            do { record(total) }
+            do { record(Optional(total) ?? a) }
             return total + chosen
         """
         let file = try file(withLines: """

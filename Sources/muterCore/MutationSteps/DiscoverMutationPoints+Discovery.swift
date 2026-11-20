@@ -139,6 +139,8 @@ extension DiscoverMutationPoints {
         let inactiveRegions = scope.buildConditions?.conditions(ofFile: path).inactiveRegions(in: source) ?? []
         // RelationalOperatorReplacement's constants stand for these operators' mutants of a comparison.
         let leavesComparisonsAlone = scope.operators.contains(.ror) && scope.namedMutant == nil
+        // ReplaceNilCoalescing's fallback stands for these operators' mutant of a `??` whose fallback is theirs.
+        let leavesCoalescingsAlone = scope.operators.contains(.replaceNilCoalescing) && scope.namedMutant == nil
 
         var found = VisitorFindings()
         for mutationOperatorId in scope.operators {
@@ -154,6 +156,8 @@ extension DiscoverMutationPoints {
             visitor.isUncovered = isUncovered
             (visitor as? NegateConditionalOperator.Visitor)?.leavesComparisonsAlone = leavesComparisonsAlone
             (visitor as? ReplaceBooleanValueOperator.Visitor)?.leavesComparisonsAlone = leavesComparisonsAlone
+            (visitor as? ReplaceBooleanValueOperator.Visitor)?.leavesCoalescingsAlone = leavesCoalescingsAlone
+            (visitor as? ReplaceReturnValueOperator.Visitor)?.leavesCoalescingsAlone = leavesCoalescingsAlone
 
             visitor.walk(source)
             found.dropped += visitor.droppedMutants
