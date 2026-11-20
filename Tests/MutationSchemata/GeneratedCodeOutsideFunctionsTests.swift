@@ -158,7 +158,7 @@ final class GeneratedCodeOutsideFunctionsTests: GeneratedCodeTestCase {
 
     func test_theGeneratedCodeBuilds_andWorks_inAMainFilesStatements() throws {
         let main = """
-        import Darwin
+        import \(systemLibrary)
 
         signal(SIGTRAP) { _ in _exit(70) }
         var total = 0
@@ -169,7 +169,7 @@ final class GeneratedCodeOutsideFunctionsTests: GeneratedCodeTestCase {
         for _ in 0 ..< (total > 100 ? 2 : 1) { total += 100 }
         if let found = total > 100 ? "found" : nil { print(found) }
         if total > 100 { print("first") }; print("second")
-        #if canImport(Darwin)
+        #if canImport(\(systemLibrary))
         import Foundation
         print(total > 100)
         #endif
@@ -211,7 +211,7 @@ final class GeneratedCodeOutsideFunctionsTests: GeneratedCodeTestCase {
     /// NegateConditional wraps a whole condition, so its switch goes around the statement, like any other's.
     func test_aMainFilesCondition_isNegated() throws {
         let main = """
-        import Darwin
+        import \(systemLibrary)
 
         signal(SIGTRAP) { _ in _exit(70) }
         var total = 0

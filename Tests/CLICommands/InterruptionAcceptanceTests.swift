@@ -242,7 +242,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(mutants.count, 2)
         for mutant in mutants {
             XCTAssertEqual(mutant["outcome"] as? String, "passed", "\(mutant)")
-            let seconds = try XCTUnwrap(mutant["durationSeconds"] as? Double)
+            let seconds = try XCTUnwrap(mutant.double(at: "durationSeconds"))
             XCTAssertLessThan(seconds, 5, "the time suspended counted: \(mutant)")
         }
     }

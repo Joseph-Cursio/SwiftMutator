@@ -133,7 +133,7 @@ final class SampleTests: XCTestCase {
                 + "random part of the sample."
         )
         let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: JSONEncoder().encode(stopped)) as? [String: Any]
+            JSONSerialization.hashableObject(with: JSONEncoder().encode(stopped)) as? [String: Any]
         )
         XCTAssertNil(json["marginOfError"])
         XCTAssertEqual(json["mutantsTested"] as? Int, 100)

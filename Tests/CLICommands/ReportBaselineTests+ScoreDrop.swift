@@ -24,10 +24,10 @@ extension ReportBaselineTests {
                 + "allowed.",
         ])
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(saved.utf8)) as? [String: AnyHashable])
+        let json = try XCTUnwrap(JSONSerialization.hashableObject(with: Data(saved.utf8)) as? [String: AnyHashable])
         let verdict = try XCTUnwrap(json["scoreDrop"] as? [String: AnyHashable], saved)
         XCTAssertEqual(verdict["passed"] as? Bool, false)
-        XCTAssertEqual(verdict["maxScoreDrop"] as? Double, 2)
+        XCTAssertEqual(verdict.double(at: "maxScoreDrop"), 2)
 
         try report(resultsPath, "--baseline", baselinePath, "--max-score-drop", "40")
         XCTAssertEqual(
@@ -172,7 +172,7 @@ extension ReportBaselineTests {
             first, second, "--baseline", baselinePath, "--max-score-drop", "2", "--summary", summaryPath
         )
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(saved.utf8)) as? [String: AnyHashable])
+        let json = try XCTUnwrap(JSONSerialization.hashableObject(with: Data(saved.utf8)) as? [String: AnyHashable])
         let verdict = try XCTUnwrap(json["scoreDrop"] as? [String: AnyHashable], saved)
         XCTAssertEqual(verdict["notChecked"] as? String, "discoveriesDiffer")
         XCTAssertNil(verdict["passed"])

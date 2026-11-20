@@ -232,7 +232,7 @@ final class ReadableReportTests: MuterTestCase {
         XCTAssertTrue(html.contains(#"<div class="source-line snapshot-after">+3:     return a &gt; b</div>"#), html)
 
         let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
         let fileReports = try XCTUnwrap(json["fileReports"] as? [[String: Any]])
         let operators = try XCTUnwrap(fileReports.first?["appliedOperators"] as? [[String: Any]])
@@ -292,7 +292,7 @@ final class ReadableReportTests: MuterTestCase {
         | 2 | 1 | 1 | 2 | 6 |
         """), markdown)
         let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
         XCTAssertEqual(json["mutantsByOutcome"] as? [String: AnyHashable], [
             "killed": 2, "survived": 1, "timedOut": 1, "buildErrors": 2, "notCovered": 0,

@@ -45,7 +45,7 @@ Discovery takes a SwiftPM package's files from its targets, keeps only the files
   - `make release` runs `Scripts/shipIt.sh` (`Makefile:18-19`), which downloads Muter's release archive, hashes it, and builds and installs a Homebrew formula for Muter.
   - `Scripts/bump_version.py` edits `homebrew-formulae/Formula/muter.rb`, and the `homebrew-formulae` submodule is Muter's formulae repository (`.gitmodules`).
   - The update check asks GitHub's API for SwiftMutator's latest release (`UpdateCheck.swift:30`) on every run not given `--skip-update-check`, and finds none. Cut a release, or make the check opt-in.
-- **Linux** ([#130]). CI's Linux job builds SwiftMutator and runs the unit suite, but the suite fails there, so the job doesn't block: it runs with `continue-on-error`, on pushes to main and by hand, not on pull requests (`.github/workflows/ci.yml:161-170`). Its run on 8 November built and then failed its tests. Mutants there also run through `swift test` (§1.1).
+- **Linux** ([#130]). Since 20 November, CI's Linux job passes the unit suite and runs on pull requests too (`.github/workflows/ci.yml:278-281`). What's left is to add it to main's ruleset, so that it blocks a merge as the macOS jobs do. Mutants there still run through `swift test` (§1.1, [#281]).
 - **xcodebuild workers: what's left** (no issue yet; [#103] is closed). Several workers test on simulator destinations only.
   - A failed check run on a simulator made with `simctl create`, because the destination's simulator was booted, doesn't say that shutting it down would let the next run clone it, with its settings and data.
   - macOS and Mac Catalyst destinations stay on 1 worker: their tests would share the Mac's `UserDefaults`, saved state and container (`MuterConfiguration.swift:588-612`).
@@ -102,3 +102,4 @@ These came after the review and have no section of their own.
 [#261]: https://github.com/Joseph-Cursio/SwiftMutator/issues/261
 [#262]: https://github.com/Joseph-Cursio/SwiftMutator/issues/262
 [#263]: https://github.com/Joseph-Cursio/SwiftMutator/issues/263
+[#281]: https://github.com/Joseph-Cursio/SwiftMutator/issues/281

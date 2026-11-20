@@ -280,7 +280,7 @@ final class TestPlanHarness {
     func records(in file: URL) throws -> [[String: Any]] {
         try contents(of: file)
             .split(separator: "\n")
-            .map { try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]) }
+            .map { try XCTUnwrap(JSONSerialization.hashableObject(with: Data($0.utf8)) as? [String: Any]) }
     }
 
     func kinds(in file: URL) throws -> [String?] {

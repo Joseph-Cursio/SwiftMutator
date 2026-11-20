@@ -101,9 +101,9 @@ final class ScoreDropCheckTests: XCTestCase {
             XCTAssertEqual(verdict.result, .passed)
             XCTAssertEqual(verdict.drop, 2)
             let summary = RunSummary(of: .make([.passed]), ended: .finished, report: nil, scoreDrop: verdict)
-            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: Any])
+            let json = try XCTUnwrap(JSONSerialization.hashableObject(with: summary.json) as? [String: Any])
             let recordedDrop = try XCTUnwrap(json["scoreDrop"] as? [String: Any])
-            XCTAssertEqual(recordedDrop["drop"] as? Double, 2)
+            XCTAssertEqual(recordedDrop.double(at: "drop"), 2)
         }
         XCTAssertEqual(check(1, of: 10, against: (2, 10), allowing: 0.1).drop, 10)
         XCTAssertEqual(check(9, of: 10, against: (1, 10)).drop, -80)
@@ -207,17 +207,17 @@ final class ScoreDropCheckTests: XCTestCase {
         let verdict = check(78, of: 100, against: (82, 100))
         let summary = RunSummary(of: .make([.passed]), ended: .finished, report: nil, scoreDrop: verdict)
 
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: Any])
+        let json = try XCTUnwrap(JSONSerialization.hashableObject(with: summary.json) as? [String: Any])
         let recorded = try XCTUnwrap(json["scoreDrop"] as? [String: Any])
         XCTAssertEqual(
             Set(recorded.keys),
             ["baseline", "maxScoreDrop", "baselineScore", "score", "drop", "passed"]
         )
         XCTAssertEqual(recorded["baseline"] as? String, "muter.baseline.yml")
-        XCTAssertEqual(recorded["maxScoreDrop"] as? Double, 2)
-        XCTAssertEqual(recorded["baselineScore"] as? Double, 82)
-        XCTAssertEqual(recorded["score"] as? Double, 78)
-        XCTAssertEqual(recorded["drop"] as? Double, 4)
+        XCTAssertEqual(recorded.double(at: "maxScoreDrop"), 2)
+        XCTAssertEqual(recorded.double(at: "baselineScore"), 82)
+        XCTAssertEqual(recorded.double(at: "score"), 78)
+        XCTAssertEqual(recorded.double(at: "drop"), 4)
         XCTAssertEqual(recorded["passed"] as? Bool, false)
 
         let unchecked = RunSummary(
@@ -234,7 +234,7 @@ final class ScoreDropCheckTests: XCTestCase {
         XCTAssertEqual(unchecked.scoreDrop?.passed, .notChecked)
         XCTAssertNil(unchecked.scoreDrop?.score)
         let plain = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: RunSummary(of: .make([.passed]), ended: .finished, report: nil).json)
+            JSONSerialization.hashableObject(with: RunSummary(of: .make([.passed]), ended: .finished, report: nil).json)
                 as? [String: Any]
         )
         XCTAssertNil(plain["scoreDrop"])

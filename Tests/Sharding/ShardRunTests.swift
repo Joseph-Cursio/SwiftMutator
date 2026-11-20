@@ -176,7 +176,7 @@ final class ShardRunTests: MuterTestCase {
             )
         )
         let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
         let shards = try XCTUnwrap(json["shards"] as? [String: Any])
         XCTAssertEqual(shards["indices"] as? [Int], [1])
@@ -209,7 +209,7 @@ final class ShardRunTests: MuterTestCase {
 
         XCTAssertFalse(PlainTextReporter().report(from: outcome).contains("shard"))
         let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
         XCTAssertNil(json["shards"])
         XCTAssertFalse(HTMLReporter().report(from: outcome).contains("Shard tested"))

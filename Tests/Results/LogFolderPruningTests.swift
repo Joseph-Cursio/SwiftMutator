@@ -243,6 +243,7 @@ final class LogFolderPruningTests: MuterTestCase {
 
     // A folder that can't be removed is said, not thrown; one that has gone is as good as removed.
     func test_aFolderThatCantBeRemoved_isSaid_andOneThatHasGone_isRemoved() throws {
+        try XCTSkipIf(geteuid() == 0, "root removes a folder whatever its permissions, as in a CI container")
         let locked = try folder("locked", at: 0)
         try folder("newest", at: 10)
         XCTAssertEqual(chmod(locked, 0o555), 0)

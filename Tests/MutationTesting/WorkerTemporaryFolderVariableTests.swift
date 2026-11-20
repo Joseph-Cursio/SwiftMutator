@@ -20,12 +20,7 @@ final class WorkerTemporaryFolderVariableTests: GeneratedCodeTestCase {
             """,
             to: source
         )
-        let compiled = try execute(
-            URL(fileURLWithPath: xcrun),
-            arguments: ["swiftc", source.path, "-o", program.path],
-            environment: compilerEnvironment,
-            timeLimit: 120
-        )
+        let compiled = try runCompiler([source.path, "-o", program.path], timeLimit: 120)
         XCTAssertEqual(compiled.status, 0, compiled.errors)
         let folder = WorkerTemporaryFolder(
             forWorkerIn: URL(fileURLWithPath: "/runs/variable-check"),

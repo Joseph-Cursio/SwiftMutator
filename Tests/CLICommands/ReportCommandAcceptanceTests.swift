@@ -207,7 +207,7 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         let folder = try onlyLogFolder()
         let lines = try contents(of: folder.appendingPathComponent("results.jsonl"))
             .split(separator: "\n")
-            .compactMap { try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+            .compactMap { try JSONSerialization.hashableObject(with: Data($0.utf8)) as? [String: Any] }
         let mutants = lines.filter { $0["kind"] as? String == "mutant" }
         let inFile = { (name: String) in mutants.filter { ($0["path"] as? String)?.hasSuffix(name) == true } }
         XCTAssertEqual(inFile("Checks.swift").count, 2, "\(lines)")
@@ -231,7 +231,9 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         let report = try runSwiftMutator(["report", folder.path, "-f", "json"])
 
         XCTAssertEqual(report.status, 0, report.standardError)
-        let printed = try JSONSerialization.jsonObject(with: Data(report.standardOutput.utf8)) as? [String: AnyHashable]
+        let printed = try JSONSerialization.hashableObject(
+            with: Data(report.standardOutput.utf8)
+        ) as? [String: AnyHashable]
         XCTAssertEqual(printed, try parsedJSON(at: runReport))
         XCTAssertTrue(report.standardError.contains("Report of 4 of 4 mutants"), report.standardError)
         XCTAssertFalse(report.standardError.contains("Report saved"), report.standardError)

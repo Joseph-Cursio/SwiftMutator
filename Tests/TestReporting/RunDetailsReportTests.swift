@@ -51,7 +51,7 @@ final class RunDetailsReportTests: MuterTestCase {
 
     private func json(of outcome: MutationTestOutcome) throws -> [String: Any] {
         try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
     }
 
@@ -69,7 +69,7 @@ final class RunDetailsReportTests: MuterTestCase {
         let survivor = try XCTUnwrap((fileReports.first?["appliedOperators"] as? [[String: Any]])?.first)
         XCTAssertEqual(survivor["path"] as? String, "Sources/Lint/Rules.swift")
         XCTAssertEqual(survivor["key"] as? String, "Sources/Lint/Rules.swift:12:9 RelationalOperatorReplacement")
-        XCTAssertEqual(survivor["durationSeconds"] as? Double, 6.9)
+        XCTAssertEqual(survivor.double(at: "durationSeconds"), 6.9)
         XCTAssertEqual(
             (survivor["mutationPoint"] as? [String: Any])?["filePath"] as? String,
             "/work/Foo_mutated/Sources/Lint/Rules.swift"
@@ -198,7 +198,7 @@ final class RunDetailsReportTests: MuterTestCase {
         XCTAssertEqual(summary.run, run)
         let text = String(lossyUTF8: summary.json)
         XCTAssertTrue(text.contains(#""report" : "/out/report.html""#), text)
-        let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: Any]).keys.sorted()
+        let keys = try XCTUnwrap(JSONSerialization.hashableObject(with: summary.json) as? [String: Any]).keys.sorted()
         XCTAssertEqual(keys, [
             "durationSeconds", "ended", "formatVersion", "mutants", "mutantsByOutcome", "mutationScore", "report",
             "run",
@@ -225,7 +225,7 @@ final class RunDetailsReportTests: MuterTestCase {
         let summary = RunSummary(of: MutationTestOutcome(shards: scope), ended: .finished, report: nil)
 
         XCTAssertEqual(summary.shards, scope)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: Any])
+        let json = try XCTUnwrap(JSONSerialization.hashableObject(with: summary.json) as? [String: Any])
         let shards = try XCTUnwrap(json["shards"] as? [String: Any])
         XCTAssertEqual(shards["indices"] as? [Int], [1])
         XCTAssertEqual(shards["count"] as? Int, 3)
@@ -238,7 +238,7 @@ final class RunDetailsReportTests: MuterTestCase {
         let gate = ScoreGate(failUnder: 50, judging: outcome)
         let summary = RunSummary(of: outcome, ended: .finished, report: nil, gate: gate)
 
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: AnyHashable])
+        let json = try XCTUnwrap(JSONSerialization.hashableObject(with: summary.json) as? [String: AnyHashable])
         XCTAssertEqual(json["gate"] as? [String: AnyHashable], ["failUnder": 50, "passed": false, "score": 100.0 / 3])
         let text = String(lossyUTF8: summary.json)
         XCTAssertTrue(text.contains(#""failUnder" : 50,"#), text)
@@ -249,7 +249,9 @@ final class RunDetailsReportTests: MuterTestCase {
             report: nil,
             gate: ScoreGate(failUnder: 50, judging: outcome, unless: .endedEarly)
         )
-        let uncheckedJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: unchecked.json) as? [String: AnyHashable])
+        let uncheckedJSON = try XCTUnwrap(
+            JSONSerialization.hashableObject(with: unchecked.json) as? [String: AnyHashable]
+        )
         XCTAssertEqual(uncheckedJSON["gate"] as? [String: AnyHashable], ["failUnder": 50, "notChecked": "endedEarly"])
         XCTAssertFalse(
             String(lossyUTF8: RunSummary(of: outcome, ended: .finished, report: nil).json)

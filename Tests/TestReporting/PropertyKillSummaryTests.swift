@@ -200,11 +200,13 @@ final class PropertyKillSummaryTests: XCTestCase {
                 .contains("Examples and Properties")
         )
 
-        let json = try JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: withGlobs).utf8))
+        let json = try JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: withGlobs).utf8))
         let summary = try XCTUnwrap((json as? [String: Any])?["propertyKillSummary"] as? [String: Any])
         XCTAssertEqual(summary["killedByBoth"] as? Int, 1)
         XCTAssertEqual(summary["globs"] as? [String], ["*Properties*"])
-        let jsonWithout = try JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: withoutGlobs).utf8))
+        let jsonWithout = try JSONSerialization.hashableObject(
+            with: Data(JsonReporter().report(from: withoutGlobs).utf8)
+        )
         XCTAssertNil((jsonWithout as? [String: Any])?["propertyKillSummary"])
     }
 }

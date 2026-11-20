@@ -129,6 +129,7 @@ final class TriageFileTests: MuterTestCase {
     }
 
     func test_aFileThatCantBeOpened_isRefused_notTakenForNone() throws {
+        try XCTSkipIf(geteuid() == 0, "root reads a file whatever its permissions, as in a CI container")
         try "mutants: []\n".write(toFile: path, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: path)
         addTeardownBlock { [path] in

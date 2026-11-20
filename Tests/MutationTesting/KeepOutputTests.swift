@@ -33,6 +33,7 @@ final class KeepOutputTests: MuterTestCase {
     // Whatever is at the output's name when it can't be opened isn't this run's output. Left there, it would be kept
     // as the run's log, in place of the explanation, which is then written from the text.
     func test_aRunWhoseOutputCannotBeOpened_leavesNoFileThere_soItsExplanationIsKept() async throws {
+        try XCTSkipIf(geteuid() == 0, "root writes to a file whatever its permissions, as in a CI container")
         let file = outputFolderURL.appendingPathComponent("running/mutant.log").path
         try FileManager.default.createDirectory(
             atPath: file.deletingLastPathComponent,

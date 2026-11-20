@@ -25,7 +25,7 @@ extension ReportCommandAcceptanceTests {
 
     /// JSON compared as parsed: JSONEncoder promises no key order.
     func parsedJSON(at file: URL) throws -> [String: AnyHashable] {
-        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: AnyHashable])
+        try XCTUnwrap(JSONSerialization.hashableObject(with: Data(contentsOf: file)) as? [String: AnyHashable])
     }
 
     /// Each mutant's outcome in a JSON report, sorted.

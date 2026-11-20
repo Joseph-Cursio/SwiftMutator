@@ -59,7 +59,7 @@ final class MutationSchemaTests: XCTestCase {
             position: position,
             under: mutatedRoot
         )
-        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(schema)) as? [String: Any])
+        var json = try XCTUnwrap(JSONSerialization.hashableObject(with: JSONEncoder().encode(schema)) as? [String: Any])
         json["id"] = nil
 
         let decoded = try JSONDecoder().decode(MutationSchema.self, from: JSONSerialization.data(withJSONObject: json))

@@ -227,12 +227,7 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
     func skipUnlessTheCompilerTakesDefaultIsolation() throws {
         let empty = directory.appendingPathComponent("Empty.swift")
         try write("", to: empty)
-        let probe = try execute(
-            URL(fileURLWithPath: xcrun),
-            arguments: ["swiftc", "-typecheck", "-default-isolation", "MainActor", empty.path],
-            environment: compilerEnvironment,
-            timeLimit: 300
-        )
+        let probe = try runCompiler(["-typecheck", "-default-isolation", "MainActor", empty.path], timeLimit: 300)
         try XCTSkipIf(
             probe.status != 0 && probe.errors.contains("unknown argument: '-default-isolation'"),
             "compiling with -default-isolation needs Swift 6.2 or later:\n\(probe.errors)"

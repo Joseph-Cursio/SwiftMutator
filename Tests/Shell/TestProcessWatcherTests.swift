@@ -130,8 +130,7 @@ final class TestProcessWatcherTests: XCTestCase {
 
     /// The `swift-mutator` executable built beside these tests. Skips the test if it isn't there.
     private func swiftMutatorExecutable() throws -> URL {
-        let executable = Bundle(for: Self.self).bundleURL.deletingLastPathComponent()
-            .appendingPathComponent("swift-mutator")
+        let executable = try XCTUnwrap(BuildProducts.folder).appendingPathComponent("swift-mutator")
         try XCTSkipUnless(
             FileManager.default.isExecutableFile(atPath: executable.path),
             "this test needs swift-mutator built beside the tests, at \(executable.path)"

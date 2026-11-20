@@ -1,5 +1,3 @@
-import Foundation
-
 /// Reads what `git diff` prints, as `GitChanges` asks for it.
 enum GitDiffParsing {
     /// How a file in `git diff --name-status -z` changed.
@@ -53,8 +51,12 @@ enum GitDiffParsing {
         var lines: [LineRange] = []
         var deletionsAfter: [Int] = []
         // By line feed, not by Character: a line of code that ends in a carriage return makes "\r\n" one Character,
-        // which would join the next hunk's header to it.
-        for line in output.components(separatedBy: "\n") where line.hasPrefix("@@ ") {
+        // which would join the next hunk's header to it. `components(separatedBy:)` splits by Character on Linux, so
+        // the split is over Unicode scalars.
+        let outputLines = output.unicodeScalars
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+        for line in outputLines where line.hasPrefix("@@ ") {
             guard let newSide = line.split(separator: " ").dropFirst(2).first, newSide.hasPrefix("+") else { continue }
             let numbers = newSide.dropFirst().split(separator: ",", omittingEmptySubsequences: false)
             guard let start = numbers.first.flatMap({ Int($0) }) else { continue }

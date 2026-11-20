@@ -82,7 +82,7 @@ extension ConfigurationParsingTests {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
         let json = try encoder.encode(configuration)
-        let written = try XCTUnwrap(JSONSerialization.jsonObject(with: json) as? [String: Any])
+        let written = try XCTUnwrap(JSONSerialization.hashableObject(with: json) as? [String: Any])
 
         XCTAssertEqual(Set(written.keys), Set(MuterConfiguration.CodingKeys.allCases.map(\.stringValue)))
         XCTAssertEqual(

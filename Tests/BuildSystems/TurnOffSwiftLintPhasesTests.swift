@@ -81,6 +81,7 @@ final class TurnOffSwiftLintPhasesTests: MuterTestCase {
     }
 
     func test_aProjectFileThatCantBeWritten_isSaid_andNotSaidToBeTurnedOff() throws {
+        try XCTSkipIf(geteuid() == 0, "root writes to a folder whatever its permissions, as in a CI container")
         let folder = copy + "/App/App.xcodeproj"
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder)
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder) }

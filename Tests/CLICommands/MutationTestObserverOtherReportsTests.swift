@@ -40,8 +40,8 @@ final class MutationTestObserverOtherReportsTests: MuterTestCase {
         )
         XCTAssertEqual(fileManager.createdFiles["/out/summary.md"], Data(MarkdownReporter().report(from: outcome).utf8))
         // As JSON, whose dictionaries' keys come in no set order.
-        let json = try JSONSerialization.jsonObject(with: XCTUnwrap(fileManager.createdFiles["/out/report.json"]))
-        let expected = try JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8))
+        let json = try JSONSerialization.hashableObject(with: XCTUnwrap(fileManager.createdFiles["/out/report.json"]))
+        let expected = try JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8))
         XCTAssertEqual(json as? [String: AnyHashable], expected as? [String: AnyHashable])
         XCTAssertEqual(printer.linesPassed.suffix(4), [
             "📝 Report generated: \("/out/report.txt".bold)",
