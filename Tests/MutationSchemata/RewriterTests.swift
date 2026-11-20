@@ -350,4 +350,10 @@ private let allOperatorsSourceCode =
         }
     }
 
+    struct Coalescings {
+        func name(_ nickname: String?, _ fullName: String?) -> String {
+            return nickname ?? fullName ?? "anonymous"
+        }
+    }
+
     """

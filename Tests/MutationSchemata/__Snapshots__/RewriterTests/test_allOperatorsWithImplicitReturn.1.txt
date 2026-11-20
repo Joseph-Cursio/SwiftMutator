@@ -544,4 +544,25 @@
         line: 159,
         column: 75
     )
+), OperatorIdAndPositionAssert(
+    id: .replaceNilCoalescing,
+    position: MutationPosition(
+        utf8Offset: 3977,
+        line: 172,
+        column: 16
+    )
+), OperatorIdAndPositionAssert(
+    id: .replaceReturnValue,
+    position: MutationPosition(
+        utf8Offset: 3977,
+        line: 172,
+        column: 16
+    )
+), OperatorIdAndPositionAssert(
+    id: .replaceNilCoalescing,
+    position: MutationPosition(
+        utf8Offset: 3989,
+        line: 172,
+        column: 28
+    )
 )]

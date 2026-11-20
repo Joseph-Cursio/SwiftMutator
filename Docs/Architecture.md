@@ -80,11 +80,13 @@ are in `MutationTestHandler.swift`.
 
 ## Operators
 
-[`MutationOperators`](../Sources/muterCore/MutationOperators) holds the ten operators:
+[`MutationOperators`](../Sources/muterCore/MutationOperators) holds the eleven operators:
 `RelationalOperatorReplacement` (`ROROperator.swift`), `RelationalBoundary`, `RemoveSideEffects`,
 `ChangeLogicalConnector`, `SwapTernary`, `NegateConditional`, `ChangeArithmeticOperator`,
-`FlipBooleanLiteral`, `ReplaceBooleanValue` and `ReplaceReturnValue`, the last two of which find the
-values a body returns in `ValueSites.swift`. Each is a SwiftSyntax visitor, built on
+`FlipBooleanLiteral`, `ReplaceBooleanValue`, `ReplaceReturnValue` and `ReplaceNilCoalescing`.
+`ReplaceBooleanValue` and `ReplaceReturnValue` find the values a body returns in `ValueSite.swift`;
+`ReplaceNilCoalescing` finds a `??`'s term by folding its sequence in `NilCoalescing.swift`, as
+`RelationalOperatorReplacement`'s constants find a comparison in `Comparison.swift`. Each is a SwiftSyntax visitor, built on
 [`Visitors/MuterVisitor.swift`](../Sources/muterCore/Visitors/MuterVisitor.swift), which also
 skips the code the `muter:` directives leave out
 ([`Visitors/MuterDirectives.swift`](../Sources/muterCore/Visitors/MuterDirectives.swift)). Each mutant becomes a

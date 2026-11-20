@@ -31,6 +31,9 @@ extension MutationOperator.Id {
         case .replaceReturnValue:
             replaceReturnValueDocumentation
 
+        case .replaceNilCoalescing:
+            replaceNilCoalescingDocumentation
+
         case .swapTernary:
             swapTernaryDocumentation
         }

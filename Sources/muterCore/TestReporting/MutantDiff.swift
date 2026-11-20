@@ -82,16 +82,23 @@ enum MutantDiff {
         let rest = text[(found.offset + needle.count)...]
         // `if(a)` becomes `if !((a))`, with a space the operator adds, as `if!(` doesn't parse; and `return(a < b)`
         // becomes `return true`, as a replaced Bool, comparison or return value is kept apart from a name or keyword
-        // it would touch.
+        // it would touch. A coalescing's fallback is kept apart only when it starts with a name too, as in
+        // `return(a) ?? b`; one that would join an operator comes in the parentheses its `after` holds.
+        let replaced = Array(replacement(snapshot, mutationOperatorId).utf8)
         let isKeptApart = isAConstant(snapshot, by: mutationOperatorId) || mutationOperatorId == .replaceReturnValue
-        let isTouching = if mutationOperatorId == .negateConditional {
+        let touchesAName = text[..<found.offset].last.map(isPartOfAName) == true
+        let isTouching = switch mutationOperatorId {
+        case .negateConditional:
             text[..<found.offset].last.map { !Character(UnicodeScalar($0)).isWhitespace } == true
-        } else {
-            isKeptApart && text[..<found.offset].last.map(isPartOfAName) == true
+
+        case .replaceNilCoalescing:
+            touchesAName && replaced.first.map(isPartOfAName) == true
+
+        default:
+            isKeptApart && touchesAName
         }
         let isTouchingAfter = isKeptApart && rest.first.map(isPartOfAName) == true
-        let changed = Array(text[..<found.offset]) + (isTouching ? [UInt8(ascii: " ")] : [])
-            + Array(replacement(snapshot, mutationOperatorId).utf8)
+        let changed = Array(text[..<found.offset]) + (isTouching ? [UInt8(ascii: " ")] : []) + replaced
             + (isTouchingAfter ? [UInt8(ascii: " ")] : []) + Array(rest)
         let after = String(lossyUTF8: changed)
         return SourceChange(
@@ -132,7 +139,7 @@ enum MutantDiff {
     /// their own: a condition or a return value over several lines isn't found at its place, as `before` gives it on
     /// one line.
     private static func isPlacedWhereItsChangeStarts(_ mutationOperatorId: MutationOperator.Id) -> Bool {
-        [.negateConditional, .flipBooleanLiteral, .arithmeticOperator, .replaceReturnValue]
+        [.negateConditional, .flipBooleanLiteral, .arithmeticOperator, .replaceReturnValue, .replaceNilCoalescing]
             .contains(mutationOperatorId)
     }
 

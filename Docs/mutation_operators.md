@@ -378,6 +378,7 @@ A syntax tree has no types, so a value counts when the code shows it is a Bool:
 Some values are left alone:
 
 * **A comparison, while `RelationalOperatorReplacement` is on and gives it a constant,** as in `return a < b` or `let same = a == b`. That operator replaces the comparison with `true` and `false` when it is `==` or `!=`, and with one of them when it orders, beside a swap and [`RelationalBoundary`](#relational-boundary)'s mutant that are wrong wherever the other constant would be (see [Relational Operator Replacement](#relational-operator-replacement)). `&&`, `||`, `!`, `===` and `!==` stay this operator's, and so does a comparison under any of them, as in `!(a < b)`, and one whose mutants a `muter:disable` comment leaves out while it doesn't reach where the value starts or ends. `--mutant` still finds such a mutant that a run without that operator reported.
+* **The literal a `??` falls back on,** as `false` for `return b() ?? false`, while [`ReplaceNilCoalescing`](#replace-nil-coalescing) is on, as its mutant is the same code. The other literal, `true`, is kept, and `--mutant` still finds this one.
 * **A literal,** as in `return true`, which `FlipBooleanLiteral` flips.
 * **An `if` or `switch` expression, and its branches:** neither the whole expression nor a branch's value is replaced, though a `return` inside an `if` or `switch` statement still is.
 * **What a closure that doesn't write its return type returns,** as in `items.filter { $0.isReady }`. Such closures are mostly predicates passed to `filter`, `sorted` or `contains`, and each would add a pair. A `return` in one is the closure's, even inside a function that returns `Bool`.
@@ -442,6 +443,7 @@ Some values are left alone:
 * **An `if` or `switch` expression, and its branches:** neither the whole expression nor a branch's value is replaced, though a `return` inside an `if` or `switch` statement still is.
 * **What a closure that doesn't write its return type returns,** as in `items.map { $0.name }`. A `return` in one is the closure's, even inside a function whose return type has an empty value.
 * **A value under `try?`.**
+* **A `??` whose fallback already is the empty value,** as `return n() ?? 0`, while [`ReplaceNilCoalescing`](#replace-nil-coalescing) is on, as its mutant is the same code. `--mutant` still finds this one.
 * **What returns nothing:** an initializer's `return nil`, a setter and an observer such as `didSet`.
 * **A name the file declares,** as a type, a protocol, a typealias, an associated type or a generic parameter, as `struct Int` or `func pick<String>(_ value: String) -> String`. That name means the file's own type there, which may not take the empty value. `Swift.Int`, `[T]` and `T?` still name the standard library's. A type of that name declared in another file of the module isn't seen, and its mutants don't compile.
 * **The one expression of a body a result builder may build.** A builder would take the empty value as a component, as `buildExpression` takes each of its body's expressions, and it may not build one. The tree can't tell which attribute is a builder, so a function, property, subscript or accessor with any attribute but those known not to be one, such as `@inlinable`, `@discardableResult`, `@available`, `@objc` or `@MainActor`, is left alone; and so is a closure passed to a call, whose parameter may be declared with a builder in another file, and a member named as one of the file's protocols' requirements with such an attribute, in a `#if` or not, as Swift gives the member that meets a requirement its builder. A `return` turns a builder off, so a value it gives is replaced. A protocol with such a requirement declared in another file isn't seen, and the mutants of its members don't compile.
@@ -470,9 +472,48 @@ func readyItems() -> [Item] {
 }
 ```
 
+## Replace Nil Coalescing
+
+The replace nil coalescing operator, `ReplaceNilCoalescing`, will replace a nil-coalescing expression, `a ?? b`, with its fallback, `b`, so the code always takes the value on the right.
+
+The purpose of this operator is to highlight whether your tests see the value both nil and not nil. A test that only ever gives the left side a value, or only ever leaves it nil, can't tell `a ?? b` from `b`, and lets the mutant survive. Each `??` gets one mutant. A chain gets one for each link: `a ?? b ?? c` becomes `b ?? c` and `a ?? c`, as `??` groups to the right.
+
+The expression that is replaced comes from the standard operators' precedence, so `x ?? 0 + 1 < 5` becomes `0 + 1 < 5`, and `a < b ?? c` becomes `a < c`. A sequence with an operator the project declares, whose precedence isn't known, gets no mutant, and neither does `??=`. A `try`, `try!` or `await` written before the expression stays, so `try cached() ?? load()` becomes `try load()`.
+
+Some expressions are left alone, as their mutants wouldn't compile:
+
+* **A fallback that takes its type from where it is, when the expression is the whole value of a place that gives it none.** Such a fallback is `nil`, a number, string or regex literal, an array or dictionary literal, a closure, an implicit member such as `.zero` or `.init()`, or operators between such terms, as `0 + 1`, inside any parentheses and prefix operators such as `-`. The places are a `let` or `var` of one name with no type written, in a function, or as a stored property, a `static` or a global; an `if let`, `guard let` or `while let` with no type written; a capture list's `[y = x ?? 0]`; what a `for` loop goes over; all inside any parentheses, `try` and `await`. Two more places count only for a fallback with no type of its own, `nil`, `[]`, `[:]`, an implicit member or a closure, as a number or string literal is an `Int`, a `Double` or a `String` there: a member's or a subscript's base, as in `(x ?? []).sorted()`, where `[]` has no element type; and what a closure that writes no return type gives, as its one expression or in a `return`, as in `items.flatMap { item in item.names ?? [] }`, whose type comes from it. So `(name ?? "").isEmpty` is replaced. `let y = x ?? 0` as `let y = 0` makes `y` an `Int`, whatever `x` held, and `let y = nil` doesn't compile. `true` and `false` are always Bools, so they're replaced. Everywhere else the place gives the type, and the expression is replaced: `let y: Double = x ?? 0`, an argument, a `return`, an operand, a default argument.
+* **A `try` or `await` that would cover nothing it is for.** `try load() ?? 0` as `try 0` makes the compiler warn that nothing in the `try` throws, so the expression gets no mutant unless a call, subscript, macro or member with a base is left under the `try`, `try?`, `try!` or `unsafe`. The fallback is in the `??`'s autoclosure, which can't wait, so under an `await` it doesn't count: `await load() ?? backup()` gets no mutant, and `await total(of: peek() ?? 0)` becomes `await total(of: 0)`.
+* **A fallback that is what the expression is assigned to,** as a merge keeps what it had with `one = other.one ?? one`, whose `one = one` doesn't compile: Swift won't assign a variable to itself, nor `self.one` to `self.one`, inside any parentheses. Only those two shapes, written alike on both sides, count. `self.one = other.one ?? one` is replaced, as `one` may be a parameter that hides the property, and so are `b.v = c.v ?? b.v`, `self.a.b = x ?? self.a.b` and a subscript, which may be assigned to themselves; where they can't, the mutant is a build error.
+* **The only use of a closure's highest `$` argument,** as in `items.map { $0.nick ?? fallback }`, which as `{ fallback }` takes no argument where one is passed.
+* **Every `??` in a file that declares a `??` of its own,** as an overload on a binding or a query type, as any of them may be that overload, whose fallback needn't be what it gives.
+
+When the expression is the whole of a value that [`ReplaceReturnValue`](#replace-return-value) or [`ReplaceBooleanValue`](#replace-boolean-value) replaces, and its fallback already is what they would put there, as `return n() ?? 0` or `return b() ?? false`, their mutant would be this one's code, so they leave it to this operator while it is on. `b() ?? false` keeps its `true`. `--mutant` still finds their mutant.
+
+The mutant is placed where the expression starts, so each link of a chain has a place, and a switch, of its own. A comment beside the expression stays where it was, and `return(a) ?? b` becomes `return b`, with a space, as `x=a ?? -1` becomes `x=(-1)` and `x=a ?? .low` becomes `x=(.low)`, in parentheses, which a report shows too. Its coverage goes by the `??`: the fallback runs only when the left side is nil, and a test that never makes it nil is the one this operator is for. A later link of a chain is in the fallback before it, so it counts as run only when that fallback ran.
+
+A few of these mutants don't compile, and are [left out as build errors](../README.md#mutants-that-dont-compile), at the cost of a rebuild: a fallback that takes its type from where it is, in a place other than those above that gives it none, as `var pending = Array(names ?? [])`, whose `Array([])` is an array of `Any`, as `Array`'s initializer is generic, which the code after it may not take. A stored property's, a `static`'s or a global's value is switched as an `if` expression, so the build error is blamed on its whole switch, which also leaves out the other operators' mutants of that value.
+
+Some make the compiler warn, which is a build error only [with warnings as errors](../README.md#before-a-long-run), as [`ReplaceReturnValue`](#replace-return-value)'s do: a local whose only reader was the left side, as `cached` in `let cached = lookup(); return cached ?? fallback`, which is now never used, as Swift warns of a `let` or `var` that is initialized and never read; a closure whose only use of a captured name, as `self` in `[weak self]`, was the left side; a `try` left over a member or call that doesn't throw, as in `try load() ?? cache.value`, whose `try cache.value` makes the compiler warn that nothing in the `try` throws; and a number fallback compared with a literal or a constant in the condition of an `if`, `guard` or `while`, or a `switch` on such a fallback, as `if (count ?? 0) > 0` becoming `if (0) > 0`, whose other branch the compiler says will never be executed.
+
+### Mutating a nil-coalescing expression
+```swift
+func displayName(for user: User) -> String {
+    return user.nickname ?? user.fullName
+}
+```
+
+becomes
+
+```swift
+func displayName(for user: User) -> String {
+    return user.fullName
+}
+```
+
 ## What each operator catches and costs
 
-SwiftMutator has no tiers of operators: all ten run by default, and `--operators`, `--skip-operators` and the `operators` and `skipOperators` keys narrow a run. These numbers, from each run's `results.jsonl`, are why. Killed and survived are shares of the mutants tested, so they leave out build errors.
+SwiftMutator has no tiers of operators: all eleven run by default, and `--operators`, `--skip-operators` and the `operators` and `skipOperators` keys narrow a run. These numbers, from each run's `results.jsonl`, are why. Killed and survived are shares of the mutants tested, so they leave out build errors.
 
 Operator | SwiftProjectLint: mutants | Killed | Survived | Timed out | Build errors | SwiftCloneDetector: mutants | Killed | Survived | Timed out | Build errors
 ---------|-----|-----|-----|---|---|-----|-----|-----|---|---

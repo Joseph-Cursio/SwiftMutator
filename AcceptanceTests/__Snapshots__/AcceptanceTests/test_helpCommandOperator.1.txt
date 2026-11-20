@@ -8,7 +8,8 @@ ARGUMENTS:
                           RemoveSideEffects, ChangeLogicalConnector,
                           SwapTernary, NegateConditional,
                           ChangeArithmeticOperator, FlipBooleanLiteral,
-                          ReplaceBooleanValue, ReplaceReturnValue
+                          ReplaceBooleanValue, ReplaceReturnValue,
+                          ReplaceNilCoalescing
                               For all operators use: all
 
 OPTIONS:

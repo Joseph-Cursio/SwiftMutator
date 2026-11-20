@@ -294,3 +294,21 @@ return items.filter { $0.isReady }
 becomes
 
 return []
+
+
+Replace Nil Coalescing
+
+The replace nil coalescing operator will replace a nil-coalescing expression, a ?? b, with its fallback, b.
+Each ?? of a chain gets its own mutant: a ?? b ?? c becomes b ?? c and a ?? c.
+A fallback that takes its type from where it is, as a literal, nil, an implicit member such as .zero or a closure does, is left alone where the expression is the whole value of a let or var with no type written, an if let or guard let, or what a for loop goes over; and, for one with no type of its own, as [], a member's base, as in (x ?? []).sorted(), or what a closure with no return type written gives.
+So is one that would leave a try or await over no call, and one that is what the expression is assigned to, as in one = other.one ?? one.
+
+The purpose of this operator is to highlight whether your tests see the value both nil and not nil.
+
+Mutating a nil-coalescing expression
+
+return user.nickname ?? user.fullName
+
+becomes
+
+return user.fullName

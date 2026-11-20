@@ -2,7 +2,7 @@ import SwiftOperators
 import SwiftSyntax
 
 /// Puts a node in place of the one with an ID.
-private final class Replacing: SyntaxRewriter {
+final class Replacing: SyntaxRewriter {
     private let target: SyntaxIdentifier
     private let replacement: ExprSyntax
 
@@ -122,27 +122,11 @@ struct Comparison {
         return Replacing(replaced.id, with: literal).rewrite(folded).cast(ExprSyntax.self)
     }
 
-    /// Whether a closure that names no parameters uses its highest `$` argument here alone. Such a closure takes as
-    /// many arguments as the highest it uses says, so `items.filter { $0 > 1 }` as `items.filter { false }` takes
-    /// none, which doesn't compile where one is passed. A nested closure's arguments are its own.
+    /// Whether it holds the only use of a closure's highest `$` argument (`SequenceExprSyntax.dropsAClosuresArgument`).
     private var dropsAClosuresArgument: Bool {
-        guard let closure = sequence.parent?.ancestorOrSelf(mapping: { $0.as(ClosureExprSyntax.self) }),
-              closure.signature?.parameterClause == nil
-        else { return false }
-        let here = first.positionAfterSkippingLeadingTrivia..<last.endPositionBeforeTrailingTrivia
-        var highestHere = -1
-        var highestElsewhere = -1
-        for token in closure.statements.tokens(viewMode: .sourceAccurate) {
-            guard case let .dollarIdentifier(name) = token.tokenKind, let index = Int(name.dropFirst()),
-                  token.parent?.ancestorOrSelf(mapping: { $0.as(ClosureExprSyntax.self) })?.id == closure.id
-            else { continue }
-            if here.contains(token.positionAfterSkippingLeadingTrivia) {
-                highestHere = max(highestHere, index)
-            } else {
-                highestElsewhere = max(highestElsewhere, index)
-            }
-        }
-        return highestHere > highestElsewhere
+        sequence.dropsAClosuresArgument(
+            removing: first.positionAfterSkippingLeadingTrivia..<last.endPositionBeforeTrailingTrivia
+        )
     }
 
     /// The constant that would keep a loop going until the time limit, which the score counts as a survivor, or nil:
@@ -192,6 +176,31 @@ struct Comparison {
             return false
         }
         return !statement.givesItsValue
+    }
+}
+
+extension SequenceExprSyntax {
+    /// Whether a closure around this sequence that names no parameters uses its highest `$` argument in `removed`
+    /// alone. Such a closure takes as many arguments as the highest it uses says, so `items.filter { $0 > 1 }` as
+    /// `items.filter { false }` takes none, which doesn't compile where one is passed. A nested closure's arguments are
+    /// its own.
+    func dropsAClosuresArgument(removing removed: Range<AbsolutePosition>) -> Bool {
+        guard let closure = parent?.ancestorOrSelf(mapping: { $0.as(ClosureExprSyntax.self) }),
+              closure.signature?.parameterClause == nil
+        else { return false }
+        var highestRemoved = -1
+        var highestElsewhere = -1
+        for token in closure.statements.tokens(viewMode: .sourceAccurate) {
+            guard case let .dollarIdentifier(name) = token.tokenKind, let index = Int(name.dropFirst()),
+                  token.parent?.ancestorOrSelf(mapping: { $0.as(ClosureExprSyntax.self) })?.id == closure.id
+            else { continue }
+            if removed.contains(token.positionAfterSkippingLeadingTrivia) {
+                highestRemoved = max(highestRemoved, index)
+            } else {
+                highestElsewhere = max(highestElsewhere, index)
+            }
+        }
+        return highestRemoved > highestElsewhere
     }
 }
 

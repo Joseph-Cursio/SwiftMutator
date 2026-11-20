@@ -25,6 +25,7 @@ final class OperatorTests: MuterTestCase {
             .flipBooleanLiteral: "Flip Boolean Literal",
             .replaceBooleanValue: "Replace Boolean Value",
             .replaceReturnValue: "Replace Return Value",
+            .replaceNilCoalescing: "Replace Nil Coalescing",
         ]
 
         for id in MutationOperator.Id.allCases {
@@ -62,7 +63,7 @@ final class OperatorTests: MuterTestCase {
             "RelationalOperatorReplacement, RelationalBoundary, RemoveSideEffects, ChangeLogicalConnector, "
                 + "SwapTernary, "
                 + "NegateConditional, ChangeArithmeticOperator, FlipBooleanLiteral, ReplaceBooleanValue, "
-                + "ReplaceReturnValue"
+                + "ReplaceReturnValue, ReplaceNilCoalescing"
         )
     }
 
