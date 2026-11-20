@@ -2923,7 +2923,7 @@
   "Packages/SwiftProjectLintRegistry/Sources/SwiftProjectLintRegistry/SourcePatternRegistry.swift:109:32:RelationalOperatorReplacement:0": {
    "after": "false",
    "before": "state == .running",
-   "verdict": "killed"
+   "verdict": "survived"
   },
   "Packages/SwiftProjectLintRegistry/Sources/SwiftProjectLintRegistry/SourcePatternRegistry.swift:112:15:RelationalOperatorReplacement:0": {
    "after": "true",
@@ -5183,7 +5183,7 @@
   "Sources/Core/Export/CandidateInventory.swift:93:52:RelationalOperatorReplacement:0": {
    "after": "!=",
    "before": ">",
-   "verdict": "survived"
+   "verdict": "killed"
   },
   "Sources/Core/Export/HTMLFormatter.swift:150:16:ReplaceReturnValue:0": {
    "after": "\"\"",
@@ -5658,28 +5658,28 @@
  "runs": [
   {
    "mutantsDiscovered": 1128,
-   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/280-reference/SwiftProjectLint_muter_logs/Nov 13, 2026 at 5:19 PM/results.jsonl",
-   "swiftMutatorSHA256": "78bb2e3914a1a1420fc88c6dc92e6a35b4319040d52c27e24712c234ff4b00e7"
+   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/spl-7fa520f5-reference/SwiftProjectLint_muter_logs/Nov 19, 2026 at 10:11 AM/results.jsonl",
+   "swiftMutatorSHA256": "a1704d07eaddcb0b07a5bf4b23f5652a02b7828b705437b7e85eb0273a8a91a0"
   },
   {
    "mutantsDiscovered": 1128,
-   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/280-reference/SwiftProjectLint_muter_logs/Nov 13, 2026 at 7:06 PM/results.jsonl",
-   "swiftMutatorSHA256": "78bb2e3914a1a1420fc88c6dc92e6a35b4319040d52c27e24712c234ff4b00e7"
+   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/spl-7fa520f5-reference/SwiftProjectLint_muter_logs/Nov 19, 2026 at 11:51 AM/results.jsonl",
+   "swiftMutatorSHA256": "a1704d07eaddcb0b07a5bf4b23f5652a02b7828b705437b7e85eb0273a8a91a0"
   },
   {
    "mutantsDiscovered": 1128,
-   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/280-reference/SwiftProjectLint_muter_logs/Nov 13, 2026 at 9:01 PM/results.jsonl",
-   "swiftMutatorSHA256": "78bb2e3914a1a1420fc88c6dc92e6a35b4319040d52c27e24712c234ff4b00e7"
+   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/spl-7fa520f5-reference/SwiftProjectLint_muter_logs/Nov 19, 2026 at 1:33 PM/results.jsonl",
+   "swiftMutatorSHA256": "a1704d07eaddcb0b07a5bf4b23f5652a02b7828b705437b7e85eb0273a8a91a0"
   },
   {
    "mutantsDiscovered": 1128,
-   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/280-reference/SwiftProjectLint_muter_logs/Nov 13, 2026 at 10:44 PM/results.jsonl",
-   "swiftMutatorSHA256": "78bb2e3914a1a1420fc88c6dc92e6a35b4319040d52c27e24712c234ff4b00e7"
+   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/spl-7fa520f5-reference/SwiftProjectLint_muter_logs/Nov 19, 2026 at 3:15 PM/results.jsonl",
+   "swiftMutatorSHA256": "a1704d07eaddcb0b07a5bf4b23f5652a02b7828b705437b7e85eb0273a8a91a0"
   },
   {
    "mutantsDiscovered": 1128,
-   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/280-reference/SwiftProjectLint_muter_logs/Nov 14, 2026 at 12:22 AM/results.jsonl",
-   "swiftMutatorSHA256": "78bb2e3914a1a1420fc88c6dc92e6a35b4319040d52c27e24712c234ff4b00e7"
+   "resultsFile": "/Users/josephcursio/Library/Caches/SwiftMutatorSlowTier/spl-7fa520f5-reference/SwiftProjectLint_muter_logs/Nov 19, 2026 at 4:58 PM/results.jsonl",
+   "swiftMutatorSHA256": "a1704d07eaddcb0b07a5bf4b23f5652a02b7828b705437b7e85eb0273a8a91a0"
   }
  ]
 }
