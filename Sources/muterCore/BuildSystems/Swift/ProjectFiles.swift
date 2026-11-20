@@ -15,7 +15,6 @@ struct ProjectFiles: Equatable, Sendable {
 
     /// `project`'s files, not following links, or nil if they can't be listed.
     static func read(in project: URL) -> Self? {
-        #if os(macOS)
         guard let enumerator = FileManager.default.enumerator(atPath: project.path) else { return nil }
         var readEntries: [String: Entry] = [:]
         readEntries[""] = entry(atPath: project.path)
@@ -23,23 +22,23 @@ struct ProjectFiles: Equatable, Sendable {
             readEntries[name] = entry(atPath: project.path + "/" + name)
         }
         return Self(entries: readEntries)
-        #else
-        return nil
-        #endif
     }
 
-    #if os(macOS)
     private static func entry(atPath path: String) -> Entry? {
         var status = stat()
         guard lstat(path, &status) == 0 else { return nil }
+        #if os(macOS)
+        let time = status.st_mtimespec
+        #else
+        let time = status.st_mtim
+        #endif
         return Entry(
             mode: UInt32(status.st_mode),
             size: Int64(status.st_size),
-            seconds: status.st_mtimespec.tv_sec,
-            nanoseconds: status.st_mtimespec.tv_nsec
+            seconds: time.tv_sec,
+            nanoseconds: time.tv_nsec
         )
     }
-    #endif
 
     /// The first, by name, of the paths whose entry differs in `later`, or else "" for the project's own folder, which
     /// differs alone when something was made and removed at its top; nil if none does.
