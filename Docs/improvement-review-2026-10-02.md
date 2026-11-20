@@ -5,7 +5,7 @@ This review started on 2 October 2026, at commit `4ba72fc`, as a ranked list of 
 - **Last updated on 9 November 2026,** at `19a0aa24`. Each item was checked against its issue and the code, and its line references brought up to date.
 - **Done items were removed.** Git history keeps them: [this file at `5755b647`](https://github.com/Joseph-Cursio/SwiftMutator/blob/5755b647/Docs/improvement-review-2026-10-02.md) lists every finished item with its PR, and [at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md) has the early write-ups.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
-- **Open issues:** [#121], [#130], [#230], [#261], [#262] and [#263]. An item marked "no issue yet" is a known gap that no issue tracks.
+- **Open issues:** [#121], [#230], [#261], [#262], [#263] and [#281]. An item marked "no issue yet" is a known gap that no issue tracks.
 
 ---
 
@@ -45,7 +45,7 @@ Discovery takes a SwiftPM package's files from its targets, keeps only the files
   - `make release` runs `Scripts/shipIt.sh` (`Makefile:18-19`), which downloads Muter's release archive, hashes it, and builds and installs a Homebrew formula for Muter.
   - `Scripts/bump_version.py` edits `homebrew-formulae/Formula/muter.rb`, and the `homebrew-formulae` submodule is Muter's formulae repository (`.gitmodules`).
   - The update check asks GitHub's API for SwiftMutator's latest release (`UpdateCheck.swift:30`) on every run not given `--skip-update-check`, and finds none. Cut a release, or make the check opt-in.
-- **Linux** ([#130]). Since 20 November, CI's Linux job passes the unit suite and runs on pull requests too (`.github/workflows/ci.yml:278-281`). What's left is to add it to main's ruleset, so that it blocks a merge as the macOS jobs do. Mutants there still run through `swift test` (§1.1, [#281]).
+- **Linux** ([#281]). [#130] is done: since 20 November, CI's Linux job passes the unit suite, runs on pull requests, and is one of main's required checks, so a failure there blocks a merge as on macOS (`.github/workflows/ci.yml:278-281`). What's left is speed: mutants there still run through `swift test` (§1.1).
 - **xcodebuild workers: what's left** (no issue yet; [#103] is closed). Several workers test on simulator destinations only.
   - A failed check run on a simulator made with `simctl create`, because the destination's simulator was booted, doesn't say that shutting it down would let the next run clone it, with its settings and data.
   - macOS and Mac Catalyst destinations stay on 1 worker: their tests would share the Mac's `UserDefaults`, saved state and container (`MuterConfiguration.swift:588-612`).
