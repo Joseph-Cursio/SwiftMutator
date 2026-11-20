@@ -219,8 +219,30 @@ extension LogFolderPruning {
             guard let values = try? URL(fileURLWithPath: path).resourceValues(forKeys: keys) else { return [] }
             return [
                 keys.contains(.contentModificationDateKey) ? values.contentModificationDate : nil,
-                keys.contains(.creationDateKey) ? values.creationDate : nil,
+                keys.contains(.creationDateKey) ? creationDate(of: path, recorded: values.creationDate) : nil,
             ].compactMap(\.self)
+        }
+
+        /// The creation date of the file at `path`, which the file system gave as `recorded`. macOS sets a file's
+        /// creation date back whenever its modification date is set earlier, as a copy or a restore that keeps dates
+        /// does. Linux can't set it at all, so there every folder of a copied root would be dated by when it was
+        /// copied, and the newest runs could go first. There it is the earliest of `recorded` and the modification
+        /// dates of the file and of what it holds directly, which a copy keeps, and which only move later otherwise.
+        private static func creationDate(of path: String, recorded: Date?) -> Date? {
+            #if os(Linux)
+            let held = ((try? FileManager.default.contentsOfDirectory(atPath: path)) ?? [])
+                .map { path.appendingPathComponent($0) }
+            let modified = ([path] + held).compactMap { item -> Date? in
+                var info = stat()
+                guard lstat(item, &info) == 0 else { return nil }
+                return Date(
+                    timeIntervalSince1970: TimeInterval(info.st_mtim.tv_sec) + TimeInterval(info.st_mtim.tv_nsec) / 1e9
+                )
+            }
+            return ([recorded].compactMap(\.self) + modified).min()
+            #else
+            return recorded
+            #endif
         }
     }
 
