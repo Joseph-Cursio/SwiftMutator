@@ -37,7 +37,7 @@ struct MuterConfiguration: Equatable, Codable {
     var mutationTestWorkers: Int?
     /// Whether a SwiftPM run's workers may share the mutated project's build rather than each have a clone
     /// (`workersShareBuild:`): `unset` and `enabled` when a direct run of the tests with no mutant on wrote nothing in
-    /// the project, `disabled` never.
+    /// the project, unless property reruns leave the direct runs (`propertyRerunsLeaveDirectRuns`), `disabled` never.
     let workersShareBuild: ConfigurationSwitch
     /// Optional explicit build system from the `buildSystem:` config key. When set it overrides the
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that

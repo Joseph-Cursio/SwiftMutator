@@ -1,17 +1,32 @@
 import Foundation
 
-/// How a SwiftPM mutant's tests run without `swift test`: each test bundle by SwiftPM's own `swiftpm-testing-helper`,
-/// one after another, given what `swift test --skip-build` gives it. `swift test` spends about a second of every run
+/// How a SwiftPM mutant's tests run without `swift test`: each test bundle, one after another, by the programs
+/// `swift test --skip-build` starts for it, given what it gives them. `swift test` spends a fixed time of every run
 /// before its first test starts, loading the package graph and planning the build it then skips: on SwiftProjectLint,
-/// with three bundles, a run that matched no test took 1.26 s through `swift test` and 0.20 s this way (#62).
+/// with three bundles, a run that matched no test took 1.26 s through `swift test` and 0.20 s this way on macOS (#62).
+/// On Linux it costs 0.2 to 0.3 s a run (#281).
 ///
-/// Only on macOS, and only for Swift Testing: `swift test` runs XCTest tests with `xctest`, once it has found which
-/// bundles hold any, so a project whose baseline ran an XCTest test keeps `swift test`. Every mutant runs on the build
-/// the baseline made, so what holds for one run with no mutant on holds for every mutant's: before the mutants, that
-/// run must pass and run as many Swift Testing tests in each bundle as the baseline did (`whyNot`).
+/// On macOS, `xctest` runs a bundle's XCTest tests and SwiftPM's own `swiftpm-testing-helper` its Swift Testing tests.
+/// On Linux, each test target's `<target>-test-runner` runs either. XCTest tests run only in the bundles whose
+/// baseline ran some (`xctestBundles`), and only without a test filter, which only `swift test` turns into XCTest's
+/// test names. Every mutant runs on the build the baseline made, so what holds for one run with no mutant on holds for
+/// every mutant's: before the mutants, that run must pass and run as many XCTest and Swift Testing tests in each bundle
+/// as the baseline did (`whyNot`).
 struct DirectTestRun: Equatable, Sendable {
-    /// `swiftpm-testing-helper`, in the toolchain of the test command's `swift`.
-    let helper: String
+    /// What starts the bundles, which differs by platform. A case rather than `#if`, so either platform's script can be
+    /// checked on the other.
+    enum Platform: Equatable, Sendable {
+        /// `helper` is `swiftpm-testing-helper`, in the toolchain of the test command's `swift`.
+        /// `platformDeveloperFolder` is the macOS platform's `Developer` folder, whose frameworks the bundles load
+        /// XCTest and Swift Testing from. `xctest` is Xcode's, which `swift test` runs XCTest tests with, from `xcrun
+        /// --find xctest`; nil if `xcrun` found none, which only a run of XCTest tests needs.
+        case macOS(helper: String, platformDeveloperFolder: String, xctest: String?)
+        /// Each bundle is `<bundle>-test-runner`, which Swift Build makes for each test target, beside the `.so` that
+        /// holds its tests.
+        case linux
+    }
+
+    let platform: Platform
     /// The build's products folder, relative to the project, so each worker's clone runs its own build, unless
     /// `sharedBuild` names one for them all.
     let productsFolder: String
@@ -20,32 +35,59 @@ struct DirectTestRun: Equatable, Sendable {
     /// The names of each bundle's test files, without `.swift`, from its test target's sources, for
     /// `bundles(forMutantIn:)`.
     let testFiles: [String: [String]]
-    /// The macOS platform's `Developer` folder, whose frameworks the test bundles load XCTest and Swift Testing from.
-    let platformDeveloperFolder: String
     /// What follows `test` in a mutant's `swift test` command, `--skip-build` included. `swift test` passes its own
-    /// arguments to each helper, which reads the test filters among them and ignores the rest.
-    let arguments: [String]
+    /// arguments to each Swift Testing run, which reads the test filters among them and ignores the rest.
+    var arguments: [String]
     /// The folder whose build, and whose copy of the project, every worker's runs use, when workers share one build
     /// rather than each have a clone (`sharingBuild(of:)`). Nil when each folder runs its own.
     var sharedBuild: URL?
+    /// The names XCTest gave the bundles whose XCTest tests the baseline ran, without `.xctest`
+    /// (`withXCTestBundles(ranIn:)`): on macOS, the bundles'; on Linux, where every runner's is the products folder's,
+    /// that one name. Empty when the baseline ran no XCTest test, and a run then starts no XCTest run. Empty too when
+    /// its log names no bundle's suite, as after a filtered baseline on Linux or one under `--parallel`, though it ran
+    /// some (`baselineRanXCTest`).
+    var xctestBundles: Set<String> = []
+    /// Whether the baseline ran XCTest tests, whether or not its log says in which bundles
+    /// (`withXCTestBundles(ranIn:)`), which `whyXCTestTestsNeedSwiftTest` checks before any check run.
+    var baselineRanXCTest = false
 
-    /// Why the bundles can't be run directly. A nil `reason` isn't worth telling: on Linux, say, or when `executable`
-    /// isn't `swift` itself, as for a wrapper.
+    /// Why the bundles can't be run directly. A nil `reason` isn't worth telling: when `executable` isn't `swift`
+    /// itself, as for a wrapper, say.
     struct Unavailable: Error, Equatable {
         let reason: String?
     }
 
-    /// This run with `more` given to each helper after its own arguments, such as a test filter.
+    /// Whether a run starts XCTest runs: the baseline ran XCTest tests.
+    var runsXCTest: Bool { !xctestBundles.isEmpty }
+
+    /// Whether a run starts an XCTest run for `bundle`: on macOS if the baseline ran XCTest tests in it, on Linux,
+    /// whose log doesn't say which runner ran which, if it ran any.
+    func runsXCTest(in bundle: String) -> Bool {
+        switch platform {
+        case .macOS: xctestBundles.contains(bundle)
+        case .linux: runsXCTest
+        }
+    }
+
+    /// Whether each worker's tests have `UserDefaults` of their own: only a macOS run that starts no `xctest`, whose
+    /// domain its embedded bundle identifier fixes, as every `swift test` run's is.
+    var isolatesUserDefaults: Bool {
+        guard case .macOS = platform else { return false }
+        return !runsXCTest
+    }
+
+    /// This run with `more` given to each Swift Testing run after its own arguments, such as a test filter.
     func adding(_ more: [String]) -> Self {
-        Self(
-            helper: helper,
-            productsFolder: productsFolder,
-            bundles: bundles,
-            testFiles: testFiles,
-            platformDeveloperFolder: platformDeveloperFolder,
-            arguments: arguments + more,
-            sharedBuild: sharedBuild
-        )
+        var copy = self
+        copy.arguments += more
+        return copy
+    }
+
+    /// This run with `filter`, test filter arguments, given to each Swift Testing run after its own, as `adding(_:)`
+    /// does; nil when it runs XCTest tests, as only `swift test` turns a filter into XCTest's test names, so such a
+    /// run goes through `swift test`.
+    func filtered(by filter: [String]) -> Self? {
+        runsXCTest ? nil : adding(filter)
     }
 
     /// This run with every worker's runs starting in `project`, on its build. What else is a worker's own goes by its
@@ -55,62 +97,6 @@ struct DirectTestRun: Equatable, Sendable {
         var copy = self
         copy.sharedBuild = project
         return copy
-    }
-
-    /// The `/bin/sh` script that runs each bundle in `folder`, the mutated project or a worker's clone, in the order
-    /// `bundles(forMutantIn: filePath)` gives, and exits 1 if any helper failed. A helper killed by a signal is
-    /// reported as `swift test` reports it, with a line that `TestSuiteOutcome` reads as a crash, and that stops a run
-    /// that stops at its first failure (`CrashLine`). Every bundle runs, as under `swift test`, unless the run is
-    /// stopped. A helper ended by SIGINT, SIGTERM or SIGHUP ends the script at once, with its status, so that a signal
-    /// from outside SwiftMutator reads as one (`MutationTestingDelegate.mayHaveEndedByAnOutsideSignal`), not as a
-    /// crash. With a test filter among `arguments`, `--filter` or `--skip`, a helper that found no test to run, as a
-    /// bundle the filter leaves nothing in does, exits 69 (`EX_UNAVAILABLE`, swift-testing's "no tests found"), which
-    /// passes, as `swift test` takes it: a bundle of property tests alone runs none of them with the property tests
-    /// skipped.
-    ///
-    /// The script sets `environment(in:)` itself: macOS drops every `DYLD_` variable from the environment of a
-    /// protected binary such as `/bin/sh` as it starts, so they would never reach the helpers otherwise.
-    ///
-    /// It starts each helper through `helperLink(forWorkerIn: folder)`, which it makes, so the tests' `UserDefaults`
-    /// are the folder's own (see `defaultsDomain(forWorkerIn:)`). It empties them first, so that a mutant's run sees
-    /// none of what an earlier run in that folder wrote, as a mutant's changes could fail the runs after it. `defaults`
-    /// does that, in about 5 ms, rather than SwiftMutator, whose own copy of the domain would be written back to disk
-    /// when it exits. If the link can't be made, it starts the helper itself and leaves its domain, which other
-    /// `swift test` runs share, alone.
-    func script(in folder: URL, forMutantIn filePath: String? = nil) -> String {
-        let exports = environment(in: folder).sorted { $0.key < $1.key }.map { name, value in
-            "export \(name)=\(Logger.shellQuoted(value))"
-        }
-        let link = Logger.shellQuoted(Self.helperLink(forWorkerIn: folder).path)
-        let startHelper = """
-            helper=\(link)
-            if ln -sf \(Logger.shellQuoted(helper)) "$helper" 2>/dev/null; then
-              /usr/bin/defaults delete \(Logger.shellQuoted(Self.defaultsDomain(forWorkerIn: folder))) >/dev/null 2>&1
-            else
-              helper=\(Logger.shellQuoted(helper))
-            fi
-            """
-        let products = (sharedBuild ?? folder).appendingPathComponent(productsFolder).path
-        let passedOn = arguments.map(Logger.shellQuoted).joined(separator: " ")
-        let noTestsFoundPasses = arguments.contains("--filter") || arguments.contains("--skip")
-        let verdict = noTestsFoundPasses
-            ? "[ $status -eq 0 ] || [ $status -eq 69 ] || failed=1"
-            : "[ $status -eq 0 ] || failed=1"
-        let runs = bundles(forMutantIn: filePath).map { bundle in
-            let executable = Logger.shellQuoted("\(products)/\(bundle).xctest/Contents/MacOS/\(bundle)")
-            let process = Logger.shellQuoted("\(helper) --test-bundle-path \(products)/\(bundle).xctest")
-            return """
-                "$helper" --test-bundle-path \(executable) \(passedOn) \(executable) \
-                --testing-library swift-testing
-                status=$?
-                case $status in 129|130|143) exit $status ;; esac
-                if [ $status -gt 128 ]; then
-                  printf "error: Process '%s' exited with unexpected signal code %d\\n" \(process) $((status - 128)) >&2
-                fi
-                \(verdict)
-                """
-        }
-        return (exports + [startHelper, "failed=0"] + runs + ["exit $failed"]).joined(separator: "\n")
     }
 
     /// The bundles in the order a mutant in `filePath` runs them: first those with a test file named after the mutated
@@ -136,17 +122,29 @@ struct DirectTestRun: Equatable, Sendable {
         return testFile.dropFirst(name.count).first?.isUppercase ?? false
     }
 
+    /// The products folder that runs in `folder` use.
+    func products(in folder: URL) -> String {
+        (sharedBuild ?? folder).appendingPathComponent(productsFolder).path
+    }
+
     /// The variables `swift test` sets for its test processes in `folder`: where the bundles find their frameworks and
-    /// the package's dynamic libraries, and no colour. `script(in:)` sets them.
+    /// the package's dynamic libraries, and no colour. `script(in:)` sets them, on Linux with `LD_LIBRARY_PATH` before
+    /// any the environment has.
     func environment(in folder: URL) -> [String: String] {
-        let products = (sharedBuild ?? folder).appendingPathComponent(productsFolder).path
-        return [
-            "DYLD_FRAMEWORK_PATH": [
-                "\(platformDeveloperFolder)/Library/Frameworks",
-                "\(platformDeveloperFolder)/Library/PrivateFrameworks",
-            ].joined(separator: ":"),
-            "DYLD_LIBRARY_PATH": "\(products):\(platformDeveloperFolder)/usr/lib",
-            "NO_COLOR": "1",
-        ]
+        let products = products(in: folder)
+        switch platform {
+        case let .macOS(_, platformDeveloperFolder, _):
+            return [
+                "DYLD_FRAMEWORK_PATH": [
+                    "\(platformDeveloperFolder)/Library/Frameworks",
+                    "\(platformDeveloperFolder)/Library/PrivateFrameworks",
+                ].joined(separator: ":"),
+                "DYLD_LIBRARY_PATH": "\(products):\(platformDeveloperFolder)/usr/lib",
+                "NO_COLOR": "1",
+            ]
+
+        case .linux:
+            return ["LD_LIBRARY_PATH": products, "NO_COLOR": "1"]
+        }
     }
 }

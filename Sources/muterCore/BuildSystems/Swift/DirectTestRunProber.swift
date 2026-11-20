@@ -1,6 +1,6 @@
 import Foundation
 
-/// Works out how a mutant's tests would run directly, on macOS: the helper, the build's products and the bundles.
+/// Works out how a mutant's tests would run directly: what starts the bundles, the build's products and the bundles.
 private struct DirectTestRunProber {
     typealias Unavailable = DirectTestRun.Unavailable
 
@@ -16,14 +16,12 @@ private struct DirectTestRunProber {
         else {
             return .failure(Unavailable(reason: nil))
         }
-        guard let helper = await helper(of: executable) else {
-            return .failure(Unavailable(reason: "\(executable)'s toolchain has no swiftpm-testing-helper"))
+        let platform: DirectTestRun.Platform
+        switch await self.platform(of: executable) {
+        case let .success(found): platform = found
+        case let .failure(unavailable): return .failure(unavailable)
         }
-        guard let platform = await output(of: "/usr/bin/xcrun", ["--sdk", "macosx", "--show-sdk-platform-path"])
-        else {
-            return .failure(Unavailable(reason: "`xcrun` didn't say where the macOS platform is"))
-        }
-        let coverage = SwiftCoverage(platform: .darwin)
+        let coverage = SwiftCoverage(platform: .host)
         guard let products = await coverage.buildDirectory(configuration)?.canonicalPath else {
             return .failure(Unavailable(reason: "`swift test --show-codecov-path` didn't say where the build is"))
         }
@@ -36,17 +34,41 @@ private struct DirectTestRunProber {
         guard !bundles.isEmpty else {
             return .failure(Unavailable(reason: "there is no test bundle in \(products)"))
         }
+        // The native build system's one bundle on Linux is an executable that SwiftMutator doesn't start directly.
+        if platform == .linux, let bundle = bundles.first(where: { !$0.file.hasSuffix(".so") }) {
+            return .failure(Unavailable(
+                reason: "the build has \(bundle.file), not a `-test-runner` for each test target as Swift Build makes"
+            ))
+        }
         return .success(DirectTestRun(
-            helper: helper,
+            platform: platform,
             productsFolder: String(products.dropFirst(projectPath.count + 1)),
             bundles: bundles.map(\.name),
             // Swift Build names each bundle after its test target.
             testFiles: (testTargets ?? [:]).mapValues { sources in
                 sources.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent }
             },
-            platformDeveloperFolder: platform + "/Developer",
             arguments: Array(configuration.testWithoutBuildArguments(with: "").dropFirst())
         ))
+    }
+
+    /// What starts the bundles of a test command that runs `executable`: on macOS, the helper, the platform's
+    /// `Developer` folder and `xctest`, which only a run of XCTest tests needs; on Linux, each test target's runner.
+    private func platform(of executable: String) async -> Result<DirectTestRun.Platform, Unavailable> {
+        #if os(Linux)
+        return .success(.linux)
+        #else
+        guard let helper = await helper(of: executable) else {
+            return .failure(Unavailable(reason: "\(executable)'s toolchain has no swiftpm-testing-helper"))
+        }
+        guard let platform = await output(of: "/usr/bin/xcrun", ["--sdk", "macosx", "--show-sdk-platform-path"])
+        else {
+            return .failure(Unavailable(reason: "`xcrun` didn't say where the macOS platform is"))
+        }
+        // Xcode's, as `swift test` runs, rather than one in the toolchain of `executable`.
+        let xctest = await output(of: "/usr/bin/xcrun", ["--find", "xctest"])
+        return .success(.macOS(helper: helper, platformDeveloperFolder: platform + "/Developer", xctest: xctest))
+        #endif
     }
 
     /// The `swiftpm-testing-helper` beside the `swift` that `executable` runs: in `<toolchain>/usr/libexec`, where
@@ -91,7 +113,7 @@ extension DirectTestRun {
         _ configuration: MuterConfiguration,
         in project: URL
     ) async -> Result<DirectTestRun, Unavailable> {
-        #if os(macOS)
+        #if os(macOS) || os(Linux)
         await DirectTestRunProber().probe(configuration, in: project)
         #else
         .failure(Unavailable(reason: nil))

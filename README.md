@@ -69,13 +69,13 @@ SwiftMutator runs its eleven by default.
 
 SwiftMutator differs in how it keeps tests apart. Each of its workers tests in its own full
 copy of the project, `.git` included, unless a run of the tests with no mutant on writes nothing
-in the copy, when they share one (see [Workers and release mode](#workers-and-release-mode)).
+in the copy, when they usually share one (see [Workers and release mode](#workers-and-release-mode)).
 swift-mutation-testing tests in a sandbox whose unchanged
 files are links to your project's files, so a test that rewrites one in place, such as a fixture,
 changes your project, and a test that runs `git` can fail. On a package, its workers share that
 sandbox, so tests that write files there at fixed paths can give false kills, and its workers share
 the temporary directory, where each of SwiftMutator's has its own. On macOS, SwiftMutator gives each
-worker's directly run tests their own `UserDefaults` (see Test bundles run directly);
+worker's directly run Swift Testing tests their own `UserDefaults` (see Test bundles run directly);
 swift-mutation-testing's workers share them ([#92](https://github.com/Joseph-Cursio/SwiftMutator/issues/92)).
 
 swift-mutation-testing needs macOS 15 or later, and installs with Homebrew.
@@ -108,7 +108,8 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   testing, which costs one extra build, and about one build folder of disk, per worker, but keeps
   tests that write files next to their sources from sharing them across workers. A run whose tests
   wrote nothing in the copy, with no mutant on, makes no clones, and its workers test from one build,
-  on macOS when mutants' test bundles run directly. Each worker has its own temporary directory too.
+  when mutants' test bundles run directly, unless property reruns of XCTest tests need `swift test`.
+  Each worker has its own temporary directory too.
   An xcodebuild project that tests on a simulator can have one simulator
   per worker instead, from one build, when `mutationTestWorkers` or `--workers` asks for them (see
   [xcodebuild workers](#xcodebuild-workers)). What tests share outside the copy can still give false
@@ -127,26 +128,39 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   to read that file; other wrappers and `xcodebuild` keep a variable per mutant. A SwiftPM test
   plan made by an older SwiftMutator is refused: make it again with
   `swift-mutator mutate-without-running`.
-- **Test bundles run directly:** on macOS, a SwiftPM project's mutants don't go through
-  `swift test`, which spends about a second of each run loading the package and planning the build
-  it skips. Each test bundle runs with SwiftPM's own `swiftpm-testing-helper`, from the toolchain of
-  the `swift` in `executable`, given the same arguments and variables `swift test --skip-build`
-  gives it, so `--filter` and `--skip` still apply. Before the mutants, one such run with no mutant
-  on must pass and run as many Swift Testing tests in each bundle as the baseline did; it is the
-  run the default timeout is based on. Otherwise, and when the baseline ran XCTest tests, which only
-  `swift test` runs, or the build is outside the project, mutants run `swift test` as before, and a
-  line says why. A wrapper `executable`, and Linux, always run `swift test`.
-  - **Each worker's own `UserDefaults`.** The helper has no bundle identifier, so its tests keep
-    `UserDefaults.standard`, and `@AppStorage` without a `store:`, in a domain named after the
-    helper's file, which every worker shared, and every other `swift test` run on the Mac too. A test
+- **Test bundles run directly:** a SwiftPM project's mutants don't go through `swift test`, which
+  spends a fixed time of each run loading the package and planning the build it skips: about a
+  second on macOS, 0.2 to 0.3 s on Linux. Each test bundle runs with what `swift test --skip-build`
+  starts for it, given the same arguments and variables. On macOS, a bundle whose baseline ran
+  XCTest tests runs them with Xcode's `xctest`, then every bundle runs its Swift Testing tests with
+  SwiftPM's own `swiftpm-testing-helper`, from the toolchain of the `swift` in `executable`. On
+  Linux, each test target's `<target>-test-runner` runs twice, for its XCTest tests, if the
+  baseline ran any, then for its Swift Testing tests. `--filter` and `--skip` still apply to Swift
+  Testing tests. Before the mutants, one such run with no mutant on must pass and run as many
+  XCTest and Swift Testing tests in each bundle as the baseline did; it is the run the default
+  timeout is based on. Otherwise mutants run `swift test` as before, and a line says why. So do
+  they when the build is outside the project, or when the baseline ran XCTest tests and the test
+  command filters tests, as only `swift test` turns `--filter` and `--skip` into XCTest's test
+  names, or has `--parallel`, `--num-workers`, `--xunit-output`, `--enable-code-coverage` or
+  `--experimental-xunit-message-failure`. With XCTest tests, property and example reruns, which add
+  a filter, run `swift test` too, so workers don't share one build when `propertyTestFilter` is
+  set. A wrapper `executable`, and Linux's native build system, which makes no runners, always run
+  `swift test`.
+  - **Each worker's own `UserDefaults`, for Swift Testing tests on macOS.** The helper has no bundle
+    identifier, so its tests keep `UserDefaults.standard`, and `@AppStorage` without a `store:`, in a
+    domain named after the helper's file, which every worker shared, and every other `swift test` run
+    on the Mac too. A test
     that wrote a fixed key could then fail another worker's tests and kill a mutant they don't check
     ([#92](https://github.com/Joseph-Cursio/SwiftMutator/issues/92)). Direct runs start the helper
     through a link beside the worker's folder, such as
     `MyPackage_mutated_worker1.swiftpm-testing-helper`, which makes that the domain, and empty it
     before each mutant's run, so no mutant sees what an earlier one wrote. The links and domains go
     at the end of the run.
-  - **Still shared:** what the baselines and `swift test` runs write, a suite you open with a fixed
-    `UserDefaults(suiteName:)`, the keychain, fixed temporary paths and ports (see
+  - **Still shared:** the `UserDefaults` of XCTest tests run by `xctest`, whose bundle identifier
+    fixes its domain, and on Linux of every runner, whose domain is its own name in `~/.config`, as
+    under `swift test` (a run with more than one worker prints a line); what the baselines and
+    `swift test` runs write, a suite you open with a fixed `UserDefaults(suiteName:)`, the keychain,
+    fixed temporary paths and ports (see
     [Tests that share state across workers](#tests-that-share-state-across-workers)).
 - **A default timeout:** without `mutationTestTimeout`, a mutant's test run stops after a limit
   based on how long your tests take, so a mutant that loops forever can't hang the run.
@@ -1790,7 +1804,7 @@ as it is.
 | `buildTimeout` | Seconds, above 0 and at most a day, before each step ahead of the first mutant that builds your project and runs its tests is stopped: the coverage run, each xcodebuild build for testing, each baseline run, and a worker clone's. The direct and timed test runs, which follow the baseline and don't build, get a shorter limit. See [Time limits before the first mutant](#time-limits-before-the-first-mutant) | No limit | All |
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed. Never the baseline | `true` | SwiftPM |
 | `mutationTestWorkers` | How many mutants to test at once, at least 1. See [Workers and release mode](#workers-and-release-mode) and [xcodebuild workers](#xcodebuild-workers) | SwiftPM: half the processors, at most 4, and, when each needs a clone, fewer for fewer than 150 mutants. Others: 1 | SwiftPM, and xcodebuild projects that test on a simulator, which get one simulator per worker; others test one at a time |
-| `workersShareBuild` | Whether workers may test from one build when a direct run of the tests, with no mutant on, wrote nothing in the copy; `false` gives each worker a clone. See [Workers and release mode](#workers-and-release-mode) | `true` | SwiftPM on macOS, when mutants' test bundles run directly |
+| `workersShareBuild` | Whether workers may test from one build when a direct run of the tests, with no mutant on, wrote nothing in the copy, unless the direct run includes XCTest tests and `propertyTestFilter` is set; `false` gives each worker a clone. See [Workers and release mode](#workers-and-release-mode) | `true` | SwiftPM, when mutants' test bundles run directly |
 | `oneWorkerSimulator` | Whether one worker tests on a simulator SwiftMutator makes: `true` whenever the destination is a simulator, `false` never. See [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own) | Unset: when the project and its baseline show it is faster | xcodebuild, with a simulator as the first `-destination` |
 | `keepAllLogs` | Keep the log of every mutant's test run, a kill's too. See [Results file](#results-file) | `false`: a mutant killed by a failed test its results line names keeps none | All |
 | `keepLogFolders` | How many runs' log folders to keep in `<project>_muter_logs`, this run's included: a whole number, at least 2, so the run before this one is always kept. Earlier runs' folders beyond it are removed once nothing can refuse the run, before its build. See [Results file](#results-file) | Unset: none is removed | All |
@@ -2059,14 +2073,24 @@ Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, wit
   With a count you asked for, the same failure stops the run, with status 3.
 
   **One build.** Clones are for tests that write in the project, so a run whose tests don't needs none.
-  On macOS, the run that checks [direct runs](#why-a-fork-of-muter) also compares the copy's files
+  The run that checks [direct runs](#why-a-fork-of-muter) also compares the copy's files
   before and after it, every file and folder's size and time, `.build` included, so a fixture a test
   writes and removes shows too. If nothing changed, the workers test from the copy's build, with no
-  clone made or built, and each keeps its own temporary directory, `UserDefaults` and active-mutant
-  file. If anything changed, each gets a clone, and the run says what changed:
+  clone made or built. Each keeps its own temporary directory and active-mutant file, and, for Swift
+  Testing tests on macOS, its own `UserDefaults`; XCTest tests run by `xctest`, and every test on
+  Linux, share `UserDefaults` as under `swift test` (see
+  [Tests that share state across workers](#tests-that-share-state-across-workers)). If anything
+  changed, each gets a clone, and the run says what changed:
 
   ```
   ℹ️ Workers can't share one build: a run of your tests, with no mutant on, changed Tests/MyTests in the copy.
+  ```
+
+  So does a direct run that includes XCTest tests when `propertyTestFilter` is set, as property and
+  example reruns then run `swift test` in each worker's own folder:
+
+  ```
+  ℹ️ Workers can't share one build: property and example reruns of XCTest tests run `swift test`, in each worker's own folder.
   ```
 
   On 150 mutants sampled from SwiftProjectLint, with 4 workers and two runs of each
@@ -2132,9 +2156,9 @@ What workers share:
 - A suite you open with a fixed `UserDefaults(suiteName:)`, the keychain, fixed temporary paths and
   ports.
 - `UserDefaults.standard`, and `@AppStorage` without a `store:`, when mutants' tests run through
-  `swift test`, as they always do on Linux. On macOS, [direct runs](#why-a-fork-of-muter) keep these
-  apart, but one XCTest test in a package means no direct runs. A run with more than one worker
-  prints a line when this applies, whether or not your tests use `UserDefaults`.
+  `swift test`, by `xctest` or on Linux. On macOS, [direct runs](#why-a-fork-of-muter) keep these
+  apart for Swift Testing tests. A run with more than one worker prints a line when this applies,
+  whether or not your tests use `UserDefaults`.
 
 This is about SwiftPM workers. Each [xcodebuild worker](#xcodebuild-workers) tests on a simulator of
 its own, with its own `UserDefaults` and keychain.
@@ -2144,7 +2168,7 @@ every kill is false. Each test writes a value of its own to a fixed key, and che
 
 | The test's store | Workers | False kills |
 | --- | --- | --- |
-| `UserDefaults.standard`, in direct runs | 2 | 0 |
+| `UserDefaults.standard`, in direct runs of Swift Testing tests on macOS | 2 | 0 |
 | `UserDefaults.standard`, in `swift test` runs | 2 | 12 |
 | `UserDefaults(suiteName:)`, a fixed name | 2 | 12 |
 | `UserDefaults(suiteName:)`, a fixed name | 1 | 0 |

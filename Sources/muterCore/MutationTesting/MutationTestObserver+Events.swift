@@ -21,6 +21,7 @@ extension MutationTestObserver {
             handleTestingStartEvent(event)
 
         case .timedTestRunStopped, .stoppedRunRecorded, .workersShareUserDefaults, .testBundlesWroteInTheProject,
+             .propertyRerunsKeepClones,
              .buildingAgainWithoutMutants, .buildingAgainWithSwitchesInAClosure, .stoppedTakingOutMutants,
              .mutantsLeftOutOfTheBuild:
             handleRunEvent(event)
@@ -196,6 +197,9 @@ extension MutationTestObserver {
 
         case let .testBundlesWroteInTheProject(path):
             logger.testBundlesWroteInTheProject(path: path)
+
+        case .propertyRerunsKeepClones:
+            logger.propertyRerunsKeepClones()
 
         case let .buildingAgainWithoutMutants(count):
             logger.buildingAgainWithoutMutants(count: count)

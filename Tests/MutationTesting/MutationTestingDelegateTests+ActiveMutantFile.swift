@@ -221,11 +221,14 @@ extension MutationTestingDelegateTests {
     /// A `swift test` configuration whose mutants run the test bundles directly.
     private func directRunConfiguration() -> MuterConfiguration {
         MuterConfiguration(executable: "/tmp/swift", arguments: ["test"]).withDirectTestRun(DirectTestRun(
-            helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
+            platform: .macOS(
+                helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
+                platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
+                xctest: nil
+            ),
             productsFolder: ".build/out/Products/Debug",
             bundles: ["CoreTests"],
             testFiles: [:],
-            platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
             arguments: ["--skip-build"]
         ))
     }

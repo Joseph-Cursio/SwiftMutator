@@ -62,6 +62,18 @@ extension MutationTestObserverTests {
         )
     }
 
+    func test_propertyRerunsKeepClones_isPrinted() throws {
+        try sut.start()
+
+        runEvents.send(.propertyRerunsKeepClones)
+
+        XCTAssertEqual(
+            printer.linesPassed.last,
+            "ℹ️ Workers can't share one build: property and example reruns of XCTest tests run `swift test`, in each "
+                + "worker's own folder."
+        )
+    }
+
     func test_workersShareUserDefaults_isPrinted() throws {
         try sut.start()
 
@@ -69,9 +81,9 @@ extension MutationTestObserverTests {
 
         XCTAssertEqual(
             printer.linesPassed.last,
-            "ℹ️ Workers running through `swift test` share `UserDefaults.standard`: tests that write to it can fail "
-                + "each other and kill mutants they don't check. See \"Tests that share state across workers\" in "
-                + "the README."
+            "ℹ️ Workers share `UserDefaults.standard` in tests run through `swift test`, by `xctest` or on Linux: "
+                + "tests that write to it can fail each other and kill mutants they don't check. See \"Tests that "
+                + "share state across workers\" in the README."
         )
     }
 

@@ -14,11 +14,14 @@ extension DirectTestRunTests {
     func test_theScriptWithoutATestFilter_takesNoStatusButZeroAsAPass() {
         let filtered = makeDirectTestRun(bundles: ["CoreTests"])
         let unfiltered = DirectTestRun(
-            helper: helper.path,
+            platform: .macOS(
+                helper: helper.path,
+                platformDeveloperFolder: "/Developer",
+                xctest: nil
+            ),
             productsFolder: ".build/out/Products/Debug",
             bundles: ["CoreTests"],
             testFiles: [:],
-            platformDeveloperFolder: "/Developer",
             arguments: ["--skip-build"]
         )
 

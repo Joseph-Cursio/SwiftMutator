@@ -17,7 +17,10 @@ extension Logger {
     }
 
     func testBundlesNotRunDirectly(reason: String) {
-        print("ℹ️ Each mutant's tests run through `swift test`, which takes about a second longer per mutant: \(reason)")
+        print(
+            "ℹ️ Each mutant's tests run through `swift test`, which takes longer per mutant, about a second on macOS: "
+                + reason
+        )
     }
 
     func stoppedRunRecorded(path: String) {
@@ -83,15 +86,22 @@ extension Logger {
 
     func workersShareUserDefaults() {
         print(
-            "ℹ️ Workers running through `swift test` share `UserDefaults.standard`: tests that write to it can fail "
-                + "each other and kill mutants they don't check. See \"Tests that share state across workers\" in "
-                + "the README."
+            "ℹ️ Workers share `UserDefaults.standard` in tests run through `swift test`, by `xctest` or on Linux: "
+                + "tests that write to it can fail each other and kill mutants they don't check. See \"Tests that "
+                + "share state across workers\" in the README."
         )
     }
 
     func testBundlesWroteInTheProject(path: String) {
         let place = path.isEmpty ? "the top folder" : path
         print("ℹ️ Workers can't share one build: a run of your tests, with no mutant on, changed \(place) in the copy.")
+    }
+
+    func propertyRerunsKeepClones() {
+        print(
+            "ℹ️ Workers can't share one build: property and example reruns of XCTest tests run `swift test`, in each "
+                + "worker's own folder."
+        )
     }
 
     func resultsFileCreated(atPath path: String) {

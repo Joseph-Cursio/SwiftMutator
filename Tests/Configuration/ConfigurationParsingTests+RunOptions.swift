@@ -70,11 +70,14 @@ extension ConfigurationParsingTests {
         XCTAssertEqual(swift.testWithoutBuildArguments(with: ""), ["test", "--skip-build", "--quiet"])
 
         let direct = DirectTestRun(
-            helper: "/toolchain/swiftpm-testing-helper",
+            platform: .macOS(
+                helper: "/toolchain/swiftpm-testing-helper",
+                platformDeveloperFolder: "/Developer",
+                xctest: nil
+            ),
             productsFolder: ".build/debug",
             bundles: ["SortTests"],
             testFiles: [:],
-            platformDeveloperFolder: "/Developer",
             arguments: ["--skip-build"]
         )
         let directFiltered = try XCTUnwrap(swift.withDirectTestRun(direct).withPropertyTestFilter()?.directTestRun)

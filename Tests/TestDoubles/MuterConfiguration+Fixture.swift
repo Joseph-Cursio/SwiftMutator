@@ -98,6 +98,15 @@ extension MuterConfiguration {
     }
 }
 
+extension DirectTestRun.Platform {
+    /// A Mac's, with paths of the usual shape.
+    static let macOSFixture = Self.macOS(
+        helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
+        platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
+        xctest: "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest"
+    )
+}
+
 /// No field is left at its default, so a copy that drops one no longer equals this, and every configuration key
 /// differs from the default's. `test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault` fails until a new
 /// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButSeven_isCompared`.
@@ -136,11 +145,10 @@ func configurationWithEveryFieldSet(
         reports: [ReportRequest(format: .markdown, path: "summary.md")]
     )
     .withDirectTestRun(DirectTestRun(
-        helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
+        platform: .macOSFixture,
         productsFolder: ".build/out/Products/Debug",
         bundles: ["CoreTests"],
         testFiles: [:],
-        platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
         arguments: ["--skip-build"]
     ))
     .forXcodeWorker(MuterConfiguration.XcodeWorker(

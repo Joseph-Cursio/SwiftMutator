@@ -5,25 +5,34 @@ import XCTest
 /// Running a SwiftPM project's test bundles without `swift test`, once a run of them with no mutant on matches the
 /// baseline.
 final class PerformMutationTestingDirectRunTests: MuterTestCase {
-    private let state = MutationTestState()
-    private let sut = PerformMutationTesting(makeWorkerDirectories: { _, _ in [] }, removeWorkerDirectories: { _ in })
-    private let twoWorkers = PerformMutationTesting(
+    let state = MutationTestState()
+    let sut = PerformMutationTesting(makeWorkerDirectories: { _, _ in [] }, removeWorkerDirectories: { _ in })
+    let twoWorkers = PerformMutationTesting(
         makeWorkerDirectories: { _, count in
             Array(repeating: URL(fileURLWithPath: "/project_mutated_worker1"), count: count)
         },
         removeWorkerDirectories: { _ in }
     )
-    private let direct = DirectTestRun(
-        helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
+    let direct = DirectTestRun(
+        platform: .macOS(
+            helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
+            platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
+            xctest: "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest"
+        ),
         productsFolder: ".build/out/Products/Debug",
         bundles: ["CoreTests"],
         testFiles: [:],
-        platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
         arguments: ["--skip-build"]
     )
-    private let baselineLog = """
+    let baselineLog = """
         Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
         ✔ Test run with 12 tests in 3 suites passed after 0.5 seconds.
+        """
+    /// XCTest's summary of a run of 4 tests in CoreTests.
+    let xctestSummary = """
+        Test Suite 'CoreTests.xctest' passed at 2026-11-20 17:00:00.000.
+        \t Executed 4 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds
+
         """
     private let probed = Locked<[URL]>([])
 
@@ -107,17 +116,19 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         )
     }
 
-    // `swift test` runs XCTest tests with `xctest`, which running the bundles directly doesn't.
-    func test_aBaselineThatRanXCTestTests_leavesSwiftTest_withoutTryingTheBundles() async throws {
-        ioDelegate.baselineTestLog = "Executed 4 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds\n"
-            + baselineLog
+    // `swift test` runs a bundle's XCTest tests with `xctest`, which the bundles run directly then do too (#281).
+    func test_aBaselineThatRanXCTestTests_runsThemDirectly_inTheBundlesItNames() async throws {
+        ioDelegate.baselineTestLog = xctestSummary + baselineLog
+        ioDelegate.testRunsWithoutBuilding = [(.passed, xctestSummary + baselineLog)]
         let sent = recordNotices()
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(ioDelegate.configurationsWithoutBuilding.map(\.directTestRun), [nil])
-        XCTAssertEqual(ioDelegate.configurations.map(\.directTestRun), [nil])
-        XCTAssertTrue(sent().first?.contains("XCTest") ?? false)
+        let expected = direct.withXCTestBundles(ranIn: xctestSummary)
+        XCTAssertEqual(expected.xctestBundles, ["CoreTests"])
+        XCTAssertEqual(ioDelegate.configurationsWithoutBuilding.map(\.directTestRun), [expected])
+        XCTAssertEqual(ioDelegate.configurations.map(\.directTestRun), [expected])
+        XCTAssertEqual(sent(), [])
     }
 
     func test_aProbeThatFailsWithAReason_saysIt() async throws {
@@ -130,7 +141,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.configurations.map(\.directTestRun), [nil])
     }
 
-    // On Linux, or with a wrapper as `executable`, the bundles aren't for running directly, which isn't news.
+    // With a wrapper as `executable`, the bundles aren't for running directly, which isn't news.
     func test_aProbeThatFailsWithoutAReason_saysNothing() async throws {
         current.directTestRun = { _, _ in .failure(.init(reason: nil)) }
         let sent = recordNotices()
@@ -168,8 +179,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
     // Workers that run through `swift test` share `UserDefaults.standard`, which only a direct run's don't (#92).
     func test_workersOnSwiftTest_areWarnedTheyShareUserDefaults() async throws {
         try useTwoWorkers()
-        ioDelegate.baselineTestLog = "Executed 4 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds\n"
-            + baselineLog
+        current.directTestRun = { _, _ in .failure(.init(reason: "no helper")) }
         let warnings = recordWarnings()
 
         _ = try await twoWorkers.run(with: state)
@@ -187,7 +197,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         XCTAssertEqual(warnings(), 1)
     }
 
-    // On Linux, which says nothing of direct runs, workers share them just the same.
+    // With a wrapper, which says nothing of direct runs, workers share them just the same.
     func test_workersWithAProbeThatGivesNoReason_areWarned() async throws {
         try useTwoWorkers()
         current.directTestRun = { _, _ in .failure(.init(reason: nil)) }
@@ -212,8 +222,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
     }
 
     func test_oneWorkerOnSwiftTest_isntWarned() async throws {
-        ioDelegate.baselineTestLog = "Executed 4 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds\n"
-            + baselineLog
+        current.directTestRun = { _, _ in .failure(.init(reason: "no helper")) }
         let warnings = recordWarnings()
 
         _ = try await sut.run(with: state)
@@ -227,8 +236,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
         )
-        ioDelegate.baselineTestLog = "Executed 4 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds\n"
-            + baselineLog
+        current.directTestRun = { _, _ in .failure(.init(reason: "no helper")) }
         let warnings = recordWarnings()
 
         _ = try await sut.run(with: state)
@@ -237,7 +245,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
     }
 
     /// A run of two mutants on two workers. The baseline, the clone's build, then the mutants.
-    private func useTwoWorkers() throws {
+    func useTwoWorkers() throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
         )
@@ -246,7 +254,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
     }
 
     /// How many times `workersShareUserDefaults` has been sent from now on.
-    private func recordWarnings() -> () -> Int {
+    func recordWarnings() -> () -> Int {
         let count = Locked(0)
         let token = runEvents.observe(.workersShareUserDefaults) { _ in count.change { $0 += 1 } }
         addTeardownBlock { token.cancel() }
@@ -292,7 +300,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
     }
 
     /// The reason of each `testBundlesNotRunDirectly` sent from now on.
-    private func recordNotices() -> () -> [String] {
+    func recordNotices() -> () -> [String] {
         let reasons = Locked<[String]>([])
         let token = runEvents.observe(.testBundlesNotRunDirectly) { event in
             if case let .testBundlesNotRunDirectly(reason) = event {
