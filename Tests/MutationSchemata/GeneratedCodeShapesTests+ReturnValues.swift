@@ -179,7 +179,7 @@ extension GeneratedCodeShapesTests {
     }
 
     protocol Summary {
-    #if !os(Linux)
+    #if !os(Windows)
         @Lines var summary: [String] { get }
     #endif
     }

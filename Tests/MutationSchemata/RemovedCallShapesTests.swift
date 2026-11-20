@@ -158,7 +158,7 @@ final class RemovedCallShapesTests: GeneratedCodeTestCase {
             guard arguments.count > 4 else {
                 record(arguments) // before a #if
                 usage()
-                #if os(Linux)
+                #if os(Windows)
                 record(arguments)
                 #endif
             }

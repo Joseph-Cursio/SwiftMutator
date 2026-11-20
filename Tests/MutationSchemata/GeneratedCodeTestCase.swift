@@ -7,20 +7,56 @@ import XCTest
 /// run the program. The snapshots record swift-format's rewrite of the generated code, which hides errors, and can't
 /// show which mutant it switches on.
 class GeneratedCodeTestCase: MuterTestCase {
-    let xcrun = "/usr/bin/xcrun"
     /// What the compiled program exits with when the generated code's fatal error traps.
     let trapExitStatus: Int32 = 70
     /// The folder each test compiles in, made in `setUp` and removed when the test finishes.
     let directory = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
+    /// The module that declares `signal` and `exit`, which a program's `main.swift` imports.
+    #if canImport(Darwin)
+    let systemLibrary = "Darwin"
+    #else
+    let systemLibrary = "Glibc"
+    #endif
+    /// The compiler, and the arguments that come before its own, found in `setUp`.
+    private var compiler: (executable: URL, arguments: [String])?
 
     override func setUpWithError() throws {
         try super.setUpWithError()
+        compiler = try Self.findCompiler()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { [directory] in try? FileManager.default.removeItem(at: directory) }
+    }
+
+    /// `xcrun swiftc` on macOS, which runs the selected Xcode's compiler, and elsewhere the first `swiftc` on the
+    /// `PATH`, where a toolchain puts it. Skips the test if there's none.
+    private static func findCompiler() throws -> (executable: URL, arguments: [String]) {
+        #if os(macOS)
+        let xcrun = "/usr/bin/xcrun"
         try XCTSkipUnless(
             FileManager.default.isExecutableFile(atPath: xcrun),
             "compiling the generated code needs \(xcrun)"
         )
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        addTeardownBlock { [directory] in try? FileManager.default.removeItem(at: directory) }
+        return (URL(fileURLWithPath: xcrun), ["swiftc"])
+        #else
+        let swiftc = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":")
+            .map { URL(fileURLWithPath: String($0)).appendingPathComponent("swiftc") }
+            .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+        guard let swiftc else {
+            throw XCTSkip("compiling the generated code needs swiftc on the PATH")
+        }
+        return (swiftc, [])
+        #endif
+    }
+
+    /// Runs the compiler with `arguments` and this suite's compiler environment, as `execute` runs a process.
+    func runCompiler(_ arguments: [String], timeLimit: TimeInterval) throws -> Run {
+        let command = try XCTUnwrap(compiler, "setUp finds the compiler")
+        return try execute(
+            command.executable,
+            arguments: command.arguments + arguments,
+            environment: compilerEnvironment,
+            timeLimit: timeLimit
+        )
     }
 
     struct Run {
@@ -170,16 +206,14 @@ class GeneratedCodeTestCase: MuterTestCase {
         }
 
         let program = directory.appendingPathComponent("program")
-        let compiled = try execute(
-            URL(fileURLWithPath: xcrun),
-            arguments: ["swiftc", "-swift-version", "6"] + arguments + [
+        let compiled = try runCompiler(
+            ["-swift-version", "6"] + arguments + [
                 "-enable-upcoming-feature", "MemberImportVisibility",
                 "-warnings-as-errors",
                 // Every file's errors, not only the first failing file's.
                 "-continue-building-after-errors",
                 "-o", program.path,
             ] + paths,
-            environment: compilerEnvironment,
             timeLimit: 300
         )
         return (program, compiled)
@@ -191,7 +225,7 @@ class GeneratedCodeTestCase: MuterTestCase {
     /// untouched.
     func driver(_ statements: String) -> String {
         """
-        import Darwin
+        import \(systemLibrary)
 
         signal(SIGTRAP) { _ in _exit(\(trapExitStatus)) }
         signal(SIGILL) { _ in _exit(\(trapExitStatus)) }
