@@ -275,15 +275,10 @@ jobs:
           done
           exit $status
 
-  # Non-blocking (continue-on-error): SwiftMutator builds on Linux and its unit
-  # suite runs, but it hasn't passed here long enough to block a merge. It shows
-  # what fails on Linux without failing the workflow. Not on pull
-  # requests, where a failure every PR shares would hide one of its own: it runs
-  # on pushes to main and by hand. #130 tracks making it pass; then run it on
-  # pull requests and drop continue-on-error, so it blocks like the macOS job.
+  # The unit suite on Linux, on pull requests too (#130). The tests that need macOS, or that a root user can't fail
+  # (the container runs as root), skip with their reason.
   linux-unit-tests:
-    name: Unit tests (Linux, Swift 6.4, non-blocking)
-    if: github.event_name != 'pull_request'
+    name: Unit tests (Linux, Swift 6.4)
     runs-on: ubuntu-latest
     # The official image: Swift 6.4 on Ubuntu 24.04. With an init as PID 1: Actions
     # starts the container with `tail -f /dev/null` there, which never reaps the
@@ -292,7 +287,6 @@ jobs:
       image: swift:6.4-noble
       options: --init
     timeout-minutes: 45
-    continue-on-error: true
     env:
       # A fixed path inside the container, which every step, the upload too, reads.
       LOGS: /tmp/ci-logs
@@ -320,20 +314,26 @@ jobs:
           mkdir -p "$LOGS"
           swift build --build-tests --force-resolved-versions 2>&1 | tee "$LOGS/build.log"
 
+      # The target's own test runner, which Swift Build makes for each test target, rather than `swift test --filter`:
+      # SwiftPM turns a filter into one argument naming every test it matches, and once muterTests' names passed
+      # Linux's 128 KiB limit for one argument, the runner couldn't start ("Argument list too long"). macOS has no
+      # such limit, so the macOS job keeps `swift test`.
       - name: Run unit tests (muterTests)
         timeout-minutes: 20
         env:
           SNAPSHOT_TESTING_RECORD: never
           SNAPSHOT_ARTIFACTS: ${{ env.LOGS }}/snapshot-failures
-        run: swift test --force-resolved-versions --filter '^muterTests\.' 2>&1 | tee "$LOGS/test.log"
+        run: |
+          runner="$(swift build --show-bin-path)/muterTests-test-runner"
+          "$runner" 2>&1 | tee "$LOGS/test.log"
 
       - name: Check that the unit suite ran
         run: |
-          # swift test exits 0, with only a warning, when --filter matches nothing.
+          # A runner that finds no tests exits 0.
           executed=$(grep -oE 'Executed [0-9]+ tests?' "$LOGS/test.log" | awk '{print $2}' | sort -n | tail -n 1 || true)
           echo "XCTest tests executed: ${executed:-0}" >> "$GITHUB_STEP_SUMMARY"
           if [ "${executed:-0}" -eq 0 ]; then
-            echo "::error::No unit tests ran. Check that --filter '^muterTests\.' still matches the test target."
+            echo "::error::No unit tests ran. Check that the build still makes muterTests-test-runner."
             exit 1
           fi
 
@@ -341,7 +341,7 @@ jobs:
         if: failure()
         run: |
           {
-            echo '### Errors and failed tests (Linux, non-blocking)'
+            echo '### Errors and failed tests (Linux)'
             echo '```text'
             grep -h -E 'error:|Test Case .* failed|with [1-9][0-9]* failures?' \
               "$LOGS/build.log" "$LOGS/test.log" 2>/dev/null \
