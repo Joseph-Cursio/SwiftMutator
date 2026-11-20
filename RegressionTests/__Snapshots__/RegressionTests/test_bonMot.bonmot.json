@@ -2458,6 +2458,72 @@
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/XMLBuilder.swift:41:21 ReplaceNilCoalescing",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceNilCoalescing",
+            "position" : {
+              "column" : 21,
+              "line" : 41
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "NSAttributedString.defaultXMLStyler",
+            "before" : "styler ?? NSAttributedString.defaultXMLStyler",
+            "description" : "replaced the coalescing with its fallback"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            styler: NSAttributedString.defaultXMLStyler,",
+            "before" : "            styler: styler ?? NSAttributedString.defaultXMLStyler,",
+            "line" : 41
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:43:24 ReplaceNilCoalescing",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceNilCoalescing",
+            "position" : {
+              "column" : 24,
+              "line" : 43
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "StringStyle()",
+            "before" : "baseStyle ?? StringStyle()",
+            "description" : "replaced the coalescing with its fallback"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            baseStyle: StringStyle()",
+            "before" : "            baseStyle: baseStyle ?? StringStyle()",
+            "line" : 43
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:78:24 ReplaceNilCoalescing",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceNilCoalescing",
+            "position" : {
+              "column" : 24,
+              "line" : 78
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "StringStyle()",
+            "before" : "baseStyle ?? StringStyle()",
+            "description" : "replaced the coalescing with its fallback"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            baseStyle: StringStyle()",
+            "before" : "            baseStyle: baseStyle ?? StringStyle()",
+            "line" : 78
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
           "key" : "Sources\/XMLBuilder.swift:89:50 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
@@ -3265,6 +3331,28 @@
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:320:27 ReplaceNilCoalescing",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceNilCoalescing",
+            "position" : {
+              "column" : 27,
+              "line" : 320
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "topXMLStyler",
+            "before" : "newStyle.xmlStyler ?? topXMLStyler",
+            "description" : "replaced the coalescing with its fallback"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        xmlStylers.append(topXMLStyler)",
+            "before" : "        xmlStylers.append(newStyle.xmlStyler ?? topXMLStyler)",
+            "line" : 320
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
           "key" : "Sources\/XMLBuilder.swift:320:62 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
@@ -3513,10 +3601,32 @@
             "line" : 355
           },
           "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:360:26 ReplaceNilCoalescing",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceNilCoalescing",
+            "position" : {
+              "column" : 26,
+              "line" : 360
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "currentString ?? \"\"",
+            "description" : "replaced the coalescing with its fallback"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        currentString = (\"\").appending(string)",
+            "before" : "        currentString = (currentString ?? \"\").appending(string)",
+            "line" : 360
+          },
+          "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "XMLBuilder.swift",
-      "mutationScore" : 85,
+      "mutationScore" : 81,
       "path" : "Sources\/XMLBuilder.swift"
     },
     {
@@ -3542,15 +3652,15 @@
       "path" : "Sources\/Platform.swift"
     }
   ],
-  "globalMutationScore" : 67,
+  "globalMutationScore" : 66,
   "mutantsByOutcome" : {
     "buildErrors" : 0,
-    "killed" : 107,
+    "killed" : 109,
     "notCovered" : 1,
-    "survived" : 51,
+    "survived" : 54,
     "timedOut" : 0
   },
-  "numberOfKilledMutants" : 107,
+  "numberOfKilledMutants" : 109,
   "operatorExplanations" : {
     "ChangeArithmeticOperator" : "Swaps arithmetic: plus and minus swap, as do times and divide, and remainder becomes times.",
     "ChangeLogicalConnector" : "Swaps a logical AND for OR, and OR for AND.",
@@ -3560,9 +3670,10 @@
     "RelationalOperatorReplacement" : "Replaces a comparison with true or false, and turns less than and greater than into not equal, and at most and at least into equal.",
     "RemoveSideEffects" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone.",
     "ReplaceBooleanValue" : "Replaces a Bool that is returned or stored with true, and in a second mutant with false.",
+    "ReplaceNilCoalescing" : "Replaces a nil-coalescing expression with its fallback, so the code always takes the value on the right.",
     "ReplaceReturnValue" : "Replaces a returned value with an empty one of its type: nil, an empty array, dictionary or string, or zero.",
     "SwapTernary" : "Swaps the two branches of a ternary expression."
   },
   "projectCodeCoverage" : 78,
-  "totalAppliedMutationOperators" : 159
+  "totalAppliedMutationOperators" : 164
 }
