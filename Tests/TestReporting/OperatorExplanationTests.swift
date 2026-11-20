@@ -22,7 +22,7 @@ final class OperatorExplanationTests: ReporterTestCase {
     func test_theJSONReport_explainsOnlyTheOperatorsUsed() throws {
         let json = JsonReporter().report(from: outcome)
 
-        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let report = try XCTUnwrap(JSONSerialization.hashableObject(with: Data(json.utf8)) as? [String: Any])
         XCTAssertEqual(report["operatorExplanations"] as? [String: String], [
             "SwapTernary": MutationOperator.Id.swapTernary.explanation,
             "RelationalOperatorReplacement": MutationOperator.Id.ror.explanation,
@@ -33,7 +33,7 @@ final class OperatorExplanationTests: ReporterTestCase {
         let none = MutationTestOutcome.make(mutations: [])
 
         let report = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: none).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: none).utf8)) as? [String: Any]
         )
         XCTAssertNil(report["operatorExplanations"])
         XCTAssertFalse(PlainTextReporter().report(from: none).contains("What these operators do:"))
@@ -42,7 +42,7 @@ final class OperatorExplanationTests: ReporterTestCase {
     // A JSON report written before reports had them can still be read.
     func test_aJSONReportWithoutThem_isRead() throws {
         var report = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
         report["operatorExplanations"] = nil
 

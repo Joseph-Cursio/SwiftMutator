@@ -247,7 +247,7 @@ final class InterruptionHarness {
         try resultsFiles().map { file in
             let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
             XCTAssertEqual(lines.count, 1, "\(file.path): \(lines)")
-            let record = try JSONSerialization.jsonObject(with: Data((lines.first ?? "").utf8))
+            let record = try JSONSerialization.hashableObject(with: Data((lines.first ?? "").utf8))
             return record as? [String: Any] ?? [:]
         }
     }

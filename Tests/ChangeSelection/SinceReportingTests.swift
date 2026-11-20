@@ -68,7 +68,7 @@ final class SinceReportingTests: MuterTestCase {
             )
         )
         let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
         let since = try XCTUnwrap(json["since"] as? [String: Any])
         XCTAssertEqual(since["ref"] as? String, "origin/main")
@@ -81,7 +81,7 @@ final class SinceReportingTests: MuterTestCase {
 
         XCTAssertFalse(PlainTextReporter().report(from: outcome).contains("changed since the merge base"))
         let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
         XCTAssertNil(json["since"])
     }

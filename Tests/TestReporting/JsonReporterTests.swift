@@ -40,7 +40,7 @@ final class JsonReporterTests: ReporterTestCase {
             .make(testSuiteOutcome: .passed, point: .make(filePath: "/tmp/project/Sum.swift", position: 7)),
         ]))
 
-        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let report = try XCTUnwrap(JSONSerialization.hashableObject(with: Data(json.utf8)) as? [String: Any])
         let fileReports = try XCTUnwrap(report["fileReports"] as? [[String: Any]])
         let operators = try XCTUnwrap(fileReports.first?["appliedOperators"] as? [[String: Any]])
         XCTAssertEqual(operators.count, 2)

@@ -198,13 +198,13 @@ final class SampleRunTests: MuterTestCase {
             )
         )
         let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
         let sample = try XCTUnwrap(json["sample"] as? [String: Any])
         XCTAssertEqual(sample["mutantsSampled"] as? Int, 2)
         XCTAssertEqual(sample["mutantsSampledFrom"] as? Int, 40)
         XCTAssertEqual(sample["seed"] as? Int, 1_234)
-        XCTAssertEqual(try XCTUnwrap(sample["marginOfError"] as? Double), margin, accuracy: 1e-9)
+        XCTAssertEqual(try XCTUnwrap(sample.double(at: "marginOfError")), margin, accuracy: 1e-9)
         XCTAssertTrue(HTMLReporter().report(from: outcome).contains("Sample tested, of 40 mutants (seed 1234)"))
     }
 
@@ -214,9 +214,8 @@ final class SampleRunTests: MuterTestCase {
             let outcome = MutationTestOutcome(mutations: [.make(testSuiteOutcome: .failed)], sample: sample)
 
             XCTAssertFalse(PlainTextReporter().report(from: outcome).contains("sample"))
-            let json = try XCTUnwrap(
-                JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
-            )
+            let report = Data(JsonReporter().report(from: outcome).utf8)
+            let json = try XCTUnwrap(JSONSerialization.hashableObject(with: report) as? [String: Any])
             XCTAssertNil(json["sample"])
             XCTAssertFalse(HTMLReporter().report(from: outcome).contains("Sample tested"))
         }

@@ -115,13 +115,13 @@ final class PropertySurvivorRerunSummaryTests: XCTestCase {
         XCTAssertTrue(html.contains("<td class=\"right-aligned\">4 of 10</td>"))
         XCTAssertFalse(HTMLReporter().report(from: untested).contains("Survivors and Properties"))
 
-        let json = try JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: tested).utf8))
+        let json = try JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: tested).utf8))
         let counts = try XCTUnwrap((json as? [String: Any])?["propertySurvivorReruns"] as? [String: Any])
         XCTAssertEqual(
             Set(counts.keys), ["survivorsTestedAgain", "failedOnALaterRun", "passedEveryRun", "unsettled", "runs"]
         )
         XCTAssertEqual(counts["failedOnALaterRun"] as? Int, 2)
-        let jsonWithout = try JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: untested).utf8))
+        let jsonWithout = try JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: untested).utf8))
         XCTAssertNil((jsonWithout as? [String: Any])?["propertySurvivorReruns"])
 
         XCTAssertEqual(

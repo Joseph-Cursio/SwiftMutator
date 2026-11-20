@@ -147,8 +147,10 @@ extension MutationTestObserverTests {
         runEvents.send(.mutationTestingEndedEarly(earlyEnd))
 
         XCTAssertEqual(fileManager.paths.last, "/out/report.partial.json")
-        let written = try JSONSerialization.jsonObject(with: XCTUnwrap(fileManager.contents)) as? [String: AnyHashable]
-        let expected = try JSONSerialization.jsonObject(
+        let written = try JSONSerialization.hashableObject(
+            with: XCTUnwrap(fileManager.contents)
+        ) as? [String: AnyHashable]
+        let expected = try JSONSerialization.hashableObject(
             with: Data(JsonReporter().report(from: earlyEnd.outcome).utf8)
         ) as? [String: AnyHashable]
         XCTAssertNotNil(written)

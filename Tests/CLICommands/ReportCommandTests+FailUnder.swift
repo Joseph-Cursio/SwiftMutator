@@ -149,7 +149,7 @@ extension ReportCommandTests {
         let summary = try parsedJSON(saved)
         XCTAssertNil(summary["gate"], saved)
         let run = try XCTUnwrap(summary["run"] as? [String: AnyHashable], saved)
-        XCTAssertEqual((run["configuration"] as? [String: AnyHashable])?["failUnder"] as? Double, 80, saved)
+        XCTAssertEqual((run["configuration"] as? [String: AnyHashable])?.double(at: "failUnder"), 80, saved)
         XCTAssertEqual(standardError.linesPassed.last, "Summary saved to \(summaryPath)")
         XCTAssertFalse(standardError.linesPassed.contains { $0.contains("required") }, "\(standardError.linesPassed)")
 
@@ -158,7 +158,7 @@ extension ReportCommandTests {
 
         let savedSummary = try parsedJSON(String(contentsOfFile: summaryPath, encoding: .utf8))
         let gate = savedSummary["gate"] as? [String: AnyHashable]
-        XCTAssertEqual(gate?["failUnder"] as? Double, 30)
+        XCTAssertEqual(gate?.double(at: "failUnder"), 30)
         XCTAssertEqual(standardError.linesPassed.last, "Mutation score 33.3% meets the required 30%.")
     }
 

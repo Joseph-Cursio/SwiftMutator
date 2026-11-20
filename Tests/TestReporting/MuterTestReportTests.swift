@@ -16,7 +16,7 @@ final class MuterTestReportTests: MuterTestCase {
         let html = HTMLReporter().report(from: outcome)
         XCTAssertTrue(html.contains(sentence), html)
         let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
         XCTAssertEqual(json["mutant"] as? String, key)
     }
@@ -28,7 +28,7 @@ final class MuterTestReportTests: MuterTestCase {
         XCTAssertFalse(PlainTextReporter().report(from: outcome).contains("--mutant"))
         XCTAssertFalse(HTMLReporter().report(from: outcome).contains("--mutant"))
         let json = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+            JSONSerialization.hashableObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
         XCTAssertNil(json["mutant"])
     }

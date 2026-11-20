@@ -111,7 +111,7 @@ extension ReportCommandTests {
 
     /// JSONEncoder promises no order of keys, so JSON compares parsed.
     func parsedJSON(_ text: String) throws -> [String: AnyHashable] {
-        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: AnyHashable], text)
+        try XCTUnwrap(JSONSerialization.hashableObject(with: Data(text.utf8)) as? [String: AnyHashable], text)
     }
 
     func write(_ records: any Encodable..., to path: String) throws {

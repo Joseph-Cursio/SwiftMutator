@@ -75,7 +75,7 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertEqual(rebuilt.status, 0, rebuilt.standardError)
         let sessions = "Of these, 2 were tested in the last session, session 2, and 2 in session 1."
         XCTAssertTrue(rebuilt.standardError.contains(sessions), rebuilt.standardError)
-        let rebuiltReport = try JSONSerialization.jsonObject(
+        let rebuiltReport = try JSONSerialization.hashableObject(
             with: Data(rebuilt.standardOutput.utf8)
         ) as? [String: AnyHashable]
         XCTAssertEqual(rebuiltReport, try harness.parsedJSON(at: harness.report))
@@ -85,7 +85,7 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertEqual(try harness.notedFile(in: resumedFolder), resultsFile.resolvingSymlinksInPath().path)
         let fromFolder = try harness.waitForEnd(of: harness.launch(["report", resumedFolder.path, "-f", "json"]))
         XCTAssertEqual(fromFolder.status, 0, fromFolder.standardError)
-        let folderReport = try JSONSerialization.jsonObject(
+        let folderReport = try JSONSerialization.hashableObject(
             with: Data(fromFolder.standardOutput.utf8)
         ) as? [String: AnyHashable]
         XCTAssertEqual(folderReport, try harness.parsedJSON(at: harness.report))

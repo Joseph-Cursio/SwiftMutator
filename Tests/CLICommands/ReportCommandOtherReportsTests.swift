@@ -41,7 +41,7 @@ final class ReportCommandOtherReportsTests: MuterTestCase {
         XCTAssertTrue(saved.hasPrefix("## Mutation testing\n\n**Mutation score: 50% (1 killed, 1 survived)**"), saved)
         XCTAssertTrue(try String(contentsOfFile: html, encoding: .utf8).contains("<html"))
         XCTAssertEqual(printer.linesPassed.count, 1)
-        XCTAssertNoThrow(try JSONSerialization.jsonObject(with: Data((printer.linesPassed.first ?? "").utf8)))
+        XCTAssertNoThrow(try JSONSerialization.hashableObject(with: Data((printer.linesPassed.first ?? "").utf8)))
         XCTAssertEqual(standardError.linesPassed.suffix(2), [
             "Report saved to \(markdown)",
             "Report saved to \(html)",

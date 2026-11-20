@@ -11,7 +11,7 @@ extension JsonReporterTests {
         )
         let json = JsonReporter().report(from: outcome)
 
-        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let report = try XCTUnwrap(JSONSerialization.hashableObject(with: Data(json.utf8)) as? [String: Any])
         let fileReports = try XCTUnwrap(report["fileReports"] as? [[String: Any]])
         let operators = try fileReports.flatMap { try XCTUnwrap($0["appliedOperators"] as? [[String: Any]]) }
         let marks = operators.compactMap { $0["reusedFrom"] as? [String: Any] }
@@ -27,7 +27,7 @@ extension JsonReporterTests {
     func test_aSuspectOnlyKill_isMarked_andTheSummaryGivesTheScoreWithoutThem() throws {
         let json = JsonReporter().report(from: .withSuspectTests)
 
-        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let report = try XCTUnwrap(JSONSerialization.hashableObject(with: Data(json.utf8)) as? [String: Any])
         let fileReports = try XCTUnwrap(report["fileReports"] as? [[String: Any]])
         let operators = try fileReports.flatMap { try XCTUnwrap($0["appliedOperators"] as? [[String: Any]]) }
         let marked = operators.filter { $0["killedOnlyBySuspectTests"] != nil }

@@ -222,7 +222,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
             doubtfulKills: DoubtfulKillsCheck(maxDoubtfulKills: 0, judging: outcome)
         )
 
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: Any])
+        let json = try XCTUnwrap(JSONSerialization.hashableObject(with: summary.json) as? [String: Any])
         let recorded = try XCTUnwrap(json["doubtfulKills"] as? [String: Any])
         XCTAssertEqual(
             Set(recorded.keys),

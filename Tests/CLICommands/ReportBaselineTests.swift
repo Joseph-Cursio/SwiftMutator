@@ -63,7 +63,7 @@ final class ReportBaselineTests: MuterTestCase {
         try report(resultsPath, "--baseline", baselinePath, "--summary", summaryPath)
 
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(saved.utf8)) as? [String: AnyHashable])
+        let json = try XCTUnwrap(JSONSerialization.hashableObject(with: Data(saved.utf8)) as? [String: AnyHashable])
         let verdict = try XCTUnwrap(json["newSurvivors"] as? [String: AnyHashable], saved)
         XCTAssertEqual(verdict["passed"] as? Bool, true)
         XCTAssertEqual(verdict["stillSurvive"] as? Int, 2)
