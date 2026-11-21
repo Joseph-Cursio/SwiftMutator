@@ -6,7 +6,7 @@ extension Logger {
         let kills = reruns.count == 1 ? "1 kill" : "\(reruns.count) kills"
         let atATime = reruns.count == 1 ? ""
             : reruns.workers == 1 ? ", one at a time" : ", \(reruns.workers) at a time"
-        print("🧪 Running every test but the property tests again for \(kills) only properties were recorded "
+        progress("🧪 Running every test but the property tests again for \(kills) only properties were recorded "
             + "making\(atATime).")
     }
 
@@ -19,7 +19,7 @@ extension Logger {
         if tally.unsettled > 0 {
             sentence += "; \(tally.unsettled) settled nothing, as they timed out, didn't build, or failed no example"
         }
-        print(sentence + ".")
+        progress(sentence + ".")
     }
 
     /// "⚠️ No kill was tested again with the property tests skipped: …. The reports count what the runs recorded, so

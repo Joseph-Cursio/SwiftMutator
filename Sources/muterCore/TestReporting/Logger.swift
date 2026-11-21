@@ -20,6 +20,9 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     /// How many mutants the progress bar or the progress lines count: those discovered, or those a resumed run has
     /// left to test.
     var numberOfMutationPoints: Int = 0
+    /// With `--quiet`: the banner, progress and notices are left out (`progress(_:)`), and warnings, errors and the
+    /// summary still print. The observer sets it as it starts.
+    var quiet = false
     private var progressBar: ProgressBar?
     /// In place of the progress bar, when standard output isn't a terminal.
     private var progressLines: ProgressLines?
@@ -27,7 +30,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     private static let progressBarLines = 2
 
     func launched() {
-        print(
+        progress(
             """
             \(muterLogoForTerminal)
 
@@ -44,14 +47,14 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     }
 
     func updateCheckStarted() {
-        print("🔎 Checking for new versions...")
+        progress("🔎 Checking for new versions...")
     }
 
     func updateCheckFinished(newVersion: String?) {
         if let newVersion {
-            print("🎉 New version \(newVersion) available!")
+            progress("🎉 New version \(newVersion) available!")
         } else {
-            print("✅ You are already using the latest of SwiftMutator")
+            progress("✅ You are already using the latest of SwiftMutator")
         }
     }
 
@@ -59,8 +62,10 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         mutantRunsStartedAt = instant()
     }
 
+    /// The baseline's log starts the progress bar, or off a terminal the progress lines. With `--quiet` it starts
+    /// neither, so no mutant gets a line.
     func newMutationTestLogAvailable(mutationTestLog: MutationTestLog) {
-        if mutationTestLog.mutationPoint == nil {
+        if mutationTestLog.mutationPoint == nil, !quiet {
             print(
                 """
                 📊 Determined baseline for mutation testing.
@@ -119,10 +124,10 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
 
     /// The mutants under way once none has finished for a while: a line, when standard output isn't a terminal, where
     /// nothing else would print until one does. A terminal's progress bar redraws itself, and a line would break that.
+    /// With `--quiet` the line still prints: it is then all a log gets while the mutants run.
     func stillTesting(_ still: StillTesting) {
-        if let line = progressLines?.stillTestingLine(still, at: now()) {
-            print(line)
-        }
+        guard progressLines != nil || (quiet && !standardOutIsATerminal) else { return }
+        print(ProgressLines.stillTestingLine(still, at: now()))
     }
 
     /// The seconds since the mutants started, or nil before they have.
@@ -214,9 +219,16 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
     }
 
-    func printMessage(_ message: String) {
-        print("+-----------------+")
+    /// A line of progress or a notice, which `--quiet` leaves out. Warnings, errors and the summary use `print`.
+    func progress(_ message: String) {
+        guard !quiet else { return }
         print(message)
+    }
+
+    /// A step's heading, which `--quiet` leaves out.
+    func printMessage(_ message: String) {
+        progress("+-----------------+")
+        progress(message)
     }
 
     /// Follows a message printed while the progress bar is still to be redrawn with as many empty lines as the bar

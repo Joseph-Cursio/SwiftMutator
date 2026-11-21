@@ -46,8 +46,10 @@ final class MutationTestObserver {
         self.runOptions = runOptions
     }
 
-    /// Creates the run's log folder, with the run's marker in it, and observes the run's events.
+    /// Creates the run's log folder, with the run's marker in it, and observes the run's events. The Logger is told
+    /// first whether the run is quiet, so that its banner is too.
     func start() throws {
+        logger.quiet = runOptions.quiet
         loggingDirectory = try createLoggingDirectory(
             forProjectAt: fileManager.currentDirectoryPath,
             fileManager: fileManager

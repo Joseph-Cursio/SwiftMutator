@@ -43,7 +43,7 @@ struct ProgressLines {
 
     /// The line that names the mutants under way, while none finishes: each one's place and how long it has run, and
     /// with more than one worker, its worker's number, from 1.
-    func stillTestingLine(_ still: StillTesting, at time: Date) -> String {
+    static func stillTestingLine(_ still: StillTesting, at time: Date) -> String {
         let runs = still.runs.map { run in
             let worker = still.workers > 1 ? "worker \(run.worker + 1): " : ""
             return "\(worker)\(run.place) for \(Int(run.seconds)) s"

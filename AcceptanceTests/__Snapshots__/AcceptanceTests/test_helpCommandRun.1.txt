@@ -52,6 +52,8 @@ OPTIONS:
   --verbose               Lists how many mutants are in each file that has any,
                           and the Swift files found, if the command looks for
                           them.
+  --quiet                 Prints only warnings, errors and the run's summary:
+                          no banner, progress or notices.
   --build-timeout <seconds>
                           Seconds before each step that builds and tests ahead
                           of the first mutant is stopped (the coverage run, a

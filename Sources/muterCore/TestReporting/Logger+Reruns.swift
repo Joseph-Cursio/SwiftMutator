@@ -38,7 +38,7 @@ extension Logger {
             limit = ", under the same \(Self.seconds(seconds)) limit: at most "
                 + SimpleTimeEstimate.text(secondsLeft: longest)
         }
-        print("🔁 Running \(timeouts) again\(atATime)\(limit).")
+        progress("🔁 Running \(timeouts) again\(atATime)\(limit).")
     }
 
     /// "🔁 1 of 3 killed at Rules.swift:42:17 (changed == to !=), in 41.2 s": what a timeout tested again came to. Not
@@ -54,7 +54,9 @@ extension Logger {
         }
         let place = "\(mutant.point.fileName):\(mutant.point.position.line):\(mutant.point.position.column)"
         let change = mutant.snapshot.description.isEmpty ? "" : " (\(mutant.snapshot.description))"
-        print("🔁 \(rerun.number) of \(rerun.count) \(verdict) at \(place)\(change), in \(Self.seconds(rerun.seconds))")
+        progress(
+            "🔁 \(rerun.number) of \(rerun.count) \(verdict) at \(place)\(change), in \(Self.seconds(rerun.seconds))"
+        )
     }
 
     /// "🧪 Running the property tests again for 12 kills only examples were recorded making, 4 at a time.": once every
@@ -63,7 +65,7 @@ extension Logger {
         let kills = reruns.count == 1 ? "1 kill" : "\(reruns.count) kills"
         let atATime = reruns.count == 1 ? ""
             : reruns.workers == 1 ? ", one at a time" : ", \(reruns.workers) at a time"
-        print("🧪 Running the property tests again for \(kills) only examples were recorded making\(atATime).")
+        progress("🧪 Running the property tests again for \(kills) only examples were recorded making\(atATime).")
     }
 
     /// "🧪 Ran the property tests again for 12 kills: a property test failed too for 5, and every one passed for 7."
@@ -74,7 +76,7 @@ extension Logger {
         if tally.unsettled > 0 {
             sentence += "; \(tally.unsettled) timed out or didn't build, which settles nothing"
         }
-        print(sentence + ".")
+        progress(sentence + ".")
     }
 
     /// "⚠️ No kill was tested again with the property tests alone: propertyTestFilter selected no test: …. The
@@ -99,7 +101,7 @@ extension Logger {
             (tally.timedOutAgain, "timed out again"),
         ]
         let came = counts.compactMap { count, words in count > 0 ? "\(count) \(words)" : nil }
-        print("🔁 Ran \(timeouts) again, and \(changed) changed: \(came.joined(separator: ", ")).")
+        progress("🔁 Ran \(timeouts) again, and \(changed) changed: \(came.joined(separator: ", ")).")
     }
 
     /// "⚠️ None of 40 mutants' test runs showed whether their code ran…": a run that can't tell survivors from mutants
@@ -119,7 +121,7 @@ extension Logger {
     func unprovenRunsRerunStarted(count: Int) {
         let runs = count == 1 ? "1 failed test run" : "\(count) failed test runs"
         let them = count == 1 ? "its mutant's code didn't run in it" : "their mutants' code didn't run in them"
-        print("🔁 Running \(runs) again, one at a time: \(them).")
+        progress("🔁 Running \(runs) again, one at a time: \(them).")
     }
 
     /// "🔁 Tested them again: 1 killed, 2 not covered."
@@ -133,7 +135,7 @@ extension Logger {
             (tally.buildErrors, tally.buildErrors == 1 ? "build error" : "build errors"),
         ]
         let came = counts.compactMap { count, words in count > 0 ? "\(count) \(words)" : nil }
-        print("🔁 Tested them again: \(came.joined(separator: ", ")).")
+        progress("🔁 Tested them again: \(came.joined(separator: ", ")).")
     }
 
     /// "⚠️ Not testing any kill again alone: the tests didn't pass alone with no mutant on. Its log: tests alone.log"
@@ -151,7 +153,7 @@ extension Logger {
         case 1: " 1 more is over suspectKillReruns."
         default: " \(reruns.leftOut) more are over suspectKillReruns."
         }
-        print(
+        progress(
             "🔁 Running \(kills) again, one at a time: only tests that may fail whatever the mutant failed for "
                 + "\(them).\(leftOut)"
         )
@@ -166,7 +168,7 @@ extension Logger {
             (tally.unsettled, "timed out or failed to build, so still count as killed"),
         ]
         let came = counts.compactMap { count, words in count > 0 ? "\(count) \(words)" : nil }
-        print("🔁 Tested them again: \(came.joined(separator: ", ")).")
+        progress("🔁 Tested them again: \(came.joined(separator: ", ")).")
     }
 
     /// "🔁 The simulator didn't launch the tests for Rules.swift:42:17 (changed == to !=), so they ran again: …": a
@@ -176,7 +178,7 @@ extension Logger {
         let mutant = repeated.mutant
         let place = "\(mutant.point.fileName):\(mutant.point.position.line):\(mutant.point.position.column)"
         let change = mutant.snapshot.description.isEmpty ? "" : " (\(mutant.snapshot.description))"
-        print(
+        progress(
             "🔁 The simulator didn't launch the tests for \(place)\(change), so they ran again. "
                 + "The first run's log, \(repeated.log.keptFileName), says: \(repeated.line)"
         )
@@ -187,7 +189,7 @@ extension Logger {
     /// again in place of one the simulator failed to launch, with the line that showed it, before any progress is
     /// drawn.
     func baselineRepeatedAfterLaunchFailure(line: String, keptFileName: String) {
-        print(
+        progress(
             "🔁 The simulator didn't launch the baseline's tests, so they ran again. "
                 + "The first run's log, \(keptFileName), says: \(line)"
         )

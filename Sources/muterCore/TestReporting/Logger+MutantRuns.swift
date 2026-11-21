@@ -17,7 +17,7 @@ extension Logger {
     }
 
     func testBundlesNotRunDirectly(reason: String) {
-        print(
+        progress(
             "ℹ️ Each mutant's tests run through `swift test`, which takes longer per mutant, about a second on macOS: "
                 + reason
         )
@@ -38,12 +38,12 @@ extension Logger {
     func buildingAgainWithoutMutants(count: Int) {
         let mutants = count == 1 ? "1 mutant is, so SwiftMutator is building again without it"
             : "\(count) mutants are, so SwiftMutator is building again without them"
-        print("🔁 The build failed where \(mutants).")
+        progress("🔁 The build failed where \(mutants).")
     }
 
     func buildingAgainWithSwitchesInAClosure(count: Int) {
         let mutants = count == 1 ? "1 mutant" : "\(count) mutants"
-        print(
+        progress(
             "🔁 The build failed where a result builder can't take an `if`, so SwiftMutator is building again with "
                 + "the switch of \(mutants) in a closure called on the spot."
         )
@@ -85,7 +85,7 @@ extension Logger {
     }
 
     func workersShareUserDefaults() {
-        print(
+        progress(
             "ℹ️ Workers share `UserDefaults.standard` in tests run through `swift test`, by `xctest` or on Linux: "
                 + "tests that write to it can fail each other and kill mutants they don't check. See \"Tests that "
                 + "share state across workers\" in the README."
@@ -94,18 +94,20 @@ extension Logger {
 
     func testBundlesWroteInTheProject(path: String) {
         let place = path.isEmpty ? "the top folder" : path
-        print("ℹ️ Workers can't share one build: a run of your tests, with no mutant on, changed \(place) in the copy.")
+        progress(
+            "ℹ️ Workers can't share one build: a run of your tests, with no mutant on, changed \(place) in the copy."
+        )
     }
 
     func propertyRerunsKeepClones() {
-        print(
+        progress(
             "ℹ️ Workers can't share one build: property and example reruns of XCTest tests run `swift test`, in each "
                 + "worker's own folder."
         )
     }
 
     func resultsFileCreated(atPath path: String) {
-        print("💾 SwiftMutator saves each mutant's result as it finishes, in \(path.bold)")
+        progress("💾 SwiftMutator saves each mutant's result as it finishes, in \(path.bold)")
     }
 
     func resultsFileUnavailable(reason: String) {

@@ -45,6 +45,7 @@ struct RunWithoutMutating: RunCommand {
             reportURL: reportOptions.reportURL,
             reports: reportOptions.reportRequests,
             verbose: options.verbose,
+            quiet: options.quiet,
             testPlanURL: testPlanURL,
             workers: testing.workers,
             timeout: testing.timeout,

@@ -1282,6 +1282,17 @@ it's a tty, and `TERM` is set and isn't `dumb`. `NO_COLOR` turns off the colour,
 The Swift files a run finds, then how many mutants are in each file that has any, are listed only
 with `--verbose`.
 
+`--quiet` leaves out SwiftMutator's own progress: the banner, the update check's lines, each step's
+line, the progress bar or lines, and the ℹ️ notices. The update check itself still runs;
+`--skip-update-check` skips it. Warnings and errors still print, and so do the ⚙️ line that names
+the test command a run without a configuration file uses, the seed it chose for a sample, the test
+plan's lines, the 📝 line that says where a stopped run's record is, and the summary at the end,
+with the report and the checks' verdicts. Off a terminal, the line that names the mutants under
+way still prints once no mutant has finished for a minute, and each minute after, so a log still
+shows a hung run. A run whose mutants keep finishing prints nothing between the baseline and the
+summary, so leave `--quiet` off on a CI service that stops a job after some minutes without
+output. Like `--verbose`, it has no configuration key, and the two can't be given together.
+
 ### Whether a mutant's code ran
 
 Each mutant's run records whether its code ran, as `activated` on its line in the
@@ -3633,6 +3644,7 @@ prints a report, or saves it with `-o`, and saves every result in a results file
 | `--skip-coverage` | Don't gather coverage, so code no test runs is mutated too ([Choosing the files](#choosing-the-files)) | Coverage on |
 | `--skip-update-check` | Don't ask GitHub for a newer SwiftMutator release before the run ([Install](#install)) | Check on |
 | `--verbose` | List the Swift files found, and how many mutants each file has ([Progress](#progress)) | Off |
+| `--quiet` | Print only warnings, errors and the summary, with no banner, progress or notices; no configuration key ([Progress](#progress)) | Off |
 | `--build-timeout <seconds>` | Limit each build and baseline before the first mutant, above 0 and at most 86400 ([Time limits before the first mutant](#time-limits-before-the-first-mutant)) | `buildTimeout`, else none |
 | `--workers <count>` | Test this many mutants at once, at least 1 ([Workers and release mode](#workers-and-release-mode)) | `mutationTestWorkers`, else up to 4 for SwiftPM, 1 for others |
 | `--timeout <seconds>` | Stop a mutant's test run after this long, above 0 and at most 86400 ([Configuration](#configuration)) | `mutationTestTimeout`, else timed from your tests |
@@ -3655,7 +3667,7 @@ prints a report, or saves it with `-o`, and saves every result in a results file
 
 Some flags can't go together, and each refusal is a usage error:
 
-- `--since` with `--files-to-mutate`, `--resume` with `--reuse`.
+- `--since` with `--files-to-mutate`, `--resume` with `--reuse`, `--quiet` with `--verbose`.
 - `--mutant` with any other flag that chooses mutants or continues a run: `--operators`,
   `--skip-operators`, `--files-to-mutate`, `--exclude`, `--since`, `--shard`, `--sample`, `--resume`
   or `--reuse`.
@@ -3671,17 +3683,17 @@ Some flags can't go together, and each refusal is a usage error:
 
 Makes the copy and writes a test plan, `muter-mappings.json`, without testing anything (see
 [Test plans](#test-plans)). It takes `run`'s `--files-to-mutate`, `--exclude`, `--operators`,
-`--skip-operators`, `-c`, `--skip-coverage`, `--skip-update-check`, `--verbose` and
-`--build-timeout`, and no other flag.
+`--skip-operators`, `-c`, `--skip-coverage`, `--skip-update-check`, `--verbose`, `--quiet`
+and `--build-timeout`, and no other flag.
 
 ### run-without-mutating
 
 Tests the test plan that `mutate-without-running` wrote, in the copy as it is now (see
 [Test plans](#test-plans)). Run it from the project's folder. It takes `run`'s `--mutant`, `-c`,
-`--skip-coverage`, `--skip-update-check`, `--verbose`, `--build-timeout`, `--workers`, `--timeout`,
-every report and check flag from `-f` to `--property-tests`, and `--resume`, `--resume-ignoring`
-and `--force-resume`, with the same limits. `--mutant` can't be given with `--resume` or
-`--write-baseline`.
+`--skip-coverage`, `--skip-update-check`, `--verbose`, `--quiet`, `--build-timeout`, `--workers`,
+`--timeout`, every report and check flag from `-f` to `--property-tests`, and `--resume`,
+`--resume-ignoring` and `--force-resume`, with the same limits. `--mutant` can't be given with
+`--resume` or `--write-baseline`.
 
 | Flag | Meaning | Default |
 |---|---|---|

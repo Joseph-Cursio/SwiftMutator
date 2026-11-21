@@ -30,6 +30,9 @@ extension Run {
         /// `--verbose`: the run lists how many mutants are in each file that has any, and the Swift files it found, if
         /// it looks for them.
         let verbose: Bool
+        /// `--quiet`: the run prints only warnings, errors and its summary. It changes no result, so the results file
+        /// doesn't record it, and a resume doesn't compare it.
+        let quiet: Bool
         let configurationURL: URL?
         let testPlanURL: URL?
         /// `--workers`: how many mutants to test at once, in place of `mutationTestWorkers`.
@@ -107,6 +110,7 @@ extension Run {
             operatorsAreNamed: Bool = false,
             skipOperators: [MutationOperator.Id]? = nil,
             verbose: Bool = false,
+            quiet: Bool = false,
             testPlanURL: URL? = nil,
             workers: Int? = nil,
             timeout: Double? = nil,
@@ -134,6 +138,7 @@ extension Run {
             self.skipCoverage = skipCoverage
             self.skipUpdateCheck = skipUpdateCheck
             self.verbose = verbose
+            self.quiet = quiet
             self.createTestPlan = createTestPlan
             self.mutationOperatorsList = mutationOperatorsList
             self.operatorsAreNamed = operatorsAreNamed
@@ -184,6 +189,7 @@ extension Run {
                 lhs.skipCoverage == rhs.skipCoverage &&
                 lhs.skipUpdateCheck == rhs.skipUpdateCheck &&
                 lhs.verbose == rhs.verbose &&
+                lhs.quiet == rhs.quiet &&
                 lhs.configurationURL == rhs.configurationURL &&
                 lhs.testPlanURL == rhs.testPlanURL &&
                 lhs.workers == rhs.workers &&
@@ -222,6 +228,7 @@ extension Run {
                 reportURL: nil,
                 mutationOperatorsList: [],
                 verbose: false,
+                quiet: false,
                 testPlanURL: nil,
                 workers: nil,
                 timeout: nil,

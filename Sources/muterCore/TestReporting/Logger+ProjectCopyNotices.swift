@@ -17,7 +17,7 @@ extension Logger {
                     + "from a folder that holds both, such as your repository's root, with \("arguments".bold) naming "
                     + "the project there, or move the code into the project.",
             ]
-        print(lines.joined(separator: "\n"))
+        progress(lines.joined(separator: "\n"))
     }
 
     /// "⚠️ Your project names code in its own folder by an absolute path…", then up to 5 of `paths`, then how to make
@@ -39,10 +39,10 @@ extension Logger {
     /// The build phases of the copy whose SwiftLint was turned off, each by its project, name and targets, and the key
     /// that keeps it on; then those that name SwiftLint in a way that wasn't turned off, and the project files that
     /// couldn't be read. `:` still opens a turned-off command's redirections, and a `tee` after it still runs, so a
-    /// report SwiftLint wrote, which a later command may read, is an empty file.
+    /// report SwiftLint wrote, which a later command may read, is an empty file. With `--quiet`, only the warnings.
     func swiftLintPhasesTurnedOff(_ phases: SwiftLintPhases) {
         var lines: [String] = []
-        if !phases.turnedOff.isEmpty {
+        if !phases.turnedOff.isEmpty, !quiet {
             let count = phases.turnedOff.count == 1 ? "1 build phase" : "\(phases.turnedOff.count) build phases"
             lines.append(
                 "🔇 Turned SwiftLint off in \(count) of the copy, as each mutated file turns its rules off anyway. "
@@ -62,11 +62,12 @@ extension Logger {
             "⚠️ Couldn't read or write \(project) in the copy, which names SwiftLint, so its build phases may still "
                 + "run it."
         }
+        guard !quiet || !lines.isEmpty else { return }
         print(lines.joined(separator: "\n"))
     }
 
     func projectCopyStarted() {
-        print("✂️ Copying your project to a temporary directory for testing...")
+        progress("✂️ Copying your project to a temporary directory for testing...")
     }
 
     func projectCopySkippedVanishedFiles(_ paths: [String]) {
@@ -79,7 +80,7 @@ extension Logger {
     }
 
     func projectCopyFinished(destinationPath: String) {
-        print(
+        progress(
             """
             ✅ Finished copying your project to a temporary directory for mutation testing.
             You can find your copied project here:

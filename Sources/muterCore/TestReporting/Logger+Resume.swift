@@ -24,14 +24,14 @@ extension Logger {
                 // Not all the file's results: some no longer count.
                 held = reused
             }
-            print(resuming + "\(held), so nothing is left to test.")
+            progress(resuming + "\(held), so nothing is left to test.")
         } else {
             let reasons = ResumePlan.Reason.allCases.compactMap { reason in
                 summary.retestedBecause[reason].flatMap { $0 > 0 ? Self.retested($0, because: reason) : nil }
             }
             let left = summary.toTest == 1 ? "1 mutant is" : "\(summary.toTest) mutants are"
             let why = reasons.isEmpty ? "" : " (\(reasons.joined(separator: ", ")))"
-            print(resuming + "\(reused), so \(left) left to test\(why).")
+            progress(resuming + "\(reused), so \(left) left to test\(why).")
         }
     }
 
@@ -39,20 +39,20 @@ extension Logger {
     /// longer takes, and the summary's other notices.
     private func printDiscoveryChanges(_ summary: ResumeSummary) {
         if let selectionChange = summary.selectionChange {
-            print("ℹ️ \(selectionChange)")
+            progress("ℹ️ \(selectionChange)")
         } else if let discoveryChange = Self.discoveryChange(summary) {
             print("⚠️ \(discoveryChange)")
         } else if let coverageChange = summary.coverageChange {
             // Gathered in both sessions, and the mutants are as many as before, so only said.
             let change = "\(coverageChange)"
-            print(
+            progress(
                 "ℹ️ \(change.prefix(1).uppercased() + change.dropFirst()), "
                     + "but every earlier result's mutant is still discovered."
             )
         }
         // Still discovered, but not sampled: a reuse of another sample, or of none, says why in `selectionChange`.
         if !summary.sampleChanged, summary.outsideTheSample > 0 {
-            print(
+            progress(
                 summary.outsideTheSample == 1
                     ? "ℹ️ 1 earlier result no longer counts, as the sample no longer takes its mutant."
                     : "ℹ️ \(summary.outsideTheSample) earlier results no longer count, as the sample no longer takes "
@@ -60,7 +60,7 @@ extension Logger {
             )
         }
         for notice in summary.notices {
-            print("ℹ️ \(notice)")
+            progress("ℹ️ \(notice)")
         }
     }
 
@@ -71,7 +71,7 @@ extension Logger {
             print("⚠️ \(otherFiles)")
         } else if summary.testFilesChanged > 0 {
             let files = summary.testFilesChanged == 1 ? "1 test file" : "\(summary.testFilesChanged) test files"
-            print(
+            progress(
                 "ℹ️ \(files) changed, so every survivor is tested again, and every kill that no unchanged test "
                     + "still holds."
             )

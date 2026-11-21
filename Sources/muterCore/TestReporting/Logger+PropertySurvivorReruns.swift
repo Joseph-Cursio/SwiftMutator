@@ -12,7 +12,7 @@ extension Logger {
         case 1: " 1 more is over propertySurvivorRerunLimit."
         default: " \(reruns.leftOut) more are over propertySurvivorRerunLimit."
         }
-        print("🧪 Running the property tests again for \(survivors), \(times)\(atATime).\(leftOut)")
+        progress("🧪 Running the property tests again for \(survivors), \(times)\(atATime).\(leftOut)")
     }
 
     /// "🧪 Ran the property tests again for 12 survivors: a property test failed on a later run for 3, and every one
@@ -25,7 +25,7 @@ extension Logger {
         if tally.unsettled > 0 {
             sentence += "; \(tally.unsettled) timed out or didn't build, which settles nothing"
         }
-        print(sentence + ". They stay survivors in the score.")
+        progress(sentence + ". They stay survivors in the score.")
     }
 
     /// "⚠️ No survivor was tested again with the property tests alone: …. Its log is property tests with no mutant
