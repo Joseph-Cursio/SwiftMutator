@@ -29,6 +29,12 @@ struct RunArguments: ParsableArguments {
     )
     var verbose: Bool = false
 
+    @Flag(
+        name: [.customLong("quiet")],
+        help: "Prints only warnings, errors and the run's summary: no banner, progress or notices."
+    )
+    var quiet: Bool = false
+
     @Option(
         name: .customLong("build-timeout"),
         help: ArgumentHelp(
@@ -40,6 +46,9 @@ struct RunArguments: ParsableArguments {
     var buildTimeout: Double?
 
     func validate() throws {
+        if quiet, verbose {
+            throw ValidationError("--quiet and --verbose can't be given together.")
+        }
         if let buildTimeout, !(buildTimeout > 0 && buildTimeout <= TestingArguments.longestTimeout) {
             throw ValidationError("--build-timeout must be a number of seconds above 0, and at most a day (86400).")
         }

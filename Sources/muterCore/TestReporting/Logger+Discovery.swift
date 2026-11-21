@@ -34,9 +34,9 @@ extension Logger {
         let changed = "🌿 \(count) changed since the merge base of \(selection.shownRef) and HEAD "
             + "(\(selection.shortMergeBase))\(lines)."
         if verbose, !selection.files.isEmpty {
-            print("\(changed)\n\n\(selection.files.map(\.path).joined(separator: "\n").bold)")
+            progress("\(changed)\n\n\(selection.files.map(\.path).joined(separator: "\n").bold)")
         } else {
-            print(changed)
+            progress(changed)
         }
         if let folders = selection.foldersNotCompared {
             let named = folders.prefix(5).joined(separator: ", ") + (folders.count > 5 ? ", …" : "")
@@ -49,7 +49,8 @@ extension Logger {
     }
 
     /// The earlier runs whose log folders `keepLogFolders` removed, up to 5 of them by name, then a line for each it
-    /// left and why. With none removed, a line first says where those left are, and why they would have gone.
+    /// left and why. With none removed, a line first says where those left are, and why they would have gone. With
+    /// `--quiet`, only the lines for those left, which are warnings.
     func logFoldersPruned(_ pruning: LogFolderPruning) {
         var lines: [String] = []
         if pruning.removed.isEmpty, !pruning.left.isEmpty {
@@ -72,7 +73,7 @@ extension Logger {
                 lines.append("  … and \(pruning.removed.count - 5) more")
             }
         }
-        lines += pruning.left.map { left in
+        let left = pruning.left.map { left in
             let folders = left.folders.joined(separator: ", ")
             switch left.reason {
             case .inUse:
@@ -90,6 +91,10 @@ extension Logger {
                 return "⚠️ Couldn't remove \(folders): \(reason)"
             }
         }
+        if quiet {
+            lines = []
+        }
+        lines += left
         guard !lines.isEmpty else { return }
         print(lines.joined(separator: "\n"))
     }
@@ -108,7 +113,7 @@ extension Logger {
     }
 
     func projectCoverageDiscoveryStarted() {
-        print("⚙️ Running tests with coverage enabled to determine which files to mutate")
+        progress("⚙️ Running tests with coverage enabled to determine which files to mutate")
     }
 
     /// Why coverage couldn't be gathered, if it couldn't, and where the coverage run's output is, if it's kept.
@@ -147,7 +152,7 @@ extension Logger {
 
     /// Why SwiftMutator can't tell which `#if` branches the build compiles, and what discovery does instead.
     func buildConditionsUnavailable(reason: String) {
-        print(
+        progress(
             """
             ℹ️ SwiftMutator couldn't tell which `#if` branches the build compiles: \(reason).
             Every branch keeps its mutants, unless coverage shows that the build left it out.
@@ -197,7 +202,7 @@ extension Logger {
     func sourceFileDiscoveryFinished(sourceFileCandidates: [String], verbose: Bool = false) {
         let discovered = "✅ In total, SwiftMutator discovered \(sourceFileCandidates.count) Swift files"
         guard verbose else {
-            print(discovered)
+            progress(discovered)
             return
         }
         let fileNames = sourceFileCandidates
@@ -206,7 +211,7 @@ extension Logger {
             .joined(separator: "\n")
             .bold
 
-        print("\(discovered)\n\n\(fileNames)")
+        progress("\(discovered)\n\n\(fileNames)")
     }
 
     func mutationsDiscoveryStarted() {
@@ -215,7 +220,8 @@ extension Logger {
 
     /// How many mutants there are, in how many files, and with `verbose`, how many each file has. With `--sample` or
     /// `--shard`, `mutations` are the sample's or the shard's, and how many were discovered in all is said first; with
-    /// both, they are the shard's part of the sample. A seed SwiftMutator chose is said on a line of its own.
+    /// both, they are the shard's part of the sample. A seed SwiftMutator chose is said on a line of its own, which
+    /// `--quiet` keeps: the console has no other record of it.
     func mutationsDiscoveryFinished(
         mutations: [SchemataMutationMapping],
         verbose: Bool = false,
@@ -242,10 +248,11 @@ extension Logger {
         if verbose {
             lines[lines.count - 1] += "\n"
         }
-        lines.forEach { print($0) }
+        progress(lines[0])
+        lines.dropFirst().forEach { print($0) }
         guard verbose else { return }
         for (fileName, mutantCount) in filesSummary {
-            print("\(fileName) (\(mutantCount) mutants)".bold)
+            progress("\(fileName) (\(mutantCount) mutants)".bold)
         }
     }
 
@@ -293,13 +300,13 @@ extension Logger {
     func mutantsDropped(_ dropped: [DroppedMutant], why: String, verbose: Bool) {
         guard !dropped.isEmpty else { return }
         let count = dropped.count == 1 ? "1 mutant" : "\(dropped.count) mutants"
-        print(
+        progress(
             "ℹ️ SwiftMutator left out \(count) \(why), so no report covers "
                 + (dropped.count == 1 ? "it" : "them")
                 + (verbose ? ":" : ". --verbose lists them.")
         )
         if verbose {
-            print(dropped.map(\.line).joined(separator: "\n"))
+            progress(dropped.map(\.line).joined(separator: "\n"))
         }
     }
 }

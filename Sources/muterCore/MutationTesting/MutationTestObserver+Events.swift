@@ -170,7 +170,7 @@ extension MutationTestObserver {
             logger.stillTesting(still)
 
         case let .workersChosen(choice):
-            choice.sentence.map(logger.print)
+            choice.sentence.map(logger.progress)
 
         case let .stopAtFirstFailureTurnedOff(reason):
             logger.stopAtFirstFailureTurnedOff(reason: reason)

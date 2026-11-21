@@ -142,6 +142,7 @@ struct Run: RunCommand {
             operatorsAreNamed: selection.operatorsAreNamed,
             skipOperators: selection.skippedOperators,
             verbose: options.verbose,
+            quiet: options.quiet,
             workers: testing.workers,
             timeout: testing.timeout,
             buildTimeout: options.buildTimeout,
