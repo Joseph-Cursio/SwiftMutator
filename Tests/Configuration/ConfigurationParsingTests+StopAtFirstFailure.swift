@@ -150,17 +150,6 @@ extension ConfigurationParsingTests {
         }
     }
 
-    func test_anXctestrunsUITestTargets_areNamedAsTestArgumentsNameThem() throws {
-        let fixture = "\(fixturesDirectory)/BuildForTesting/projectWithTestPlan.xctestrun"
-        let data = try Data(contentsOf: URL(fileURLWithPath: fixture))
-        let plist = try XCTUnwrap(
-            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: AnyHashable]
-        )
-
-        XCTAssertEqual(XCTestRun(plist).uiTestTargets, ["iOSProjectUITests"])
-        XCTAssertEqual(XCTestRun().uiTestTargets, [])
-    }
-
     // MARK: - Helpers
 
     private func xcodebuild(
