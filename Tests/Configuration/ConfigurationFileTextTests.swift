@@ -66,6 +66,11 @@ final class ConfigurationFileTextTests: MuterTestCase {
         XCTAssertEqual(configuration.operators, MutationOperator.Id.allCases)
         XCTAssertEqual(configuration.reports?.count, 1)
         XCTAssertEqual(configuration.coverageThreshold, 0)
+        // A count with its baseline file, which `LoadConfiguration` would refuse without one.
+        XCTAssertEqual(
+            configuration.gates,
+            RunGates(baseline: "muter.baseline.yml", maxNewSurvivors: 0, maxScoreDrop: 2, maxDoubtfulKills: 5)
+        )
     }
 
     // A key set to other than its default is written as it is, and `exclude` with its entries.

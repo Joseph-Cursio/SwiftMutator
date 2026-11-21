@@ -65,6 +65,12 @@ struct Report: ParsableCommand {
         // ArgumentParser sets the properties from the command line.
     }
 
+    /// `--max-new-survivors` and `--max-score-drop` need `--baseline`: `report` never reads the configuration's
+    /// `baseline`, nor the gate keys a results header recorded.
+    func validate() throws {
+        try reportOptions.validateForAReport()
+    }
+
     /// Makes the report, then exits with the status `ResultsReport.make` gives once it is made: for a run that
     /// stopped on an error, the one the run itself exited with (`RunCommand.run(with:)`), 4 or 255, so a script that
     /// checks the report fails as one that checked the run would; for shards whose merged report is known to lack

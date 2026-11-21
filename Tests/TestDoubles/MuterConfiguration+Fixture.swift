@@ -142,6 +142,7 @@ func configurationWithEveryFieldSet(
         keepLogFolders: 3,
         keepSwiftLintPhases: .enabled,
         failUnder: 80,
+        gates: RunGates(baseline: "muter.baseline.yml", maxNewSurvivors: 2, maxScoreDrop: 1.5, maxDoubtfulKills: 3),
         propertyTests: ["*Properties*"],
         propertyTestFilter: ["Properties"],
         propertySurvivorReruns: 10,

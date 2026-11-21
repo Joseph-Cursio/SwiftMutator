@@ -31,17 +31,26 @@ final class PerformMutationTestingCheckLimitsTests: MuterTestCase {
         ]
     }
 
+    // The configuration's gates, the keys with the flags in (`LoadConfiguration`), as a `baseline:` key gives them.
     func test_theOutcome_carriesTheLimits() async throws {
-        state.runOptions = .make(baseline: "muter.baseline.yml", maxScoreDrop: 1.5, maxDoubtfulKills: 3)
+        state.muterConfiguration.gates = RunGates(
+            baseline: "muter.baseline.yml",
+            maxNewSurvivors: 2,
+            maxScoreDrop: 1.5,
+            maxDoubtfulKills: 3
+        )
         let outcome = try await finishedOutcome()
 
+        XCTAssertEqual(outcome.maxNewSurvivors, 2)
         XCTAssertEqual(outcome.maxScoreDrop, 1.5)
         XCTAssertEqual(outcome.maxDoubtfulKills, 3)
     }
 
-    // `--max-score-drop` says only what `--baseline` allows.
+    // The flags as given aren't read: `LoadConfiguration` has put them in the configuration's gates, which refuse a
+    // drop without a baseline file. `maxDoubtfulKills` needs none.
     func test_withoutABaselineFile_onlyTheDoubtfulKillLimit_isCarried() async throws {
-        state.runOptions = .make(maxScoreDrop: 1.5, maxDoubtfulKills: 0)
+        state.runOptions = .make(maxScoreDrop: 1.5, maxDoubtfulKills: 5)
+        state.muterConfiguration.gates = RunGates(maxDoubtfulKills: 0)
         let outcome = try await finishedOutcome()
 
         XCTAssertNil(outcome.maxScoreDrop)

@@ -174,7 +174,7 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
             ]
         )
         state.apply([.changesSelected(selection)])
-        state.runOptions = .make(baseline: "muter.baseline.yml")
+        state.muterConfiguration.gates = RunGates(baseline: "muter.baseline.yml")
 
         let changes = try await DiscoverMutationPoints().run(with: state)
 

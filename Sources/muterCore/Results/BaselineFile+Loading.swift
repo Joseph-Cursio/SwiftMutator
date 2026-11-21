@@ -46,7 +46,7 @@ extension BaselineFile {
         let refusal = { (problem: String) in BaselineRefused(path: path, reasons: [problem]) }
         guard let data = fileManager.contents(atPath: expanded) else {
             guard fileManager.fileExists(atPath: expanded) else {
-                throw refusal("There is no baseline file there. Write one with --write-baseline.")
+                throw refusal(BaselineRefused.noFile)
             }
             throw refusal("SwiftMutator can't read it.")
         }

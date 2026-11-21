@@ -565,19 +565,20 @@ wrong either way: an argument for a check the build doesn't make changes nothing
 `run`, `mutate-without-running` and `run-without-mutating` exit with:
 
 - **0** when the run finished, and met `--fail-under` or `failUnder` (see
-  [Failing on a low score](#failing-on-a-low-score)), `--baseline`'s limit on new survivors (see
-  [Failing on new survivors](#failing-on-new-survivors)), `--max-score-drop` (see
-  [Failing on a score drop](#failing-on-a-score-drop)) and `--max-doubtful-kills` (see
-  [Failing on doubtful kills](#failing-on-doubtful-kills)), and when there is nothing to mutate, as for
-  a `--since` change with no Swift file, or a `--shard` that holds no mutant.
+  [Failing on a low score](#failing-on-a-low-score)), the baseline file's limit on new survivors
+  (see [Failing on new survivors](#failing-on-new-survivors)), `--max-score-drop` or `maxScoreDrop`
+  (see [Failing on a score drop](#failing-on-a-score-drop)) and `--max-doubtful-kills` or
+  `maxDoubtfulKills` (see [Failing on doubtful kills](#failing-on-doubtful-kills)), and when there
+  is nothing to mutate, as for a `--since` change with no Swift file, or a `--shard` that holds no
+  mutant.
 - **2** when the run finished with its headline score below `--fail-under` or `failUnder`, or with
-  every mutant a build error, whatever the threshold, or with more new survivors against
-  `--baseline`'s file than `--max-new-survivors` allows, or with its score more than
-  `--max-score-drop` points below that file's, or with more doubtful kills than
-  `--max-doubtful-kills` allows. Every failed check exits with 2. Every
-  report, the results file and `summary.json` were written first, but for a `--baseline` run whose
-  chosen code holds only mutants of code no test ran, which compares them as discovery ends and
-  writes none (see [Failing on new survivors](#failing-on-new-survivors)).
+  every mutant a build error, whatever the threshold, or with more new survivors against the
+  baseline file, `--baseline`'s or `baseline`'s, than `--max-new-survivors` or `maxNewSurvivors`
+  allows, or with its score more than `--max-score-drop` or `maxScoreDrop` points below that file's,
+  or with more doubtful kills than `--max-doubtful-kills` or `maxDoubtfulKills` allows. Every failed
+  check exits with 2. Every report, the results file and `summary.json` were written first, but for
+  a baseline run whose chosen code holds only mutants of code no test ran, which compares them as
+  discovery ends and writes none (see [Failing on new survivors](#failing-on-new-survivors)).
 - **3** when the baseline run, with no mutant on, failed in the project's copy, or in a parallel
   worker's clone of it when `mutationTestWorkers` or `--workers` asked for those workers, for any
   reason but [mutants that don't compile](#mutants-that-dont-compile) outside a test plan, or an
@@ -600,9 +601,9 @@ wrong either way: an argument for a check the build doesn't make changes nothing
   copy of the project isn't there (see [The test plan](Docs/test-plan.md#when-a-plan-is-refused)).
   Nothing was tested. The message says what would let it through, such as `--plan-ignoring`. A
   folder without `muter.conf.yml`, and no `--configuration`, stops on that first, with 255.
-- **8** when `--baseline`'s file is refused: there is none at the path, it can't be read, it holds a
-  key SwiftMutator doesn't know or is of a newer format, or it records a run of another scope, such
-  as other operators or another configuration (see
+- **8** when the baseline file, `--baseline`'s or `baseline`'s, is refused: there is none at the
+  path, it can't be read, it holds a key SwiftMutator doesn't know or is of a newer format, or it
+  records a run of another scope, such as other operators or another configuration (see
   [Failing on new survivors](#failing-on-new-survivors)). Nothing was tested. The message lists
   every reason.
 - **64** for a usage error, such as `--workers 0`. `run-without-mutating` without a test plan's
@@ -676,9 +677,25 @@ A project with survivors it hasn't killed yet can't fail a pull request on any s
 ([#120](https://github.com/Joseph-Cursio/SwiftMutator/issues/120)): it compares the run's survivors
 with those of a *baseline file*, which `--write-baseline <file>` saves from a whole run, and the
 run fails when more of them are new than `--max-new-survivors` allows, 0 unless it says otherwise.
-The three flags are on `run`, `run-without-mutating` and `report`; there is no key for them in
-`muter.conf.yml`. A baseline file isn't the baseline run, the run with no mutant on that exits with 3
-when it fails.
+The three flags are on `run`, `run-without-mutating` and `report`. A run also takes the first two
+as keys in `muter.conf.yml`, `baseline` and `maxNewSurvivors` (see [Configuration](#configuration)),
+and each flag takes the place of its own key alone: `--max-new-survivors` with a `baseline` key
+counts against the key's file. A key's path is relative to the project's folder. `report` reads no
+configuration, so it takes the flags alone. `--write-baseline` has no key. A baseline file isn't
+the baseline run, the run with no mutant on that exits with 3 when it fails.
+
+**A `baseline` key applies to every run that tests.** `run` and `run-without-mutating` read its file
+as they start, as `--baseline` would, a shard, a `--since`, `--sample` or `--files-to-mutate` run
+and a `--mutant` run included, and each exits with 8 if the file is missing or can't be read, or,
+but for `--mutant`, records another scope. So commit the baseline file in the same change as the
+key, or every run exits with 8; the refusal says that the key named the file. The one exception is
+the run that writes the key's file: with `--write-baseline` naming that file and no `--baseline`,
+a run sets `baseline` and its counts, `maxNewSurvivors` and `maxScoreDrop`, aside, so it can write
+the first file, or one of a new scope. Add `--baseline` with the same file for a run that compares
+with the file before it replaces it. No other flag turns the key off: a run that shouldn't compare
+needs a configuration without it, as one `-c` names. Where only some runs should compare, leave the
+keys out and give those runs the flags. `mutate-without-running` tests nothing, and ignores the
+keys.
 
 The workflow: a job on the main branch runs with `--write-baseline muter.baseline.yml` and commits
 the file, and each pull request's job runs with `--baseline muter.baseline.yml`. The same path can
@@ -782,8 +799,10 @@ is read as the run starts, and replaced at the end.
   file, one that can't be read, an unknown key, a newer format and a `score` no run gives, as more
   killed than scored, are refused the same way.
 - **Which results write one.** Only a whole run's: `--write-baseline` with `--mutant`, `--shard`,
-  `--sample`, `--since` or `--files-to-mutate` is a usage error, 64, and so are `--max-new-survivors`
-  and `--max-score-drop` without `--baseline`. A run that stops writes none, and says so in a warning, as for a report that
+  `--sample`, `--since` or `--files-to-mutate` is a usage error, 64. `--max-new-survivors` and
+  `--max-score-drop` without `--baseline` are one for `report`; a run with neither `--baseline` nor
+  `baseline` refuses them, and `maxNewSurvivors` and `maxScoreDrop`, as a configuration error, 255.
+  A run that stops writes none, and says so in a warning, as for a report that
   couldn't be saved; that changes no exit status. So does a run whose every mutant was a build error,
   which tested none. `report --write-baseline` writes one from a results file of a run that
   finished, or from every shard of a split, merged, when the shards discovered the same mutants;
@@ -836,8 +855,11 @@ is read as the run starts, and replaced at the end.
 points below the score the baseline file records, so a pull request can't lower it by killing
 fewer of its own mutants while it adds no survivor
 ([#120](https://github.com/Joseph-Cursio/SwiftMutator/issues/120)). It is a number of points from 0
-to 100, written as `--fail-under`'s percent is, with up to 6 decimals; anything else, and the flag
-without `--baseline`, is a usage error, 64. There is no key for it in `muter.conf.yml`.
+to 100, written as `--fail-under`'s percent is, with up to 6 decimals; anything else is a usage
+error, 64. A run also takes it as the `maxScoreDrop` key, which the flag takes the place of, and
+either needs a baseline file, from `--baseline` or the `baseline` key: without one, a run refuses
+it as a configuration error, 255, and `report`, which reads no configuration, refuses the flag as a
+usage error.
 
 ```yaml
 # On a pull request.
@@ -889,8 +911,8 @@ without `--baseline`, is a usage error, 64. There is no key for it in `muter.con
 `--max-doubtful-kills <count>` fails a run whose score counts more kills than that whole number that
 the run's own evidence doesn't back
 ([#120](https://github.com/Joseph-Cursio/SwiftMutator/issues/120)). It needs no baseline file, and is
-on `run`, `run-without-mutating` and `report`; there is no key for it in `muter.conf.yml`. A kill is
-doubtful when:
+on `run`, `run-without-mutating` and `report`. A run also takes it as the `maxDoubtfulKills` key,
+which the flag takes the place of; `report` takes the flag alone. A kill is doubtful when:
 
 - **only suspect tests made it**, and no rerun alone settled it: a kill past `suspectKillReruns`, a
   reused one, or one whose rerun timed out or failed to build (see
@@ -1712,9 +1734,9 @@ status and its log say why it stopped.
 | `report` | The report `-o` saved, or a stopped run's partial report beside it. Left out when none was saved. |
 | `reports` | The other reports saved, in order: those `--report` or `reports:` asked for, or a stopped run's partial reports beside them. Left out when none was saved. |
 | `run` | As the JSON report's. Left out when the results file couldn't be made, or written in full. |
-| `newSurvivors` | With `--baseline`, the verdict on the survivors against its file: `baseline`, the file as given; `maxNewSurvivors`; `passed`; `new`, how many are new, and `newMutants`, each by its key; `newNotCovered`, how many of them no test ran the code of; `stillSurvive`, `fixed` and `notTested`, of the file's entries; and `matchedWithoutLine`. When they weren't compared, `notChecked`, one of `oneMutant`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `passed`. Left out without `--baseline`. See [Failing on new survivors](#failing-on-new-survivors). |
-| `scoreDrop` | With `--max-score-drop`, the verdict on the score against `--baseline`'s file's: `baseline`, the file as given; `maxScoreDrop`; `baselineScore`, the file's exact score, and `score`, the run's, as `gate`'s; `drop`, how many points the run's fell below the file's, negative for a rise, worked out exactly from the counts, so it is above `maxScoreDrop` just when the check failed; and `passed`. When they weren't compared, `notChecked`, one of `oneMutant`, `shard`, `sample`, `since`, `filesToMutate`, `unfinished`, `nothingScored`, `endedEarly`, `stoppedOnAnError`, `lacksResults` and `discoveriesDiffer`, without the scores and `passed`. Left out without `--max-score-drop`. See [Failing on a score drop](#failing-on-a-score-drop). |
-| `doubtfulKills` | With `--max-doubtful-kills`, the verdict on the kills the run's evidence doesn't back: `maxDoubtfulKills`; `passed`; `count`, how many kills are doubtful, each once, of which `suspectOnly` only suspect tests made and `codeNeverRan` never ran their code, which may be the same ones; and `mutants`, each by its key. When they weren't counted, `notChecked`, one of `endedEarly`, `stoppedOnAnError`, `lacksResults` and `unfinished`, without `passed`. Left out without `--max-doubtful-kills`. See [Failing on doubtful kills](#failing-on-doubtful-kills). |
+| `newSurvivors` | With `--baseline` or `baseline`, the verdict on the survivors against its file: `baseline`, the file's path, made absolute, a key's against the project's folder; `maxNewSurvivors`; `passed`; `new`, how many are new, and `newMutants`, each by its key; `newNotCovered`, how many of them no test ran the code of; `stillSurvive`, `fixed` and `notTested`, of the file's entries; and `matchedWithoutLine`. When they weren't compared, `notChecked`, one of `oneMutant`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `passed`. Left out without `--baseline` or `baseline`. See [Failing on new survivors](#failing-on-new-survivors). |
+| `scoreDrop` | With `--max-score-drop` or `maxScoreDrop`, the verdict on the score against the baseline file's: `baseline`, the file's path, as `newSurvivors`'; `maxScoreDrop`; `baselineScore`, the file's exact score, and `score`, the run's, as `gate`'s; `drop`, how many points the run's fell below the file's, negative for a rise, worked out exactly from the counts, so it is above `maxScoreDrop` just when the check failed; and `passed`. When they weren't compared, `notChecked`, one of `oneMutant`, `shard`, `sample`, `since`, `filesToMutate`, `unfinished`, `nothingScored`, `endedEarly`, `stoppedOnAnError`, `lacksResults` and `discoveriesDiffer`, without the scores and `passed`. Left out without `--max-score-drop` or `maxScoreDrop`. See [Failing on a score drop](#failing-on-a-score-drop). |
+| `doubtfulKills` | With `--max-doubtful-kills` or `maxDoubtfulKills`, the verdict on the kills the run's evidence doesn't back: `maxDoubtfulKills`; `passed`; `count`, how many kills are doubtful, each once, of which `suspectOnly` only suspect tests made and `codeNeverRan` never ran their code, which may be the same ones; and `mutants`, each by its key. When they weren't counted, `notChecked`, one of `endedEarly`, `stoppedOnAnError`, `lacksResults` and `unfinished`, without `passed`. Left out without `--max-doubtful-kills` or `maxDoubtfulKills`. See [Failing on doubtful kills](#failing-on-doubtful-kills). |
 | `gate` | With a `--fail-under` or `failUnder`, the verdict on the score: `failUnder`, the threshold checked; `score`, the exact score compared, which is `mutationScore`'s but with any mutant taken out of the build with others counted as not killed; `passed`; or, when it wasn't checked, `notChecked`, one of `oneMutant`, `shard`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `score` and `passed`. A run whose every mutant was a build error has `passed` false and no `score`. Left out without a threshold. See [Failing on a low score](#failing-on-a-low-score). |
 | `formatVersion` | 2, since `mutantsByOutcome.survived` no longer holds [mutants no test reached](#whether-a-mutants-code-ran), which are in `notCovered`. It goes up only when a key is taken out or changes its meaning. |
 
@@ -1769,9 +1791,10 @@ or else `muter.conf.yml` in the folder it names; `-c` doesn't change the project
 Keep it at the project's root, and commit it. A key SwiftMutator doesn't know is ignored, with a
 warning that names it and the key it is closest to, if any, so a misspelled
 `mutationTestTimeOut` says `Did you mean mutationTestTimeout?`
-([#122](https://github.com/Joseph-Cursio/SwiftMutator/issues/122)). A value of the wrong type
-refuses the run, as `exclude: Sources/Generated` does, one path rather than a list, and so does a
-value out of the range the table gives.
+([#122](https://github.com/Joseph-Cursio/SwiftMutator/issues/122)); `writeBaseline` says that
+`--write-baseline` is a flag only. A value of the wrong type refuses the run, as
+`exclude: Sources/Generated` does, one path rather than a list, and so does a value out of the range
+the table gives, or a blank gate key.
 
 SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged,
 except an xcodebuild project's `coverageThreshold`. Muter read that one as a fraction from 0 to 1,
@@ -1841,6 +1864,10 @@ as it is.
 | `keepLogFolders` | How many runs' log folders to keep in `<project>_muter_logs`, this run's included: a whole number, at least 2, so the run before this one is always kept. Earlier runs' folders beyond it are removed once nothing can refuse the run, before its build. See [Results file](#results-file) | Unset: none is removed | All |
 | `keepSwiftLintPhases` | Keep SwiftLint running in the build phases of the copy's Xcode projects. SwiftMutator otherwise turns off each command in them that runs it, never in your project, as each mutated file turns every rule off anyway. See [Before a long run](#before-a-long-run) | `false`: turned off in the copy | xcodebuild |
 | `failUnder` | A percent from 0 to 100, up to 6 decimals: a finished run whose headline score is below it exits with 2, once its reports are written. See [Failing on a low score](#failing-on-a-low-score) | Unset: none is checked | All |
+| `baseline` | A baseline file, which `--write-baseline` saves, relative to the project's folder: a finished run with more new survivors than `maxNewSurvivors` allows exits with 2. Every run that tests reads it as it starts, shards and `--mutant` included, and exits with 8 if it can't, so commit the file with the key; a run whose `--write-baseline` names the file without `--baseline` sets the key aside. See [Failing on new survivors](#failing-on-new-survivors) | Unset: none is compared | All |
+| `maxNewSurvivors` | How many new survivors pass against the baseline file: a whole number, 0 or more. Needs `baseline` or `--baseline` | `0` | All |
+| `maxScoreDrop` | How many points, from 0 to 100, up to 6 decimals, a finished whole run's score may fall below the baseline file's. Needs `baseline` or `--baseline`. See [Failing on a score drop](#failing-on-a-score-drop) | Unset: none is checked | All |
+| `maxDoubtfulKills` | How many kills may be doubtful, a whole number, 0 or more, before a finished run exits with 2. See [Failing on doubtful kills](#failing-on-doubtful-kills) | Unset: none is checked | All |
 | `suspectTestFilePercent` | The share of the files with a killed mutant naming a test, from 1 to 100, that a test must have failed for mutants in to be suspect. See [Killing tests and suspect tests](#killing-tests-and-suspect-tests) | `15` | All |
 | `suspectTestMinimumFiles` | How many files with such a kill there must be, at least 1, before a test can be suspect, and how many of them it must have failed for mutants in | `10` | All |
 | `controlRunEvery` | How many mutants to test for each control run, a run with no mutant on among theirs, whose failed tests are flaky: a whole number, 0 for none. See [Control runs](#control-runs) | `100` | All |
@@ -1854,10 +1881,12 @@ as it is.
 Some keys have a flag that takes their place for one run: `--workers N` and `--timeout S`, on `run`
 and `run-without-mutating`, set `mutationTestWorkers` and `mutationTestTimeout`
 ([#73](https://github.com/Joseph-Cursio/SwiftMutator/issues/73)), as `--fail-under P` sets
-`failUnder`, `--property-tests G` sets `propertyTests`, `--report format:path` sets `reports`, and
-`--operators` and `--skip-operators` choose the operators (see
-[Choosing the operators](#choosing-the-operators)). `--build-timeout S`, on those and
-`mutate-without-running`, sets `buildTimeout`, and `--workspace`, `--project`, `--scheme` and
+`failUnder`, `--baseline F`, `--max-new-survivors N`, `--max-score-drop P` and
+`--max-doubtful-kills N` set `baseline`, `maxNewSurvivors`, `maxScoreDrop` and `maxDoubtfulKills`,
+each in place of its own key alone, `--property-tests G` sets `propertyTests`,
+`--report format:path` sets `reports`, and `--operators` and `--skip-operators` choose the
+operators (see [Choosing the operators](#choosing-the-operators)). `--build-timeout S`, on those
+and `mutate-without-running`, sets `buildTimeout`, and `--workspace`, `--project`, `--scheme` and
 `--destination`, on the same three, take the place of `workspace`, `project`, `scheme` and
 `destination`, and of the same options in `arguments` (see
 [xcodebuild's arguments](#xcodebuilds-arguments)). `--exclude`, on `run` and
@@ -1868,7 +1897,8 @@ is used in place of its key's, which is then not checked. The run records and co
 it does the keys: a resume with a `--timeout` at least as long as every session's limit tests only
 the timeouts again (see
 [Timeouts are run again](#timeouts-are-run-again)), one that is shorter is refused, and another
-`--workers`, `--fail-under` or `--report` is only said. A run that tests several mutants at
+`--workers`, `--fail-under`, `--baseline` or `--report` is only said. `--write-baseline` has no
+key: a baseline file is written now and then, from a whole run. A run that tests several mutants at
 once says so, and one that uses fewer workers than asked says why:
 
 ```
@@ -2532,9 +2562,10 @@ swift-mutator run --shard 1/2
     none.
   - The merging job downloads them, outside any checkout a later run uses, and gives them all to
     `report`, with `--fail-under 80` to fail on a low score, or `--baseline muter.baseline.yml` to
-    fail on new survivors: the shard jobs don't check them. If none
-    was written, as when every shard was empty, skip it: `report` given no file is a usage error,
-    with status 64.
+    fail on new survivors: `report` reads no configuration, so it needs each check as a flag, and
+    the shard jobs don't check the flags it is given. A shard does check the gate keys in
+    `muter.conf.yml`, on its own part (see [Running in CI](#running-in-ci)). If none was written,
+    as when every shard was empty, skip it: `report` given no file is a usage error, with status 64.
   - [Running in CI](#running-in-ci) has a GitHub Actions workflow, and says how to split it into
     shards.
 
@@ -3207,12 +3238,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `propertyTests`, `propertyTestFilter`, `propertySurvivorReruns`, `propertySurvivorRerunLimit` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
+| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `baseline`, `maxNewSurvivors`, `maxScoreDrop`, `maxDoubtfulKills`, `propertyTests`, `propertyTestFilter`, `propertySurvivorReruns`, `propertySurvivorRerunLimit` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | The operators chosen, by `--operators`, `--skip-operators`, `operators` or `skipOperators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `propertyTests`, `propertyTestFilter`, `propertySurvivorReruns`, `propertySurvivorRerunLimit` or `reports` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `baseline`, `maxNewSurvivors`, `maxScoreDrop`, `maxDoubtfulKills`, `propertyTests`, `propertyTestFilter`, `propertySurvivorReruns`, `propertySurvivorRerunLimit` or `reports` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |
@@ -3585,7 +3616,9 @@ jobs:
 - **The baseline file.** `--write-baseline muter.baseline.yml` replaces the file at the end of each
   whole run, checks or no checks, and the job summary says when it changed. The job doesn't push:
   commit the artifact's file, by hand or with a step of your own. Until the first one is committed,
-  pull requests run without `--baseline`, as a missing file would be refused with 8. A pull request
+  pull requests run without `--baseline`, as a missing file would be refused with 8. That is why
+  the workflow gives the checks as flags: a `baseline` key in `muter.conf.yml` would apply to every
+  run, the first ones and the one started by hand included, and no flag turns it off. A pull request
   that changes what the file's scope records, such as `exclude`, `operators` or `arguments` in
   `muter.conf.yml`, is refused with 8 too, until a whole run with the new configuration writes a
   new file: run the workflow on its branch by hand (`workflow_dispatch`), and commit the file from
@@ -3630,7 +3663,20 @@ When a whole run is too long for one job:
   its `results.jsonl`, allowing for none, as a shard with no mutant writes none. The merging job
   checks out the project, downloads them all, and gives them to `swift-mutator report`, with the
   checks and reports the whole run had: `--fail-under`, `--baseline`, `--max-score-drop`,
-  `--max-doubtful-kills`, `--write-baseline` and `--report`. The shard jobs check none of them.
+  `--max-doubtful-kills`, `--write-baseline` and `--report`, each as a flag: `report` reads no
+  configuration, and never the gate keys a results file recorded. The shard jobs check none of
+  those flags. With `baseline` and its keys in `muter.conf.yml`, though, each shard gates its own
+  part, as a `--baseline` run of one shard does: it exits with 8 as it starts if the file is
+  missing or of another scope, and with 2 at its end on a new survivor among the mutants it tested
+  or more doubtful kills than `maxDoubtfulKills` allows, and says its score isn't compared, which
+  only a whole run's is. A refusal, 8, stops every shard alike before it tests anything, so there is
+  nothing to merge. A shard that exits with 2 has its results, but by GitHub's defaults its failed
+  job cancels the other shards still running, and the merging job, which `needs` them, is skipped.
+  For the merging job to check the whole run, give the matrix `strategy: fail-fast: false`, have
+  each shard record its status and upload its `results.jsonl` before failing, as the workflow above
+  does with `if: always()`, and give the merging job `if: ${{ !cancelled() }}`. To keep the shards
+  ungated, keep the gates out of `muter.conf.yml`, and give them to `report` alone as flags, as
+  here.
   Every shard needs the same SwiftMutator build, which the cache gives them; build it in a job of
   its own before the matrix, so the shards don't each build it on a cache miss. An xcodebuild
   project's shards also need one destination, the one the baseline file was written with: pin it
@@ -3725,10 +3771,10 @@ as it goes (see [Results file](#results-file)). Its exit status says how it ende
 | `-o`, `--output <path>` | Save the report to this file instead of printing it ([Reports](#reports)) | Printed |
 | `--report <format:path>` | Also save a report in another format, not `xcode`. Repeatable ([Several reports, and the Markdown report](#several-reports-and-the-markdown-report)) | `reports` |
 | `--fail-under <percent>` | Exit with 2 when the score is below this, from 0 to 100 ([Failing on a low score](#failing-on-a-low-score)) | `failUnder`, else none |
-| `--baseline <path>` | Exit with 2 when more survivors are new against this baseline file than allowed ([Failing on new survivors](#failing-on-new-survivors)) | None |
-| `--max-new-survivors <count>` | With `--baseline`, how many new survivors pass ([Failing on new survivors](#failing-on-new-survivors)) | 0 |
-| `--max-score-drop <points>` | With `--baseline`, exit with 2 when the score falls more than this below the file's ([Failing on a score drop](#failing-on-a-score-drop)) | Not checked |
-| `--max-doubtful-kills <count>` | Exit with 2 when more kills than this are doubtful ([Failing on doubtful kills](#failing-on-doubtful-kills)) | Not checked |
+| `--baseline <path>` | Exit with 2 when more survivors are new against this baseline file than allowed, in place of `baseline` ([Failing on new survivors](#failing-on-new-survivors)) | `baseline`, else none |
+| `--max-new-survivors <count>` | With `--baseline` or `baseline`, how many new survivors pass, in place of `maxNewSurvivors` ([Failing on new survivors](#failing-on-new-survivors)) | `maxNewSurvivors`, else 0 |
+| `--max-score-drop <points>` | With `--baseline` or `baseline`, exit with 2 when the score falls more than this below the file's, in place of `maxScoreDrop` ([Failing on a score drop](#failing-on-a-score-drop)) | `maxScoreDrop`, else not checked |
+| `--max-doubtful-kills <count>` | Exit with 2 when more kills than this are doubtful, in place of `maxDoubtfulKills` ([Failing on doubtful kills](#failing-on-doubtful-kills)) | `maxDoubtfulKills`, else not checked |
 | `--write-baseline <path>` | Save the survivors of a whole run as a baseline file ([Failing on new survivors](#failing-on-new-survivors)) | None |
 | `--property-tests <glob>` | Split the kills between example tests and the property tests this matches. Repeatable ([Example tests and property tests](#example-tests-and-property-tests)) | `propertyTests` |
 | `--resume <results>` | Continue a stopped run from its results file or log folder ([Resuming a run](#resuming-a-run)) | None |
@@ -3747,11 +3793,14 @@ Some flags can't go together, and each refusal is a usage error:
   or `--reuse`.
 - `--write-baseline` with a flag that tests only part of the project: `--mutant`, `--shard`,
   `--sample`, `--since` or `--files-to-mutate`.
-- `--changed-lines` without `--since`, `--seed` without `--sample`, `--max-new-survivors` and
-  `--max-score-drop` without `--baseline`, and `--resume-ignoring`, `--force-resume`,
-  `--reuse-ignoring` and `--force-reuse` without their `--resume` or `--reuse`.
+- `--changed-lines` without `--since`, `--seed` without `--sample`, and `--resume-ignoring`,
+  `--force-resume`, `--reuse-ignoring` and `--force-reuse` without their `--resume` or `--reuse`.
 - Two reports at one path, among `-o`, `--report` and `--write-baseline`, or a report where
   another's partial report goes when a run stops.
+
+`--max-new-survivors` and `--max-score-drop` without `--baseline` aren't a usage error for a run,
+as `baseline` may give the file: with neither, the run refuses them as a configuration error, 255,
+as it does `maxNewSurvivors` and `maxScoreDrop`. For `report` they are a usage error.
 
 ### mutate-without-running
 
@@ -3782,7 +3831,9 @@ report and check flag from `-f` to `--property-tests`, and `--resume`, `--resume
 Makes a report of a run from its results file, in any format, without running anything, and
 merges the results files of a run's shards into one report (see [Results file](#results-file)). It
 takes `run`'s report and check flags, from `-f` to `--property-tests`, which mean the same, but
-never reads the configuration's `reports` or `failUnder` the run recorded. It exits with 2 when a
+never reads the configuration's `reports`, `failUnder` or gate keys (`baseline`, `maxNewSurvivors`,
+`maxScoreDrop` and `maxDoubtfulKills`) the run recorded, nor `muter.conf.yml`: each check needs its
+flag, and `--max-new-survivors` and `--max-score-drop` need `--baseline`. It exits with 2 when a
 check fails, as a run does, and with the status of a run that stopped on an error.
 
 | Flag | Meaning | Default |

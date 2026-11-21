@@ -51,16 +51,17 @@ extension Run {
         /// `--fail-under`: the percent below which a finished run's score fails it, in place of `failUnder`.
         let failUnder: Double?
         /// `--baseline`: the baseline file, made absolute as the flags are read, whose survivors a finished run's are
-        /// compared with (`NewSurvivorsCheck`); nil without it.
+        /// compared with (`NewSurvivorsCheck`), in place of `baseline`; nil without it.
         let baseline: String?
-        /// `--max-new-survivors`: how many new survivors the comparison with `baseline` lets pass, 0 unless given; nil
-        /// without `baseline`.
+        /// `--max-new-survivors`: how many new survivors the comparison with a baseline file lets pass, in place of
+        /// `maxNewSurvivors`; nil without it. `LoadConfiguration` makes it 0 when the run has a baseline file and
+        /// neither gives a count.
         let maxNewSurvivors: Int?
-        /// `--max-score-drop`: how many points a finished whole run's score may fall below `baseline`'s file's
-        /// (`ScoreDropCheck`); nil without it, and without `baseline`.
+        /// `--max-score-drop`: how many points a finished whole run's score may fall below the baseline file's
+        /// (`ScoreDropCheck`), in place of `maxScoreDrop`; nil without it.
         let maxScoreDrop: Double?
         /// `--max-doubtful-kills`: how many kills a finished run's evidence may leave in doubt
-        /// (`DoubtfulKillsCheck`); nil without it.
+        /// (`DoubtfulKillsCheck`), in place of `maxDoubtfulKills`; nil without it.
         let maxDoubtfulKills: Int?
         /// `--write-baseline`: where a finished whole run saves its survivors as a baseline file (`BaselineFile`),
         /// made absolute as the flags are read, as the run saves it from the project's copy; nil without it.
@@ -85,6 +86,18 @@ extension Run {
         let planIgnoring: [String]
         /// `--mutant`: the one mutant the run tests, on its own (`SelectMutant`).
         let mutant: MutantReference?
+        /// `--baseline`, `--max-new-survivors`, `--max-score-drop` and `--max-doubtful-kills`, as given, which
+        /// `LoadConfiguration` puts in place of their keys (`RunGates.overridden(by:in:)`). Read the run's gates from
+        /// its configuration, never from here.
+        var gateFlags: RunGates {
+            RunGates(
+                baseline: baseline,
+                maxNewSurvivors: maxNewSurvivors,
+                maxScoreDrop: maxScoreDrop,
+                maxDoubtfulKills: maxDoubtfulKills
+            )
+        }
+
         var isUsingTestPlan: Bool {
             testPlanURL != nil
         }
@@ -160,8 +173,8 @@ extension Run {
             self.buildTimeout = buildTimeout
             self.failUnder = failUnder
             self.baseline = baseline
-            self.maxNewSurvivors = baseline == nil ? nil : maxNewSurvivors ?? 0
-            self.maxScoreDrop = baseline == nil ? nil : maxScoreDrop
+            self.maxNewSurvivors = maxNewSurvivors
+            self.maxScoreDrop = maxScoreDrop
             self.maxDoubtfulKills = maxDoubtfulKills
             self.writeBaseline = writeBaseline
             self.propertyTests = propertyTests

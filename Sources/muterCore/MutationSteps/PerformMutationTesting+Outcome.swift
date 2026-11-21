@@ -70,12 +70,12 @@ extension PerformMutationTesting {
         return outcome
     }
 
-    /// Gives `outcome` what the end of the run compares its survivors with, and saves them by: `--baseline`'s file, as
-    /// loaded when the run started (`LoadBaselineFile`), `--max-new-survivors` and `--max-score-drop`, and
-    /// `--max-doubtful-kills`, which needs no file; the run's scope, which a baseline
-    /// file records, as `report` of the results file has it from their header; and its `--files-to-mutate`, of which
-    /// no file is written; and the mutants of code no test ran, which a baseline file records as survivors. With
-    /// `--baseline`'s file, the mutants the run left out, which its entries for them are paired with.
+    /// Gives `outcome` what the end of the run compares its survivors with, and saves them by: the baseline file, as
+    /// loaded when the run started (`LoadBaselineFile`), the gates' counts, flags or keys (`RunGates`), and
+    /// `maxDoubtfulKills`, which needs no file; the run's scope, which a baseline file records, as `report` of the
+    /// results file has it from their header; and its `--files-to-mutate`, of which no file is written; and the
+    /// mutants of code no test ran, which a baseline file records as survivors. With a baseline file, the mutants the
+    /// run left out, which its entries for them are paired with.
     static func addBaseline(of state: AnyMutationTestState, to outcome: inout MutationTestOutcome) {
         outcome.baseline = state.baselineFile
         if state.baselineFile != nil {
@@ -83,9 +83,10 @@ extension PerformMutationTesting {
         }
         // With `--skip-coverage` every mutant is made, so none is left for not being covered.
         outcome.uncoveredMutants = state.uncoveredMutants ?? (state.runOptions.skipCoverage ? [] : nil)
-        outcome.maxNewSurvivors = state.runOptions.maxNewSurvivors ?? 0
-        outcome.maxScoreDrop = state.runOptions.maxScoreDrop
-        outcome.maxDoubtfulKills = state.runOptions.maxDoubtfulKills
+        let gates = state.muterConfiguration.gates
+        outcome.maxNewSurvivors = gates.maxNewSurvivors ?? 0
+        outcome.maxScoreDrop = gates.maxScoreDrop
+        outcome.maxDoubtfulKills = gates.maxDoubtfulKills
         outcome.baselineScope = LoadBaselineFile.scope(of: state)
         outcome.filesToMutate = state.filesToMutate
     }

@@ -9,7 +9,8 @@ private enum RunCommandTestsMessage {
     }
 }
 
-/// `--baseline`'s file, loaded as the run starts: refused at once when it can't be read or records another scope.
+/// The run's baseline file, `--baseline`'s or `baseline:`'s, as `LoadConfiguration` puts them in the configuration's
+/// gates, loaded as the run starts: refused at once when it can't be read or records another scope.
 final class LoadBaselineFileTests: MuterTestCase {
     private var directory = ""
     private var path: String { "\(directory)/\(BaselineFile.fileName)" }
@@ -40,17 +41,59 @@ final class LoadBaselineFileTests: MuterTestCase {
         XCTAssertTrue(file.save(using: FileManager.default))
     }
 
+    /// The run's gates name `path` as its baseline file, as `LoadConfiguration` leaves them for `--baseline` or
+    /// `baseline:`.
+    private func comparing(with path: String) {
+        state.muterConfiguration.gates = RunGates(baseline: path, maxNewSurvivors: 0)
+    }
+
+    // The flags as given aren't read: `LoadConfiguration` puts them in the configuration's gates, with the keys.
     func test_withoutBaseline_loadsNothing() throws {
-        state.runOptions = .make()
+        writeBaseline()
+        state.runOptions = .make(baseline: path)
 
         let changes = try sut.run(with: state)
 
         XCTAssertEqual(changes, [])
     }
 
+    // `--baseline`'s missing file: `--write-baseline` makes one.
+    func test_aBaselineFlag_whoseFileIsMissing_isRefused_withStatus8() throws {
+        state.runOptions = .make(baseline: path)
+        comparing(with: path)
+
+        XCTAssertThrowsError(try sut.run(with: state)) { error in
+            XCTAssertEqual(
+                error as? BaselineRefused,
+                BaselineRefused(
+                    path: path,
+                    reasons: ["There is no baseline file there. Write one with --write-baseline."]
+                )
+            )
+            XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: error), .baselineRefused)
+        }
+    }
+
+    // A `baseline:` key whose file isn't there yet refuses a run that tests, as `--baseline` does, so the message says
+    // the key named the file, and that a run writing it sets the key aside.
+    func test_aBaselineKey_whoseFileIsMissing_isRefused_withStatus8_sayingTheKeyNamedIt() throws {
+        comparing(with: path)
+
+        XCTAssertThrowsError(try sut.run(with: state)) { error in
+            XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: error), .baselineRefused)
+            XCTAssertEqual(
+                "\(error)",
+                "SwiftMutator won't compare the survivors with the baseline file \(Logger.shellQuoted(path)), which "
+                    + "the configuration's baseline: names:\n"
+                    + "  - There is no baseline file there.\n"
+                    + "A run whose --write-baseline names this file sets baseline: aside, and writes it."
+            )
+        }
+    }
+
     func test_aFileOfTheRunsScope_isLoaded() throws {
         writeBaseline()
-        state.runOptions = .make(baseline: path)
+        comparing(with: path)
 
         let changes = try sut.run(with: state)
 
@@ -59,7 +102,7 @@ final class LoadBaselineFileTests: MuterTestCase {
 
     func test_aFileOfAnotherScope_isRefused_beforeAnyMutantIsTested() throws {
         writeBaseline(operators: [.ror])
-        state.runOptions = .make(baseline: path)
+        comparing(with: path)
 
         do {
             _ = try sut.run(with: state)
@@ -71,14 +114,34 @@ final class LoadBaselineFileTests: MuterTestCase {
             ])
             XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: refused), .baselineRefused)
             XCTAssertEqual(RunCommandTestsMessage.message(refused), "\(refused)")
+            XCTAssertTrue(refused.namedByKey)
+            XCTAssertEqual(
+                refused.advice,
+                "Its survivors are another scope's mutants, so none can be compared. Run as the baseline file's "
+                    + "run did, or write a new baseline file with --write-baseline from a run of this scope. "
+                    + "A run whose --write-baseline names this file sets baseline: aside, and writes it."
+            )
+        }
+    }
+
+    // `--baseline`'s file of another scope: the refusal names the flag's file, with no word of the key.
+    func test_aFlagsFileOfAnotherScope_isRefused_withoutTheKeysAdvice() throws {
+        writeBaseline(operators: [.ror])
+        state.runOptions = .make(baseline: path)
+        comparing(with: path)
+
+        XCTAssertThrowsError(try sut.run(with: state)) { error in
+            let refused = error as? BaselineRefused
+            XCTAssertEqual(refused?.namedByKey, false)
+            XCTAssertFalse("\(error)".contains("baseline:"), "\(error)")
         }
     }
 
     // An `--exclude` adds to `exclude`, so a run with one is another scope.
     func test_anExtraExclude_isRefused() throws {
         writeBaseline()
-        state.runOptions = .make(baseline: path)
         state.muterConfiguration = state.muterConfiguration.overriding(workers: nil, timeout: nil, exclude: ["/Gen/"])
+        comparing(with: path)
 
         do {
             _ = try sut.run(with: state)
@@ -91,7 +154,8 @@ final class LoadBaselineFileTests: MuterTestCase {
     // `--mutant` discovers with every operator, and compares nothing, so only its file is checked.
     func test_aOneMutantRun_onlyChecksTheFile() throws {
         writeBaseline(operators: [.ror])
-        state.runOptions = .make(baseline: path, mutant: MutantReference(path: "A.swift", line: 3, column: 9))
+        comparing(with: path)
+        state.runOptions = .make(mutant: MutantReference(path: "A.swift", line: 3, column: 9))
 
         let changes = try sut.run(with: state)
         XCTAssertEqual(changes.count, 1)
@@ -105,19 +169,21 @@ final class LoadBaselineFileTests: MuterTestCase {
         }
     }
 
-    // Only when asked for: after the configuration, and for a test plan after the plan, which gives the operators.
+    // After the configuration, and for a test plan after the plan, which gives the operators. In every run that tests,
+    // without `--baseline` too, as the configuration may give the file; never in one that makes a plan.
     func test_theStep_comesOnceTheOperatorsAreChosen() {
-        let run = MutationTestHandler(options: .make(baseline: path))
+        let run = MutationTestHandler(options: .make())
         let names = run.steps.map { "\(type(of: $0))" }
         XCTAssertEqual(names.firstIndex(of: "LoadBaselineFile"), (names.firstIndex(of: "LoadConfiguration") ?? -1) + 1)
 
-        let plan = MutationTestHandler(options: .make(testPlanURL: URL(fileURLWithPath: "/p.json"), baseline: path))
+        let plan = MutationTestHandler(options: .make(testPlanURL: URL(fileURLWithPath: "/p.json")))
         let planNames = plan.steps.map { "\(type(of: $0))" }
         XCTAssertEqual(
             planNames.firstIndex(of: "LoadBaselineFile"),
             (planNames.firstIndex(of: "LoadMuterTestPlan") ?? -1) + 1
         )
 
-        XCTAssertFalse(MutationTestHandler(options: .make()).steps.contains { $0 is LoadBaselineFile })
+        let makingAPlan = MutationTestHandler(options: .make(createTestPlan: true))
+        XCTAssertFalse(makingAPlan.steps.contains { $0 is LoadBaselineFile })
     }
 }

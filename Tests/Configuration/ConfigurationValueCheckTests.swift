@@ -244,6 +244,38 @@ final class ConfigurationValueCheckTests: MuterTestCase {
         ])
     }
 
+    // `--write-baseline` has no key: a run says it is a flag, rather than suggesting `baseline`, which `writeBaseline`
+    // ends with. The gate keys themselves are known, and a misspelling of one finds it.
+    func test_writeBaseline_isSaidToBeAFlag_andTheGateKeysAreKnown() {
+        let yaml = """
+        \(swiftTest)
+        writeBaseline: muter.baseline.yml
+        write-baseline: muter.baseline.yml
+        baseline: muter.baseline.yml
+        maxNewSurvivors: 0
+        maxScoreDrop: 2
+        maxDoubtfulKills: 0
+        maxNewSurvivor: 1
+        max-score-drop: 2
+        """
+
+        XCTAssertEqual(UnknownConfigurationKey.found(in: Data(yaml.utf8)), [
+            .init(key: "writeBaseline", closest: nil, flag: "--write-baseline"),
+            .init(key: "write-baseline", closest: nil, flag: "--write-baseline"),
+            .init(key: "maxNewSurvivor", closest: "maxNewSurvivors"),
+            .init(key: "max-score-drop", closest: "maxScoreDrop"),
+        ])
+
+        Logger().configurationKeysUnknown(
+            [.init(key: "writeBaseline", closest: nil, flag: "--write-baseline")],
+            file: "c.yml"
+        )
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ c.yml: \("writeBaseline".bold) isn't a configuration key, so it is ignored. "
+                + "\("--write-baseline".bold) is a flag only: give it on the command line.",
+        ])
+    }
+
     private func assertRefused(_ yaml: String, saying parts: [String], line: UInt = #line) {
         XCTAssertThrowsError(try MuterConfiguration(from: Data(yaml.utf8)), line: line) { error in
             for part in parts {

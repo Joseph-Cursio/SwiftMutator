@@ -4,10 +4,11 @@ import Foundation
 /// it picked, the coverage gathered, the source files found, and the mutants discovered or dropped.
 extension Logger {
     /// Each key of the configuration file, `file`, that SwiftMutator doesn't know, one line each, with the known key it
-    /// is closest to, if any.
+    /// is closest to, if any, or the flag it names, for a flag that has no key.
     func configurationKeysUnknown(_ keys: [UnknownConfigurationKey], file: String) {
         for unknown in keys {
-            let meant = unknown.closest.map { " Did you mean \($0.bold)?" } ?? ""
+            let meant = unknown.flag.map { " \($0.bold) is a flag only: give it on the command line." }
+                ?? unknown.closest.map { " Did you mean \($0.bold)?" } ?? ""
             print("⚠️ \(file): \(unknown.key.bold) isn't a configuration key, so it is ignored.\(meant)")
         }
     }

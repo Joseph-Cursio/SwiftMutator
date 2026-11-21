@@ -150,7 +150,7 @@ struct Run: RunCommand {
             buildTimeout: options.buildTimeout,
             failUnder: reportOptions.failUnder,
             baseline: reportOptions.baseline,
-            maxNewSurvivors: reportOptions.allowedNewSurvivors,
+            maxNewSurvivors: reportOptions.maxNewSurvivors,
             maxScoreDrop: reportOptions.maxScoreDrop,
             maxDoubtfulKills: reportOptions.maxDoubtfulKills,
             writeBaseline: reportOptions.writeBaseline,
