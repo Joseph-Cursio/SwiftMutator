@@ -16,7 +16,7 @@ extension LoadConfiguration {
         if let workers = configuration.mutationTestWorkers, workers < 1 {
             return "mutationTestWorkers must be a whole number, at least 1, not \(workers)."
         }
-        if !(0 ... 100).contains(configuration.coverageThreshold) {
+        if !MuterConfiguration.coveragePercents.contains(configuration.coverageThreshold) {
             return "coverageThreshold must be a percentage from 0 to 100, "
                 + "not \(Self.shown(configuration.coverageThreshold))."
         }

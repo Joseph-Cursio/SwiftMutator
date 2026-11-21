@@ -80,15 +80,17 @@ extension MuterConfiguration {
         stopAtFirstFailureUnsupportedReason == nil && failedTestLinesAreReliable && stopAtFirstFailure != .disabled
     }
 
-    /// Why `propertyTestFilter` can't be used with this configuration; nil when it can, or isn't set.
+    /// Why `propertyTestFilter` can't be used with this configuration; nil when it can, or isn't set. It names the
+    /// flags too, which give the keys' values when given.
     var propertyRerunsUnsupportedReason: String? {
         guard propertyTestFilter != nil else { return nil }
         if propertyTests?.isEmpty != false {
-            return "propertyTestFilter needs propertyTests too, which say which of a kill's recorded tests are "
-                + "property tests"
+            return "propertyTestFilter (or --property-test-filter) needs propertyTests or --property-tests too, which "
+                + "say which of a kill's recorded tests are property tests"
         }
         if buildSystem == .unknown {
-            return "propertyTestFilter needs a SwiftPM or xcodebuild project, whose test command it can filter"
+            return "propertyTestFilter (or --property-test-filter) needs a SwiftPM or xcodebuild project, whose test "
+                + "command it can filter"
         }
         return nil
     }
@@ -96,6 +98,7 @@ extension MuterConfiguration {
     /// Why `propertySurvivorReruns` can't be used with this configuration; nil when it can, or tests none again.
     var propertySurvivorRerunsUnsupportedReason: String? {
         guard runsForEachSurvivor > 0, propertyTestFilter?.isEmpty != false else { return nil }
-        return "propertySurvivorReruns needs propertyTestFilter, which selects the property tests to run again"
+        return "propertySurvivorReruns (or --property-survivor-reruns) needs propertyTestFilter or "
+            + "--property-test-filter, which selects the property tests to run again"
     }
 }

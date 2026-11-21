@@ -525,10 +525,10 @@ wrong either way: an argument for a check the build doesn't make changes nothing
   is left empty: a later command that reads it can fail. A phase that names SwiftLint in no command
   SwiftMutator could turn off, as one that runs it from a script of its own or a variable, is named
   as one it may still run in.
-  `keepSwiftLintPhases: true` keeps them all; `run-without-mutating` tests a plan's copy as
-  `mutate-without-running` left it. SwiftLint's build tool plugins aren't turned off, nor
-  is any other linter: one that fails the build on style can fail it on a mutant's code. Turn it off
-  for the test command, such as with a scheme of its own.
+  `keepSwiftLintPhases: true`, or `--keep-swiftlint-phases` for one run, keeps them all;
+  `run-without-mutating` tests a plan's copy as `mutate-without-running` left it. SwiftLint's build
+  tool plugins aren't turned off, nor is any other linter: one that fails the build on style can
+  fail it on a mutant's code. Turn it off for the test command, such as with a scheme of its own.
 - **Code outside the project.** SwiftMutator copies only the project's folder and makes mutants
   only there. A local package that a `Package.swift` names with `.package(path: "../Shared")` or
   that an Xcode project references as a local package, and an Xcode project or package that a
@@ -1796,18 +1796,18 @@ warning that names it and the key it is closest to, if any, so a misspelled
 `exclude: Sources/Generated` does, one path rather than a list, and so does a value out of the range
 the table gives, or a blank gate key.
 
-SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged,
-except an xcodebuild project's `coverageThreshold`. Muter read that one as a fraction from 0 to 1,
-so any value of 1 or more left out every file. It's a percentage from 0 to 100 now, as it always
-was for SwiftPM: `0.5` means 0.5%, so write `50` for half. `excludeCalls` is the other: Muter
-looked for each name anywhere in a statement's text, comments included, so `log` also kept
-`catalog.update()`. A name now matches the name a call is called by: `log` matches `log(…)`,
-`self.log(…)`, `super.log(…)` and `Logger.log(…)`, but not `logger.log(…)`, which takes
-`logger.log`. A statement is kept if any call in it matches, one in a closure it passes too, or if
-it passes a function that matches, as `events.forEach(log)` does. An older `muter.conf.json` beside
-it is converted to `muter.conf.yml` and removed, unless a `muter.conf.yml` is there, which wins and
-leaves the JSON file alone, or it has a key SwiftMutator doesn't know, which the conversion would
-drop: it is kept, and warned of, until that key is fixed.
+SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged, except
+an xcodebuild project's `coverageThreshold`. Muter read that one as a fraction from 0 to 1, so any
+value of 1 or more left out every file. It's a percentage from 0 to 100 now, as it always was for
+SwiftPM: `0.5` means 0.5%, so write `50` for half. `excludeCalls` is the other: Muter looked for
+each name anywhere in a statement's text, comments included, so `log` also kept `catalog.update()`.
+A name now matches the name a call is called by: `log` matches `log(…)`, `self.log(…)`,
+`super.log(…)` and `Logger.log(…)`, but not `logger.log(…)`, which takes `logger.log`. A statement
+is kept if any call in it matches, one in a closure it passes too, or if it passes a function that
+matches, as `events.forEach(log)` does; `--exclude-calls` adds names for one run. An older
+`muter.conf.json` beside it is converted to `muter.conf.yml` and removed, unless a `muter.conf.yml`
+is there, which wins and leaves the JSON file alone, or it has a key SwiftMutator doesn't know,
+which the conversion would drop: it is kept, and warned of, until that key is fixed.
 
 With no configuration file, `run`, `mutate-without-running` and `run-without-mutating` test with
 what `init` would write (see [Setting up](#setting-up)), and say so at the start, with the command,
@@ -1873,33 +1873,53 @@ as it is.
 | `controlRunEvery` | How many mutants to test for each control run, a run with no mutant on among theirs, whose failed tests are flaky: a whole number, 0 for none. See [Control runs](#control-runs) | `100` | All |
 | `suspectKillReruns` | How many kills a run tests again alone because only suspect tests failed for them: a whole number, 0 for none. See [Kills tested again alone](#kills-tested-again-alone) | `100` | All |
 | `propertyTests` | A list of globs that pick out property tests, by name or by the file their issue was recorded in, so the reports split the kills between example tests and property tests. See [Example tests and property tests](#example-tests-and-property-tests) | Unset: none are split | All |
-| `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests, and, under SwiftPM, each kill only property tests were recorded making, in a list cut short, is tested again with every test but those. Needs `propertyTests` | Unset: none is tested again | SwiftPM and xcodebuild |
-| `propertySurvivorReruns` | How many times each survivor whose code ran is tested again with only the tests `propertyTestFilter` selects, stopping at the first run that doesn't pass, as a property test tries a sample of inputs; 0 for none. It changes no result. See [Testing survivors again with the property tests](#testing-survivors-again-with-the-property-tests). Needs `propertyTestFilter` | Unset: none is tested again | SwiftPM and xcodebuild |
+| `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests, and, under SwiftPM, each kill only property tests were recorded making, in a list cut short, is tested again with every test but those. Needs `propertyTests` or `--property-tests` | Unset: none is tested again | SwiftPM and xcodebuild |
+| `propertySurvivorReruns` | How many times each survivor whose code ran is tested again with only the tests `propertyTestFilter` selects, stopping at the first run that doesn't pass, as a property test tries a sample of inputs; 0 for none. It changes no result. See [Testing survivors again with the property tests](#testing-survivors-again-with-the-property-tests). Needs `propertyTestFilter` or `--property-test-filter` | Unset: none is tested again | SwiftPM and xcodebuild |
 | `propertySurvivorRerunLimit` | How many survivors a run tests again with the property tests, however many sessions it takes; 0 for none | 100 | SwiftPM and xcodebuild |
 | `reports` | A list of more reports a run saves beside `-f`'s, each `format:path`, as `markdown:summary.md`; a relative path is the project's; never `xcode`. See [Several reports, and the Markdown report](#several-reports-and-the-markdown-report) | Unset: none | All |
 
-Some keys have a flag that takes their place for one run: `--workers N` and `--timeout S`, on `run`
-and `run-without-mutating`, set `mutationTestWorkers` and `mutationTestTimeout`
-([#73](https://github.com/Joseph-Cursio/SwiftMutator/issues/73)), as `--fail-under P` sets
-`failUnder`, `--baseline F`, `--max-new-survivors N`, `--max-score-drop P` and
-`--max-doubtful-kills N` set `baseline`, `maxNewSurvivors`, `maxScoreDrop` and `maxDoubtfulKills`,
-each in place of its own key alone, `--property-tests G` sets `propertyTests`,
-`--report format:path` sets `reports`, and `--operators` and `--skip-operators` choose the
-operators (see [Choosing the operators](#choosing-the-operators)). `--build-timeout S`, on those
-and `mutate-without-running`, sets `buildTimeout`, and `--workspace`, `--project`, `--scheme` and
-`--destination`, on the same three, take the place of `workspace`, `project`, `scheme` and
-`destination`, and of the same options in `arguments` (see
-[xcodebuild's arguments](#xcodebuilds-arguments)). `--exclude`, on `run` and
-`mutate-without-running`, adds an entry to `exclude`. The other keys have no flag (see
-[Commands and flags](#commands-and-flags)). `--workers` must be at least 1, and `--timeout` and
-`--build-timeout` above 0 and at most a day, 86,400 seconds, as their keys must be; a flag's value
-is used in place of its key's, which is then not checked. The run records and compares them as
-it does the keys: a resume with a `--timeout` at least as long as every session's limit tests only
-the timeouts again (see
-[Timeouts are run again](#timeouts-are-run-again)), one that is shorter is refused, and another
-`--workers`, `--fail-under`, `--baseline` or `--report` is only said. `--write-baseline` has no
-key: a baseline file is written now and then, from a whole run. A run that tests several mutants at
-once says so, and one that uses fewer workers than asked says why:
+Every key but `executable` and `arguments` has a flag that takes its place for one run, named after
+the key: `--workers N` and `--timeout S` set `mutationTestWorkers` and `mutationTestTimeout`
+([#73](https://github.com/Joseph-Cursio/SwiftMutator/issues/73)), `--report format:path` sets
+`reports`, `--operators` and `--skip-operators` choose the operators (see
+[Choosing the operators](#choosing-the-operators)), and every other flag is its key in kebab case
+(`--keep-swiftlint-phases` writes SwiftLint as one word), as `--fail-under P` sets `failUnder`,
+`--keep-log-folders N` sets `keepLogFolders` and `--build-system swift|xcodebuild` sets
+`buildSystem`. `--property-tests G` and `--property-test-filter F` are repeatable, and replace their
+key's list. Three kinds differ:
+
+- `--exclude` and `--exclude-calls` add entries to `exclude` and `excludeCalls`, as exclusions
+  accumulate.
+- A key that is `true` or `false` has a pair of flags: `--keep-all-logs` sets `keepAllLogs` to
+  `true` and `--no-keep-all-logs` to `false`, and so do `--[no-]stop-at-first-failure`,
+  `--[no-]workers-share-build`, `--[no-]one-worker-simulator` and `--[no-]keep-swiftlint-phases` for
+  theirs. With both of a pair, the last one given wins.
+- `--workspace`, `--project`, `--scheme` and `--destination` also take the place of the same options
+  in `arguments` (see [xcodebuild's arguments](#xcodebuilds-arguments)).
+
+A command takes the flag of each key its run reads (see [Commands and flags](#commands-and-flags)):
+`run` takes them all. `mutate-without-running` takes those that choose the mutants, `--exclude`,
+`--exclude-calls`, `--coverage-threshold`, `--operators` and `--skip-operators`, and
+`--keep-swiftlint-phases`, as it makes the copy. `run-without-mutating` takes those that test the
+mutants and judge the run, from `--workers` and `--timeout` to `--property-survivor-rerun-limit`,
+and the report and check flags. All three take `--build-timeout`, `--build-system`,
+`--keep-log-folders` and the xcodebuild flags.
+
+A flag takes what its key takes, in the key's range, and any other value is a usage error:
+`--workers` must be at least 1, `--timeout` and `--build-timeout` above 0 and at most a day, 86,400
+seconds, `--keep-log-folders` at least 2, and `--coverage-threshold` from 0 to 100, as their keys
+must be. A flag's value is used in place of its key's, which is then not checked, and a rule between
+keys holds whichever gives each value: `--property-survivor-reruns` needs `propertyTestFilter` or
+`--property-test-filter`, as `propertySurvivorReruns` does. The run records and compares them as it
+does the keys: a resume with a `--timeout` at least as long as every session's limit tests only the
+timeouts again (see [Timeouts are run again](#timeouts-are-run-again)), one that is shorter is
+refused, so is one whose flag changes a key a resume compares, such as `--coverage-threshold` or
+`--build-system`, and another `--workers`, `--fail-under`, `--baseline`, `--report` or
+`--suspect-kill-reruns` is only said. `--write-baseline` has no key: a baseline file is written now
+and then, from a whole run.
+
+A run that tests several mutants at once says so, and one that uses fewer workers than asked says
+why:
 
 ```
 👷 Testing 4 mutants at a time, each in a copy of the project of its own, by default: `--workers` or `mutationTestWorkers` sets another count.
@@ -2033,10 +2053,9 @@ For one run:
   absolute one in it: a file, a folder, which names every Swift file in it but hidden ones, or a
   glob, as `exclude` takes one, such as `Sources/**/*.swift`, whose matches may be folders too.
   Entries are comma-separated or given again, and a file named twice is mutated once. The excludes
-  and the coverage filter still apply, so a file at or below `coverageThreshold`, which by default
-  is one whose code no test ran, isn't mutated: `--skip-coverage` turns that off. Each entry that
-  leaves no file says why:
-
+  and the coverage filter still apply, so a file at or below `coverageThreshold`, or
+  `--coverage-threshold`, which by default is one whose code no test ran, isn't mutated:
+  `--skip-coverage` turns that off. Each entry that leaves no file says why:
 ```text
 ⚠️ --files-to-mutate Sources/Missing.swift names no Swift file.
 ⚠️ --files-to-mutate Tests names only files the excludes leave out; an exclude entry that starts with ! keeps them.
@@ -2213,8 +2232,8 @@ Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, wit
   and prints the line above.
 
   The check runs with no mutant on, so it can't see a test that writes in the project only when a
-  mutant sends it there. Another worker can then read what it wrote. `workersShareBuild: false` gives
-  each worker a clone whatever the check finds.
+  mutant sends it there. Another worker can then read what it wrote. `workersShareBuild: false`, or
+  `--no-workers-share-build` for one run, gives each worker a clone whatever the check finds.
 - **Release-mode tests.** With `arguments: [test, -c, release, -Xswiftc, -enable-testing]` the same
   run took 19 min instead of 27, with about the same verdicts. `-enable-testing` keeps
   `@testable import` working. The tests ran 2.8 times as fast, but the builds took longer and setup
@@ -2389,8 +2408,9 @@ it on, and says so:
   a mutant's run there then clones nothing. A simulator of its own tests one test at a time, so its
   runs leave them out.
 - **The key.** `oneWorkerSimulator: true` uses a simulator whenever the destination is one and there
-  are 2 or more mutants to test, without these checks; `false` never uses one. More than one worker
-  uses simulators whatever it says.
+  are 2 or more mutants to test, without these checks; `false` never uses one.
+  `--one-worker-simulator` and `--no-one-worker-simulator` do the same for one run. More than one
+  worker uses simulators whatever it says.
 - **What it leaves alone.** `--mutant` and a lone mutant to test run on your destination, as do Mac,
   Mac Catalyst, physical-device and `generic/…` destinations, and destinations that name no one
   simulator, such as a device's bare `id=`. None of them prints anything about it, but a destination
@@ -2627,26 +2647,27 @@ recorded the run, it moves that file to the name the log folder keeps the log un
 stop or an abort came first, leaves its output in `running/`. A process your tests started that
 outlives the test command and still writes to its output adds those lines to the kept log.
 
-The log folder keeps the logs you would open: those of the mutants that survived, crashed, timed
-out or didn't build, and of a kill whose results line names no failed test. A mutant killed by a
-failed test its line names keeps no log, as the line's `killedBy` and `firstFailedTestLine` say what
-the log would, and its line has no `log`. Every other log is kept: the baselines', the timed and
-control runs', the coverage run's, and those of runs the simulator failed to launch or found gone.
-`keepAllLogs: true` in `muter.conf.yml` keeps every mutant's log, as before, and so does
-`--mutant`, whose log the end of the run names. Which logs are kept changes no result, so a resume
-lets `keepAllLogs` change. A results file whose lines may have no `log` is in results format 4,
-which an older SwiftMutator refuses as a newer format rather than lose those mutants' results (see
+The log folder keeps the logs you would open: those of the mutants that survived, crashed, timed out
+or didn't build, and of a kill whose results line names no failed test. A mutant killed by a failed
+test its line names keeps no log, as the line's `killedBy` and `firstFailedTestLine` say what the
+log would, and its line has no `log`. Every other log is kept: the baselines', the timed and control
+runs', the coverage run's, and those of runs the simulator failed to launch or found gone.
+`keepAllLogs: true` in `muter.conf.yml`, or `--keep-all-logs` for one run, keeps every mutant's log,
+as before, and so does `--mutant`, whose log the end of the run names; `--no-keep-all-logs` turns
+the key off for one run. Which logs are kept changes no result, so a resume lets `keepAllLogs`
+change. A results file whose lines may have no `log` is in results format 4, which an older
+SwiftMutator refuses as a newer format rather than lose those mutants' results (see
 [Compatibility](Docs/results-file.md#compatibility)).
 A run that keeps nothing there, such as a refused `--resume` or a `--since` run with no Swift file
 changed, leaves no folder of its own in `<project>_muter_logs`. A resumed session's folder holds no
 results file, but `resumed session.txt`, a note naming the file it adds to.
 
-Log folders pile up: SwiftMutator removes none unless you set `keepLogFolders` in
-`muter.conf.yml`. With `keepLogFolders: 5`, a run keeps the folders of the newest 5 runs, itself
-included, and removes older ones once nothing can refuse it or find nothing to test: after its
-configuration, `--since`, `--resume` or `--reuse` checks, the project's lock, a test plan's checks
-of its code and copy, and the discovery of the files and mutants to test, and before the build. A
-run that ends before then removes nothing. It says what it removed and what it left:
+Log folders pile up: SwiftMutator removes none unless you set `keepLogFolders` in `muter.conf.yml`,
+or give `--keep-log-folders`. With `keepLogFolders: 5`, a run keeps the folders of the newest 5
+runs, itself included, and removes older ones once nothing can refuse it or find nothing to test:
+after its configuration, `--since`, `--resume` or `--reuse` checks, the project's lock, a test
+plan's checks of its code and copy, and the discovery of the files and mutants to test, and before
+the build. A run that ends before then removes nothing. It says what it removed and what it left:
 
 ```
 🧹 Removed the log folders of 3 earlier runs, 1.9 GB, from /Users/me/code/SwiftProjectLint_muter_logs, keeping the newest 5 runs (keepLogFolders: 5):
@@ -2768,7 +2789,8 @@ under the load of several workers. Such a test makes a mutant count as killed wh
 it, which raises the score. SwiftMutator calls a test *suspect* when it failed for mutants in at
 least 15% of the files that have a killed mutant naming a test, and in at least 10 of those files.
 A test that is timing-sensitive or flaky does that, and so can a broad test of the mutated code. With fewer than 10 such files the report gives no
-verdict, and says so. `suspectTestFilePercent` and `suspectTestMinimumFiles` change the 15% and
+verdict, and says so. `suspectTestFilePercent` and `suspectTestMinimumFiles`, or
+`--suspect-test-file-percent` and `--suspect-test-minimum-files` for one run, change the 15% and
 the 10. They change no result already recorded, only what the reports say and which kills a later
 session [tests again alone](#kills-tested-again-alone), so a resume lets them change. The results
 file records them, and `swift-mutator report` uses those of the run's last session.
@@ -2857,7 +2879,8 @@ the time, 7 of its 11 kills survived, and the test failed again in only 1.
   takes. Each suspect test gets 3 first, from other kills that name it if it has too few of its own,
   so that it can be judged and no test uses up the limit. The rest of the limit goes to the kills only
   suspect tests failed for, spread evenly in job order. Past it, a kill counts on the first run's word,
-  and the report says how many did. `suspectKillReruns: 0` tests none.
+  and the report says how many did. `suspectKillReruns: 0`, or `--suspect-kill-reruns 0`, tests
+  none.
 - **The cost.** Each rerun takes as long as a survivor's run, one at a time, plus one run at the start
   with no mutant on: if the tests don't pass alone, no kill is tested again, and the run says so. So
   the most it adds is `suspectKillReruns` runs of your whole test suite. On SwiftProjectLint's 6.9 s for
@@ -2894,7 +2917,8 @@ recorded failing for counts as one without them, as above.
 
 - **How many.** One for each 100 mutants a session tests, by default, so none below 100. Control
   run k starts halfway through its stretch of 100, so none runs as the workers start or drain.
-  `controlRunEvery: 50` runs one for each 50, and `controlRunEvery: 0` none. `--mutant` runs none.
+  `controlRunEvery: 50` runs one for each 50, and `controlRunEvery: 0` none, as do
+  `--control-run-every 50` and `--control-run-every 0` for one run. `--mutant` runs none.
 - **The cost.** A control run takes as long as a survivor's run. On SwiftProjectLint on 31
   October, a survivor took 6.9 s and a mutant 2.4 s on average, so one for each 100 mutants adds
   about 3%.
@@ -2969,14 +2993,14 @@ propertyTests:
   🧪 Ran the property tests again for 4 kills: a property test failed too for 3, and every one passed for 1.
   ```
 
-  First the filtered tests run once with no mutant on. If they ran no test, as a filter that
-  matches none doesn't, or didn't pass, no kill is tested again, and the run says why. A
-  `propertyRerun` line in the results file records each run (see
-  [the results file](Docs/results-file.md#propertyrerun)). `propertyTestFilter` needs
-  `propertyTests`, and a SwiftPM or xcodebuild project; `--mutant` runs none. On a small sorting
-  package whose three properties wait 0.4 s before their checks, fail-fast stopped three kills at
-  an example, and the reruns found a property failing for each, which matched a run that stopped
-  at none.
+  First the filtered tests run once with no mutant on. If they ran no test, as a filter that matches
+  none doesn't, or didn't pass, no kill is tested again, and the run says why. A `propertyRerun`
+  line in the results file records each run (see
+  [the results file](Docs/results-file.md#propertyrerun)). `--property-test-filter`, repeatable,
+  takes its place for one run. `propertyTestFilter` needs `propertyTests`, and a SwiftPM or
+  xcodebuild project; `--mutant` runs none. On a small sorting package whose three properties wait
+  0.4 s before their checks, fail-fast stopped three kills at an example, and the reruns found a
+  property failing for each, which matched a run that stopped at none.
 - **Testing a kill again with the examples alone.** Under SwiftPM, `propertyTestFilter` also
   settles the other direction: each kill only property tests were recorded making, whose run
   stopped at its first failed test, or named more tests than its list holds, is
@@ -3011,6 +3035,8 @@ up to k times, stopping at the first run that doesn't pass, so you can tell a we
 weak law.
 It changes no result: a survivor a property told apart stays a survivor in the score,
 `--fail-under` and `--baseline`. It needs `propertyTestFilter`; `--mutant` runs none.
+`--property-survivor-reruns k` and `--property-survivor-rerun-limit n` take the place of
+`propertySurvivorReruns` and `propertySurvivorRerunLimit` for one run.
 
 ```yaml
 propertyTests: ["*Properties*"]
@@ -3238,7 +3264,7 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `baseline`, `maxNewSurvivors`, `maxScoreDrop`, `maxDoubtfulKills`, `propertyTests`, `propertyTestFilter`, `propertySurvivorReruns`, `propertySurvivorRerunLimit` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
+| A configuration key changed, by its flag too (`exclude` by `--exclude`, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `baseline`, `maxNewSurvivors`, `maxScoreDrop`, `maxDoubtfulKills`, `propertyTests`, `propertyTestFilter`, `propertySurvivorReruns`, `propertySurvivorRerunLimit` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | The operators chosen, by `--operators`, `--skip-operators`, `operators` or `skipOperators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
@@ -3719,11 +3745,12 @@ take, a value it can't read, or two flags that can't go together is a usage erro
 line, and link to the section that explains it.
 
 A flag that names a configuration key, such as `--workers` for `mutationTestWorkers`, takes its
-place for one run, except `--exclude`, which adds to `exclude`, and a resume compares it as it does
-the key (see [Configuration](#configuration)). A relative path is the current folder's, except, with
-`--project-folder`, those that pick files in the project, as the next paragraph says. In the paths
-of reports and baseline files, a leading `~` is your home folder even after `=` or in quotes, where
-a shell doesn't expand it.
+place for one run, except `--exclude` and `--exclude-calls`, which add to `exclude` and
+`excludeCalls`, and a resume compares it as it does the key (see [Configuration](#configuration)).
+Every key but `executable` and `arguments` has one. A relative path is the current folder's, except,
+with `--project-folder`, those that pick files in the project, as the next paragraph says. In the
+paths of reports and baseline files, a leading `~` is your home folder even after `=` or in quotes,
+where a shell doesn't expand it.
 
 `--project-folder <path>` runs a command as if it were given in that folder, except for the paths
 on the command line: `--project-folder`'s own, `-c`, `-o`, `--report`, `--baseline`,
@@ -3746,6 +3773,8 @@ as it goes (see [Results file](#results-file)). Its exit status says how it ende
 |---|---|---|
 | `--files-to-mutate <path>` | Only mutate these files, folders or globs; comma-separated or repeated ([Choosing the files](#choosing-the-files)) | Every file discovery finds |
 | `--exclude <pattern>` | Add an `exclude` entry for this run; `!` in front keeps what it matches. Repeatable ([Choosing the files](#choosing-the-files)) | `exclude` alone |
+| `--exclude-calls <name>` | Add an `excludeCalls` entry for this run: `RemoveSideEffects` never removes calls of that name. Repeatable ([Configuration](#configuration)) | `excludeCalls` alone |
+| `--coverage-threshold <percent>` | Leave out the files whose share of lines the tests ran is at or below this, from 0 to 100 ([Choosing the files](#choosing-the-files)) | `coverageThreshold`, else 0 |
 | `--operators <name>…` | Only use these operators, space-separated, over both keys ([Choosing the operators](#choosing-the-operators)) | `operators`, else all |
 | `--skip-operators <name>…` | Leave these operators out, in place of `skipOperators` ([Choosing the operators](#choosing-the-operators)) | `skipOperators` |
 | `--since <ref>` | Only mutate the Swift files changed since the merge base of the ref and HEAD ([Mutating only what a branch changed](#mutating-only-what-a-branch-changed)) | Every file |
@@ -3761,12 +3790,26 @@ as it goes (see [Results file](#results-file)). Its exit status says how it ende
 | `--verbose` | List the Swift files found, and how many mutants each file has ([Progress](#progress)) | Off |
 | `--quiet` | Print only warnings, errors and the summary, with no banner, progress or notices; no configuration key ([Progress](#progress)) | Off |
 | `--build-timeout <seconds>` | Limit each build and baseline before the first mutant, above 0 and at most 86400 ([Time limits before the first mutant](#time-limits-before-the-first-mutant)) | `buildTimeout`, else none |
+| `--build-system <swift\|xcodebuild>` | Run the test command as this build system's, for a wrapper script whose file name isn't one ([Configuration](#configuration)) | `buildSystem`, else from `executable`'s name |
 | `--workspace <path>` | Open this Xcode workspace, relative to the project's folder, in place of `workspace`, `project` and any `-workspace` or `-project` in `arguments` ([xcodebuild's arguments](#xcodebuilds-arguments)) | `workspace`, else `arguments` |
 | `--project <path>` | Open this Xcode project, relative to the project's folder, in place of `workspace`, `project` and any `-workspace` or `-project` in `arguments` ([xcodebuild's arguments](#xcodebuilds-arguments)) | `project`, else `arguments` |
 | `--scheme <name>` | Build and test this scheme, in place of `scheme` and any `-scheme` in `arguments` ([xcodebuild's arguments](#xcodebuilds-arguments)) | `scheme`, else `arguments` |
 | `--destination <specifier>` | Test on this destination, in place of `destination` and every `-destination` in `arguments`; mutants are tested on the first. Repeatable ([xcodebuild's arguments](#xcodebuilds-arguments)) | `destination`, else `arguments` |
+| `--keep-log-folders <count>` | Keep this many runs' log folders, this run's included, at least 2 ([Results file](#results-file)) | `keepLogFolders`, else all |
+| `--keep-swiftlint-phases`, `--no-keep-swiftlint-phases` | Keep SwiftLint running in the build phases of the copy's Xcode projects, or turn it off there ([Before a long run](#before-a-long-run)) | `keepSwiftLintPhases`, else off in the copy |
 | `--workers <count>` | Test this many mutants at once, at least 1 ([Workers and release mode](#workers-and-release-mode)) | `mutationTestWorkers`, else up to 4 for SwiftPM, 1 for others |
 | `--timeout <seconds>` | Stop a mutant's test run after this long, above 0 and at most 86400 ([Configuration](#configuration)) | `mutationTestTimeout`, else timed from your tests |
+| `--stop-at-first-failure`, `--no-stop-at-first-failure` | Stop a mutant's test run at its first failed test, or don't; SwiftPM only ([Configuration](#configuration)) | `stopAtFirstFailure`, else on |
+| `--workers-share-build`, `--no-workers-share-build` | Let SwiftPM workers test from one build when they can, or give each a clone ([Workers and release mode](#workers-and-release-mode)) | `workersShareBuild`, else share |
+| `--one-worker-simulator`, `--no-one-worker-simulator` | Test one xcodebuild worker on a simulator of its own whenever the destination is one, or never ([One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own)) | `oneWorkerSimulator`, else decided from the project |
+| `--keep-all-logs`, `--no-keep-all-logs` | Keep every mutant's log, or only those its results line can't stand in for ([Results file](#results-file)) | `keepAllLogs`, else off |
+| `--suspect-test-file-percent <percent>` | The share of the files with a kill, from 1 to 100, a test must fail in to be suspect ([Killing tests and suspect tests](#killing-tests-and-suspect-tests)) | `suspectTestFilePercent`, else 15 |
+| `--suspect-test-minimum-files <count>` | How many files with a kill there must be, at least 1, before a test can be suspect ([Killing tests and suspect tests](#killing-tests-and-suspect-tests)) | `suspectTestMinimumFiles`, else 10 |
+| `--control-run-every <count>` | Test this many mutants for each control run, 0 for none ([Control runs](#control-runs)) | `controlRunEvery`, else 100 |
+| `--suspect-kill-reruns <count>` | Test this many kills again alone when only suspect tests failed for them, 0 for none ([Kills tested again alone](#kills-tested-again-alone)) | `suspectKillReruns`, else 100 |
+| `--property-test-filter <filter>` | Test kills again with only the property tests this selects. Repeatable ([Example tests and property tests](#example-tests-and-property-tests)) | `propertyTestFilter`, else none |
+| `--property-survivor-reruns <count>` | Test each survivor whose code ran again this many times with only the property tests, 0 for none ([Testing survivors again with the property tests](#testing-survivors-again-with-the-property-tests)) | `propertySurvivorReruns`, else none |
+| `--property-survivor-rerun-limit <count>` | Test at most this many survivors again with the property tests, 0 for none ([Testing survivors again with the property tests](#testing-survivors-again-with-the-property-tests)) | `propertySurvivorRerunLimit`, else 100 |
 | `-f`, `--format <format>` | The report's format: `plain`, `json`, `html`, `xcode`, `markdown`, `stryker` or `sarif` ([Reports](#reports)) | `plain` |
 | `-o`, `--output <path>` | Save the report to this file instead of printing it ([Reports](#reports)) | Printed |
 | `--report <format:path>` | Also save a report in another format, not `xcode`. Repeatable ([Several reports, and the Markdown report](#several-reports-and-the-markdown-report)) | `reports` |
@@ -3805,21 +3848,26 @@ as it does `maxNewSurvivors` and `maxScoreDrop`. For `report` they are a usage e
 ### mutate-without-running
 
 Makes the copy and writes a test plan, `muter-mappings.json`, without testing anything (see
-[Test plans](#test-plans)). It takes `run`'s `--files-to-mutate`, `--exclude`, `--operators`,
-`--skip-operators`, `-c`, `--project-folder`, `--skip-coverage`, `--skip-update-check`,
-`--verbose`, `--quiet`, `--build-timeout`, `--workspace`, `--project`, `--scheme` and
-`--destination`, and no other flag.
+[Test plans](#test-plans)). It takes `run`'s `--files-to-mutate`, `--exclude`, `--exclude-calls`,
+`--coverage-threshold`, `--operators`, `--skip-operators`, `-c`, `--project-folder`,
+`--skip-coverage`, `--skip-update-check`, `--verbose`, `--quiet`, `--build-timeout`,
+`--build-system`, `--workspace`, `--project`, `--scheme`, `--destination`, `--keep-log-folders`,
+`--keep-swiftlint-phases` and `--no-keep-swiftlint-phases`, and no other flag.
 
 ### run-without-mutating
 
-Tests the test plan that `mutate-without-running` wrote, in the copy as it is now (see
-[Test plans](#test-plans)). Run it from the project's folder, or name that folder with
-`--project-folder`. It takes `run`'s `--mutant`, `-c`, `--project-folder`, `--skip-coverage`,
-`--skip-update-check`, `--verbose`, `--quiet`, `--build-timeout`, `--workers`, `--timeout`, every
+Tests the test plan that `mutate-without-running` wrote, in the copy as it is now (see [Test
+plans](#test-plans)). Run it from the project's folder, or name that folder with `--project-folder`.
+It takes `run`'s `--mutant`, `-c`, `--project-folder`, `--skip-coverage`, `--skip-update-check`,
+`--verbose`, `--quiet`, `--build-timeout`, `--build-system`, `--keep-log-folders`, `--workers`,
+`--timeout`, `--stop-at-first-failure`, `--workers-share-build`, `--one-worker-simulator` and
+`--keep-all-logs`, each with its `--no-` form, `--suspect-test-file-percent`,
+`--suspect-test-minimum-files`, `--control-run-every`, `--suspect-kill-reruns`,
+`--property-test-filter`, `--property-survivor-reruns`, `--property-survivor-rerun-limit`, every
 report and check flag from `-f` to `--property-tests`, and `--resume`, `--resume-ignoring` and
-`--force-resume`, with the same limits. `--mutant` can't be given with
-`--resume` or `--write-baseline`. It builds the copy, so it also takes `--workspace`, `--project`,
-`--scheme` and `--destination`; nothing checks that they match those `mutate-without-running` had.
+`--force-resume`, with the same limits. `--mutant` can't be given with `--resume` or
+`--write-baseline`. It builds the copy, so it also takes `--workspace`, `--project`, `--scheme` and
+`--destination`; nothing checks that they match those `mutate-without-running` had.
 
 | Flag | Meaning | Default |
 |---|---|---|

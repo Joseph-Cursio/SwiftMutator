@@ -9,6 +9,7 @@ struct MutateWithoutRunning: RunCommand {
     // First, as in `run`'s help. The plan records what they chose, and a run that tests the plan records it too.
     @OptionGroup var selection: MutantSelectionArguments
     @OptionGroup var options: RunArguments
+    @OptionGroup var copying: ProjectCopyArguments
 
     init() {
         // ArgumentParser sets the properties from the command line.
@@ -30,6 +31,7 @@ struct MutateWithoutRunning: RunCommand {
             quiet: options.quiet,
             xcodebuild: options.xcodebuild,
             buildTimeout: options.buildTimeout,
+            keyFlags: KeyFlags(from: [selection, options, copying]),
             createTestPlan: true
         )
     }

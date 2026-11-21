@@ -118,12 +118,10 @@ extension MuterConfiguration {
     ) throws -> Int? {
         guard let value = try container.decodeIfPresent(Int.self, forKey: key) else { return nil }
         guard range.contains(value) else {
-            let bounds = range.upperBound == Int.max
-                ? "at least \(range.lowerBound)" : "from \(range.lowerBound) to \(range.upperBound)"
             throw DecodingError.dataCorruptedError(
                 forKey: key,
                 in: container,
-                debugDescription: "\(key.stringValue) must be a whole number \(bounds), not \(value)"
+                debugDescription: "\(key.stringValue) must be a whole number \(bounds(of: range)), not \(value)"
             )
         }
         return value

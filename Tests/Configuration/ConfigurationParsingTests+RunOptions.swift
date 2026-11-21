@@ -17,7 +17,8 @@ extension ConfigurationParsingTests {
         let withoutGlobs = try parsed("propertyTestFilter: [SortProperties]")
         XCTAssertEqual(
             withoutGlobs.propertyRerunsUnsupportedReason,
-            "propertyTestFilter needs propertyTests too, which say which of a kill's recorded tests are property tests"
+            "propertyTestFilter (or --property-test-filter) needs propertyTests or --property-tests too, which "
+                + "say which of a kill's recorded tests are property tests"
         )
         XCTAssertNil(withoutGlobs.withPropertyTestFilter())
         let wrapper = MuterConfiguration(
@@ -25,7 +26,8 @@ extension ConfigurationParsingTests {
         )
         XCTAssertEqual(
             wrapper.propertyRerunsUnsupportedReason,
-            "propertyTestFilter needs a SwiftPM or xcodebuild project, whose test command it can filter"
+            "propertyTestFilter (or --property-test-filter) needs a SwiftPM or xcodebuild project, whose test "
+                + "command it can filter"
         )
         XCTAssertNil(MuterConfiguration().withPropertyTestFilter(), "no filter, no filtered runs")
     }
@@ -51,7 +53,8 @@ extension ConfigurationParsingTests {
 
         XCTAssertEqual(
             try parsed("propertySurvivorReruns: 5").propertySurvivorRerunsUnsupportedReason,
-            "propertySurvivorReruns needs propertyTestFilter, which selects the property tests to run again"
+            "propertySurvivorReruns (or --property-survivor-reruns) needs propertyTestFilter or "
+                + "--property-test-filter, which selects the property tests to run again"
         )
     }
 

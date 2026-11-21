@@ -11,6 +11,13 @@ OPTIONS:
   --exclude <pattern>     Leave out the files this path fragment or glob
                           matches, as an `exclude` entry does, for this run;
                           `!` in front keeps what it matches. Repeatable.
+  --exclude-calls <name>  Never remove the calls of the function with this name
+                          with RemoveSideEffects, as an `excludeCalls` entry
+                          does, for this run. Repeatable.
+  --coverage-threshold <percent>
+                          Leave out the files whose share of lines the tests
+                          ran is at or below this percentage, from 0 to 100, in
+                          place of coverageThreshold.
   --operators <operators> The list of mutant operators to be used:
                           RelationalOperatorReplacement, RelationalBoundary,
                           RemoveSideEffects, ChangeLogicalConnector,
@@ -64,6 +71,10 @@ OPTIONS:
                           of the first mutant is stopped (the coverage run, a
                           build, a baseline), in place of buildTimeout. At most
                           a day, 86400.
+  --build-system <swift|xcodebuild>
+                          The build system, swift or xcodebuild, for an
+                          executable whose file name isn't one, such as a
+                          wrapper script, in place of buildSystem.
   --workspace <path>      The Xcode workspace to test, relative to the
                           project's folder, in place of the workspace and
                           project keys and any -workspace or -project in
@@ -78,11 +89,62 @@ OPTIONS:
                           in place of the destination key and every
                           -destination in arguments; mutants are tested on the
                           first. Repeatable.
+  --keep-log-folders <count>
+                          How many runs' log folders to keep, this run's
+                          included, at least 2, in place of keepLogFolders.
+  --keep-swiftlint-phases/--no-keep-swiftlint-phases
+                          Keep SwiftLint running in the build phases of the
+                          copy's Xcode projects, or turn it off there, in place
+                          of keepSwiftLintPhases.
   --workers <count>       How many mutants to test at once, in place of
                           mutationTestWorkers (SwiftPM, or xcodebuild on a
                           simulator, which gets one simulator per worker).
   --timeout <seconds>     Seconds before a mutant's test run is stopped, in
                           place of mutationTestTimeout. At most a day, 86400.
+  --stop-at-first-failure/--no-stop-at-first-failure
+                          Stop a mutant's test run at its first failed test, or
+                          don't, in place of stopAtFirstFailure. SwiftPM only.
+  --workers-share-build/--no-workers-share-build
+                          Let SwiftPM workers test from one build when they
+                          can, or give each a clone, in place of
+                          workersShareBuild.
+  --one-worker-simulator/--no-one-worker-simulator
+                          Test one xcodebuild worker on a simulator
+                          SwiftMutator makes whenever the destination is a
+                          simulator, or never, in place of oneWorkerSimulator.
+  --keep-all-logs/--no-keep-all-logs
+                          Keep the log of every mutant's test run, or only
+                          those its results line can't stand in for, in place
+                          of keepAllLogs.
+  --suspect-test-file-percent <percent>
+                          The share of the files with a killed mutant, from 1
+                          to 100, a test must have failed for mutants in to be
+                          suspect, in place of suspectTestFilePercent.
+  --suspect-test-minimum-files <count>
+                          How many files with a killed mutant there must be, at
+                          least 1, before a test can be suspect, in place of
+                          suspectTestMinimumFiles.
+  --control-run-every <count>
+                          How many mutants to test for each control run, a run
+                          with no mutant on, 0 for none, in place of
+                          controlRunEvery.
+  --suspect-kill-reruns <count>
+                          How many kills to test again alone because only
+                          suspect tests failed for them, 0 for none, in place
+                          of suspectKillReruns.
+  --property-test-filter <filter>
+                          A test filter that selects the property tests alone,
+                          as swift test --filter or xcodebuild's -only-testing:
+                          takes it, to test kills again with. Repeatable. In
+                          place of propertyTestFilter.
+  --property-survivor-reruns <count>
+                          How many times to test each survivor again with only
+                          the property tests, 0 for none, in place of
+                          propertySurvivorReruns.
+  --property-survivor-rerun-limit <count>
+                          How many survivors to test again with the property
+                          tests, 0 for none, in place of
+                          propertySurvivorRerunLimit.
   -f, --format <format>   The report format: plain, json, html, xcode,
                           markdown, stryker, sarif
   -o, --output <output>   Output file for the report to be saved.

@@ -22,6 +22,7 @@ struct BaselineScope: Equatable {
         let coverageThreshold: Double
         /// Sorted, once each, as `--exclude`'s entries come after the file's.
         let exclude: [String]
+        /// Sorted, once each, as `--exclude-calls`' entries come after the file's.
         let excludeCalls: [String]
         /// nil when it isn't set: the default comes from the baseline run's time.
         let mutationTestTimeout: Double?
@@ -38,7 +39,7 @@ struct BaselineScope: Equatable {
             self.buildSystem = buildSystem
             self.coverageThreshold = coverageThreshold
             self.exclude = Set(exclude).sorted()
-            self.excludeCalls = excludeCalls
+            self.excludeCalls = Set(excludeCalls).sorted()
             self.mutationTestTimeout = mutationTestTimeout
         }
 

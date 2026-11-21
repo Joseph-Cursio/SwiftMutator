@@ -232,7 +232,7 @@ enum ResumeCheck {
         _ current: MuterConfiguration
     ) -> [Difference] {
         // A side that can't be encoded has no keys, so every key the other has differs. `exclude`'s entries choose the
-        // same files in any order, as `--exclude`'s come after the file's.
+        // same files in any order, as `--exclude`'s come after the file's, and `excludeCalls`' the same calls.
         let was = values(of: recorded.withExcludesInOrder)
         let isNow = values(of: current.withExcludesInOrder)
         return Set(was.keys).union(isNow.keys).sorted().compactMap { name in

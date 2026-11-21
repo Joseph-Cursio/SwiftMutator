@@ -69,6 +69,10 @@ extension Run {
         /// `--property-tests`: the globs that pick out property tests, in place of `propertyTests`; nil when none was
         /// given.
         let propertyTests: [String]?
+        /// The flags of the other configuration keys, from `--exclude-calls` to `--property-survivor-rerun-limit`,
+        /// which `LoadConfiguration` puts in place of their keys (`MuterConfiguration.overriding(...)`). Read the run's
+        /// values from its configuration, never from here.
+        let keyFlags: KeyFlags
         let createTestPlan: Bool
         /// The results file, or the log folder of one of its sessions, of the run that `--resume` continues.
         let resumeURL: URL?
@@ -143,6 +147,7 @@ extension Run {
             maxDoubtfulKills: Int? = nil,
             writeBaseline: String? = nil,
             propertyTests: [String]? = nil,
+            keyFlags: KeyFlags = KeyFlags(),
             createTestPlan: Bool = false,
             resumeURL: URL? = nil,
             reuseURL: URL? = nil,
@@ -178,6 +183,7 @@ extension Run {
             self.maxDoubtfulKills = maxDoubtfulKills
             self.writeBaseline = writeBaseline
             self.propertyTests = propertyTests
+            self.keyFlags = keyFlags
             self.resumeURL = resumeURL
             self.reuseURL = reuseURL
             self.resumeIgnoring = resumeIgnoring
@@ -227,6 +233,7 @@ extension Run {
                 lhs.maxDoubtfulKills == rhs.maxDoubtfulKills &&
                 lhs.writeBaseline == rhs.writeBaseline &&
                 lhs.propertyTests == rhs.propertyTests &&
+                lhs.keyFlags == rhs.keyFlags &&
                 lhs.createTestPlan == rhs.createTestPlan &&
                 lhs.resumeURL == rhs.resumeURL &&
                 lhs.reuseURL == rhs.reuseURL &&
@@ -260,6 +267,7 @@ extension Run {
                 workers: nil,
                 timeout: nil,
                 failUnder: nil,
+                keyFlags: KeyFlags(),
                 createTestPlan: false,
                 resumeURL: nil,
                 reuseURL: nil,

@@ -80,7 +80,9 @@ struct Run: RunCommand {
     @OptionGroup var lone: MutantArguments
 
     @OptionGroup var options: RunArguments
+    @OptionGroup var copying: ProjectCopyArguments
     @OptionGroup var testing: TestingArguments
+    @OptionGroup var reruns: RerunArguments
     @OptionGroup var reportOptions: ReportArguments
 
     // After the option groups, so these and the ones below come last in the help. Not in `RunArguments`, which
@@ -155,6 +157,7 @@ struct Run: RunCommand {
             maxDoubtfulKills: reportOptions.maxDoubtfulKills,
             writeBaseline: reportOptions.writeBaseline,
             propertyTests: reportOptions.propertyTestGlobs,
+            keyFlags: KeyFlags(from: [selection, options, copying, testing, reruns]),
             resumeURL: resuming.resume,
             reuseURL: reuse,
             // Only one of each pair can be given: `validate()` ties each to its own option.

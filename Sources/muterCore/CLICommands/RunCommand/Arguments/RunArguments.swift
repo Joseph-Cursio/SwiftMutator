@@ -1,7 +1,9 @@
 import ArgumentParser
 import Foundation
 
-struct RunArguments: ParsableArguments {
+/// What every command that loads a configuration takes: where the project and its configuration are, what it prints,
+/// and how the project is built.
+struct RunArguments: ParsableArguments, KeyFlagArguments {
     @Option(
         name: [.customShort("c"), .customLong("configuration")],
         help: "The path to the configuration file."
@@ -57,6 +59,22 @@ struct RunArguments: ParsableArguments {
     var buildTimeout: Double?
 
     @Option(
+        name: .customLong("build-system"),
+        help: ArgumentHelp(
+            "The build system, swift or xcodebuild, for an executable whose file name isn't one, such as a wrapper "
+                + "script, in place of buildSystem.",
+            valueName: "swift|xcodebuild"
+        ),
+        transform: { text in
+            guard let system = BuildSystem(written: text) else {
+                throw ValidationError("give swift or xcodebuild.")
+            }
+            return system
+        }
+    )
+    var buildSystem: BuildSystem?
+
+    @Option(
         name: .customLong("workspace"),
         help: ArgumentHelp(
             "The Xcode workspace to test, relative to the project's folder, in place of the workspace and project "
@@ -95,6 +113,15 @@ struct RunArguments: ParsableArguments {
     )
     var destinations: [String] = []
 
+    @Option(
+        name: .customLong("keep-log-folders"),
+        help: ArgumentHelp(
+            "How many runs' log folders to keep, this run's included, at least 2, in place of keepLogFolders.",
+            valueName: "count"
+        )
+    )
+    var keepLogFolders: Int?
+
     /// What `--workspace`, `--project`, `--scheme` and `--destination` give.
     var xcodebuild: XcodebuildChoice {
         XcodebuildChoice(workspace: workspace, project: project, scheme: scheme, destinations: destinations)
@@ -113,6 +140,12 @@ struct RunArguments: ParsableArguments {
         if let buildTimeout, !(buildTimeout > 0 && buildTimeout <= TestingArguments.longestTimeout) {
             throw ValidationError("--build-timeout must be a number of seconds above 0, and at most a day (86400).")
         }
+        try Self.refuse(keepLogFolders, of: "--keep-log-folders", outside: MuterConfiguration.logFolderCounts)
+    }
+
+    func set(in flags: inout KeyFlags) {
+        flags.buildSystem = buildSystem
+        flags.keepLogFolders = keepLogFolders
     }
 
     /// xcodebuild opens one workspace or project, and a blank value would give it none.

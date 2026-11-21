@@ -13,22 +13,16 @@ struct LoadConfiguration: MutationStep {
     ) async throws -> [MutationTestState.Change] {
         let configurationPath = configurationPath(state.runOptions)
         do {
-            // Before the checks, so they see the arguments the run tests with.
-            let configuration = try checked(
+            let given = try Self.refusingAnEmptyExclude(
                 try await readOrWorkOutConfiguration(at: configurationPath, state: state)
+            )
+            // The flags first, so that the xcodebuild options, the checks and every later step see the build system
+            // and the arguments the run tests with; the xcodebuild options before the checks.
+            let configuration = try checked(
+                Self.overridden(given, by: state.runOptions, gates: try gates(of: given, state: state))
                     .choosingXcodebuildOptions(state.runOptions.xcodebuild, in: fileManager.currentDirectoryPath)
             )
             let resolved = try await withResolvedExecutable(configuration)
-                .overriding(
-                    workers: state.runOptions.workers,
-                    timeout: state.runOptions.timeout,
-                    buildTimeout: state.runOptions.buildTimeout,
-                    failUnder: state.runOptions.failUnder,
-                    gates: try gates(of: configuration, state: state),
-                    propertyTests: state.runOptions.propertyTests,
-                    reports: state.runOptions.reports,
-                    exclude: state.runOptions.exclude
-                )
             if let reason = Self.valueOutOfRange(in: resolved) {
                 throw MuterError.configurationParsingError(reason: reason)
             }
@@ -147,16 +141,8 @@ struct LoadConfiguration: MutationStep {
         return configuration
     }
 
-    /// `configuration`, once checked: an empty `exclude` entry, a missing destination or a refused argument stops the
-    /// run.
+    /// `configuration`, once checked: a missing destination or a refused argument stops the run.
     private func checked(_ configuration: MuterConfiguration) throws -> MuterConfiguration {
-        // YAML reads an unquoted `- !/Stubs/` as a tag on an empty value.
-        if configuration.excludeFileList.contains(where: \.isEmpty) {
-            throw MuterError.configurationParsingError(
-                reason: "An `exclude` entry is empty. One that starts with ! must be quoted, as - \"!/Stubs/\"."
-            )
-        }
-
         guard isConfigurationValid(configuration) else {
             throw MuterError.configurationParsingError(
                 reason: "Give xcodebuild a destination to test on: `destination:` in the configuration, "

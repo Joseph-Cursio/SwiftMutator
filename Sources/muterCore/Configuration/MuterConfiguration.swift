@@ -10,12 +10,14 @@ struct MuterConfiguration: Equatable, Codable {
     /// File exclusion list (`exclude:`), with `--exclude`'s entries after the file's. An entry that starts with `!`
     /// keeps what it matches (`SourceFileExcludes`). A `var` only so `overriding` can copy `self` and add to it.
     var excludeFileList: [String]
-    /// Exclusion list of functions for Remove Side Effects.
-    let excludeCallList: [String]
+    /// Exclusion list of functions for Remove Side Effects (`excludeCalls:`), with `--exclude-calls`' entries after
+    /// the file's. A `var` only so `overriding` can copy `self` and add to it.
+    var excludeCallList: [String]
     /// A percentage from 0 to 100 (`coverageThreshold:`), the same for every build system: a file whose share of lines
     /// the tests ran with coverage on is at or below it is left out. 0, the default, leaves out the files no test
-    /// runs. A file with no lines to run is never left out.
-    let coverageThreshold: Double
+    /// runs. A file with no lines to run is never left out. A `var` only so `overriding` can copy `self` and change
+    /// just this field.
+    var coverageThreshold: Double
     // A `var` only so `withDefaultTestSuiteTimeout` can copy `self` and change just this field.
     // Rebuilding with `init` instead silently resets any field the call leaves out, as every parameter
     // has a default.
@@ -39,11 +41,13 @@ struct MuterConfiguration: Equatable, Codable {
     /// Whether a SwiftPM run's workers may share the mutated project's build rather than each have a clone
     /// (`workersShareBuild:`): `unset` and `enabled` when a direct run of the tests with no mutant on wrote nothing in
     /// the project, unless property reruns leave the direct runs (`propertyRerunsLeaveDirectRuns`), `disabled` never.
-    let workersShareBuild: ConfigurationSwitch
+    /// A `var` only so `overriding` can copy `self` and change just this field.
+    var workersShareBuild: ConfigurationSwitch
     /// Optional explicit build system from the `buildSystem:` config key. When set it overrides the
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that
-    /// restores env / forwards SIMCTL_CHILD_ vars) whose filename isn't literally `xcodebuild`/`swift`.
-    let explicitBuildSystem: BuildSystem?
+    /// restores env / forwards SIMCTL_CHILD_ vars) whose filename isn't literally `xcodebuild`/`swift`. A `var` only
+    /// so `overriding` can copy `self` and change just this field.
+    var explicitBuildSystem: BuildSystem?
     /// What xcodebuild opens, builds and tests on, as the `workspace`, `project`, `scheme` and `destination` keys give
     /// it. `LoadConfiguration` writes it into `testCommandArguments`, then clears it, so a results header records it in
     /// `arguments` alone (`choosingXcodebuildOptions(_:in:)`). A `var` only so that can copy `self` and change just
@@ -51,42 +55,46 @@ struct MuterConfiguration: Equatable, Codable {
     var xcodebuild: XcodebuildChoice
     /// Whether a mutant's test run stops at its first failed test (`stopAtFirstFailure:`), which already
     /// decides that the mutant is killed. `unset` leaves it to the default; see `stopsAtFirstFailure`. A `var` only so
-    /// `withoutStoppingAtFirstFailure` can copy `self` and change just this field.
+    /// `withoutStoppingAtFirstFailure` and `overriding` can copy `self` and change just this field.
     var stopAtFirstFailure: ConfigurationSwitch
     /// Whether one xcodebuild worker tests on a simulator SwiftMutator makes, rather than on the test command's
     /// destination (`oneWorkerSimulator:`): `unset` decides from the project and the baseline
     /// (`SimulatorWorkerSetup.oneWorkerPlan(for:state:)`), `enabled` whenever the destination is a simulator and there
     /// are 2 or more mutants to test, `disabled` never. Several workers test on simulators of their own whatever it
-    /// says.
-    let oneWorkerSimulator: ConfigurationSwitch
+    /// says. A `var` only so `overriding` can copy `self` and change just this field.
+    var oneWorkerSimulator: ConfigurationSwitch
     /// When a test is suspect (`suspectTestFilePercent:`, from 1 to 100, and `suspectTestMinimumFiles:`, at least 1):
     /// nil leaves each to `SuspectTestThresholds.standard`. They change no result already recorded, only what the
     /// reports say and which kills a later session tests again alone, so a resume lets them change
-    /// (`ResumeCheck.keysThatDontAffectOutcomes`), as it does `failUnder`.
-    let suspectTestFilePercent: Int?
-    let suspectTestMinimumFiles: Int?
+    /// (`ResumeCheck.keysThatDontAffectOutcomes`), as it does `failUnder`. Each a `var` only so `overriding` can copy
+    /// `self` and change just this field.
+    var suspectTestFilePercent: Int?
+    var suspectTestMinimumFiles: Int?
     /// How many mutants to test for each control run, a run with no mutant on among theirs (`controlRunEvery:`, a
     /// whole number, 0 for none): nil leaves it to `defaultMutantsPerControlRun`. A control run changes no mutant's
-    /// result, only which tests are suspect, so which kills are tested again alone, so a resume lets it change.
-    let controlRunEvery: Int?
+    /// result, only which tests are suspect, so which kills are tested again alone, so a resume lets it change. A `var`
+    /// only so `overriding` can copy `self` and change just this field.
+    var controlRunEvery: Int?
     /// How many kills a run tests again alone for only suspect tests failing for them (`suspectKillReruns:`, a whole
     /// number, 0 for none): nil leaves it to `defaultSuspectKillReruns`. It changes no result already recorded, so a
-    /// resume lets it change.
-    let suspectKillReruns: Int?
+    /// resume lets it change. A `var` only so `overriding` can copy `self` and change just this field.
+    var suspectKillReruns: Int?
     /// Whether every mutant's test run keeps its log (`keepAllLogs:`): `unset` and `disabled` keep a mutant's log only
     /// when its results line can't stand in for it, `enabled` keeps every log. See `MutationTestLog.isKept`. Which logs
-    /// are kept changes no result, so a resume lets it change.
-    let keepAllLogs: ConfigurationSwitch
+    /// are kept changes no result, so a resume lets it change. A `var` only so `overriding` can copy `self` and change
+    /// just this field.
+    var keepAllLogs: ConfigurationSwitch
     /// How many runs' log folders to keep in `<project>_muter_logs` (`keepLogFolders:`, a whole number, at least 2),
     /// this run's included, so the run before it is always kept; nil, the default, removes none. A run's folders are
     /// those of each of its sessions, and only a run with a results file counts. See `LogFolderPruning`. Which folders
-    /// are kept changes no result, so a resume lets it change.
-    let keepLogFolders: Int?
+    /// are kept changes no result, so a resume lets it change. A `var` only so `overriding` can copy `self` and change
+    /// just this field.
+    var keepLogFolders: Int?
     /// Whether the build phases of the copy's Xcode projects keep running SwiftLint (`keepSwiftLintPhases:`): `unset`
     /// and `disabled` turn it off in the copy, never in the project, `enabled` keeps it (`TurnOffSwiftLintPhases`).
     /// Each mutated file turns every rule off, so a phase only costs time on each build of the copy. It changes no
-    /// result, so a resume lets it change.
-    let keepSwiftLintPhases: ConfigurationSwitch
+    /// result, so a resume lets it change. A `var` only so `overriding` can copy `self` and change just this field.
+    var keepSwiftLintPhases: ConfigurationSwitch
     /// The percent, from 0 to 100, up to 6 decimals, below which a finished run's headline score fails it with status 2
     /// (`failUnder:`, `ScoreGate`); nil, the default, checks none. It changes no result, so a resume lets it change.
     /// A `var` only so `overriding` can copy `self` and change just this field.
@@ -120,18 +128,21 @@ struct MuterConfiguration: Equatable, Codable {
     /// property test is tested again, so the reports can tell "only by examples" from "by both" where a run stopped at
     /// its first failed test; under SwiftPM a kill whose recorded tests are all property tests, in a list cut short, is
     /// tested again with every test but them, each entry as `--skip <entry>` (`ExampleReruns`), to tell "only by
-    /// properties" from "by both". It changes no mutant's result, so a resume lets it change.
-    let propertyTestFilter: [String]?
+    /// properties" from "by both". It changes no mutant's result, so a resume lets it change. A `var` only so
+    /// `overriding` can copy `self` and change just this field.
+    var propertyTestFilter: [String]?
     /// How many times each survivor whose code ran is tested again with only the property tests `propertyTestFilter`
     /// selects, stopping at the first run that doesn't pass (`propertySurvivorReruns:`, a whole number, 0 for none);
     /// nil, the default, tests none again (`PropertySurvivorReruns`). A property test tries a sample of inputs, so a
     /// survivor may only have missed the one that tells it apart: a later run's failure says the law holds the change
-    /// and the generator rarely reaches it. It changes no mutant's result, so a resume lets it change.
-    let propertySurvivorReruns: Int?
+    /// and the generator rarely reaches it. It changes no mutant's result, so a resume lets it change. A `var` only so
+    /// `overriding` can copy `self` and change just this field.
+    var propertySurvivorReruns: Int?
     /// How many survivors a run tests again with the property tests (`propertySurvivorRerunLimit:`, a whole number, 0
     /// for none), over however many sessions it takes: nil leaves it to `defaultPropertySurvivorRerunLimit`. It
-    /// changes no result, so a resume lets it change.
-    let propertySurvivorRerunLimit: Int?
+    /// changes no result, so a resume lets it change. A `var` only so `overriding` can copy `self` and change just this
+    /// field.
+    var propertySurvivorRerunLimit: Int?
     /// Whether a line `FailedTestLine` matches shows a failed test, and whether the Swift runtime's trap message
     /// (`TrapLine`) or xcodebuild's restart line (`XcodebuildRestartLine`) shows a crash. Not a configuration key:
     /// false once a passing baseline, or a simulator worker's check run, has printed such a line, or one `CrashLine`
@@ -298,21 +309,19 @@ struct MuterConfiguration: Equatable, Codable {
         // Throws on a value that isn't a Boolean, so a typo is a configuration error rather than "unset".
         stopAtFirstFailure = try container.decode(ConfigurationSwitch.self, forKey: .stopAtFirstFailure)
         oneWorkerSimulator = try container.decode(ConfigurationSwitch.self, forKey: .oneWorkerSimulator)
-        suspectTestFilePercent = try Self.whole(forKey: .suspectTestFilePercent, in: 1 ... 100, in: container)
-        suspectTestMinimumFiles = try Self.whole(forKey: .suspectTestMinimumFiles, in: 1 ... Int.max, in: container)
-        controlRunEvery = try Self.whole(forKey: .controlRunEvery, in: 0 ... Int.max, in: container)
-        suspectKillReruns = try Self.whole(forKey: .suspectKillReruns, in: 0 ... Int.max, in: container)
+        suspectTestFilePercent = try Self.whole(forKey: .suspectTestFilePercent, in: Self.filePercents, in: container)
+        suspectTestMinimumFiles = try Self.whole(forKey: .suspectTestMinimumFiles, in: Self.minimumFiles, in: container)
+        controlRunEvery = try Self.whole(forKey: .controlRunEvery, in: Self.counts, in: container)
+        suspectKillReruns = try Self.whole(forKey: .suspectKillReruns, in: Self.counts, in: container)
         keepAllLogs = try container.decode(ConfigurationSwitch.self, forKey: .keepAllLogs)
-        keepLogFolders = try Self.whole(forKey: .keepLogFolders, in: 2 ... Int.max, in: container)
+        keepLogFolders = try Self.whole(forKey: .keepLogFolders, in: Self.logFolderCounts, in: container)
         keepSwiftLintPhases = try container.decode(ConfigurationSwitch.self, forKey: .keepSwiftLintPhases)
         failUnder = try Self.percent(forKey: .failUnder, in: container)
         gates = try Self.runGates(in: container)
         propertyTests = try Self.globs(forKey: .propertyTests, in: container)
         propertyTestFilter = try Self.globs(forKey: .propertyTestFilter, in: container)
-        propertySurvivorReruns = try Self.whole(forKey: .propertySurvivorReruns, in: 0 ... Int.max, in: container)
-        propertySurvivorRerunLimit = try Self.whole(
-            forKey: .propertySurvivorRerunLimit, in: 0 ... Int.max, in: container
-        )
+        propertySurvivorReruns = try Self.whole(forKey: .propertySurvivorReruns, in: Self.counts, in: container)
+        propertySurvivorRerunLimit = try Self.whole(forKey: .propertySurvivorRerunLimit, in: Self.counts, in: container)
         operators = try Self.operators(forKey: .operators, in: container)
         // A blank `operators:` is an empty list, not an unset key, which would use every operator.
         let isBlank = container.contains(.operators) ? try container.decodeNil(forKey: .operators) : false

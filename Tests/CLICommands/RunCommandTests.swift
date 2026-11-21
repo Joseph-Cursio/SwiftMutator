@@ -63,6 +63,7 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(reports: []), .make())
         XCTAssertNotEqual(Run.Options.make(projectFolder: URL(fileURLWithPath: "/work/MyApp")), .make())
         XCTAssertNotEqual(Run.Options.make(xcodebuild: XcodebuildChoice(scheme: "App")), .make())
+        XCTAssertNotEqual(Run.Options.make(keyFlags: KeyFlags(controlRunEvery: 0)), .make())
     }
 
     // Added to the configuration's `exclude`, on each command that discovers mutants.
