@@ -9,10 +9,15 @@ protocol WorkerSimulating: Sendable {
     func sweep(_ mutatedProject: URL) async
 
     /// `count` new simulators like the one `destination`, the run's first `-destination`, names, for the workers of a
-    /// run of `mutatedProject`, in worker order. Each is recorded as soon as simctl has made it, so that `removeAll()`
-    /// deletes it. Throws `WorkerSimulatorsUnavailable` when they can't all be made, once it has deleted those it made,
-    /// or a CancellationError, leaving them to `removeAll()`.
-    func prepare(_ count: Int, like destination: String, for mutatedProject: URL) async throws -> [WorkerSimulator]
+    /// run of `mutatedProject`, in worker order, with that one if it wasn't shut down, so that they were made anew
+    /// rather than cloned. Each is recorded as soon as simctl has made it, so that `removeAll()` deletes it. Throws
+    /// `WorkerSimulatorsUnavailable` when they can't all be made, once it has deleted those it made, or a
+    /// CancellationError, leaving them to `removeAll()`.
+    func prepare(
+        _ count: Int,
+        like destination: String,
+        for mutatedProject: URL
+    ) async throws -> PreparedWorkerSimulators
 
     /// Whether simctl lists an available simulator that `destination`, a `-destination` value, names
     /// (`SimulatorDestination.resolve(in:)`); false when it names none, or simctl can't list them.
@@ -37,6 +42,16 @@ struct WorkerSimulator: Equatable, Sendable {
     /// The `-destination` that names it: `platform=iOS Simulator,id=<udid>`, or `id=<udid>` when neither the run's
     /// destination nor the runtime names the platform.
     let destination: String
+}
+
+/// The simulators `prepare` made for a run's workers, and how.
+struct PreparedWorkerSimulators: Equatable, Sendable {
+    /// In worker order.
+    let simulators: [WorkerSimulator]
+    /// The simulator the run's first `-destination` names, as simctl listed it, when it wasn't shut down, so that
+    /// `simctl clone` couldn't copy it: the workers' were then made anew from its device type and runtime, without its
+    /// settings and data. Nil when they are its clones.
+    var baseNotShutDown: SimctlDevice?
 }
 
 /// Why a run's workers can't have simulators of their own, completing a sentence such as "Testing one mutant at a
@@ -152,7 +167,11 @@ final class WorkerSimulators: WorkerSimulating, @unchecked Sendable { // `made` 
         await delete(leftovers.map(\.udid))
     }
 
-    func prepare(_ count: Int, like destination: String, for mutatedProject: URL) async throws -> [WorkerSimulator] {
+    func prepare(
+        _ count: Int,
+        like destination: String,
+        for mutatedProject: URL
+    ) async throws -> PreparedWorkerSimulators {
         guard let owner else {
             throw WorkerSimulatorsUnavailable(reason: "SwiftMutator can't read when its own process started, which "
                 + "names its simulators")
@@ -166,7 +185,8 @@ final class WorkerSimulators: WorkerSimulating, @unchecked Sendable { // `made` 
             let name = WorkerSimulatorName(projectHash: project, owner: owner, worker: worker).text
             // A booted simulator can't be cloned (SimError 405), and SwiftMutator never shuts the user's down: a new
             // one of its kind is made instead, without the user's simulator data. The baseline, the user's own test
-            // command, may still shut it down, as xcodebuild's parallel testing does to clone it.
+            // command, may still shut it down, as xcodebuild's parallel testing does to clone it. It is given back, so
+            // that a failed check run can say how a later run can clone it.
             let arguments = base.isShutdown
                 ? ["clone", base.udid, name]
                 : ["create", name, base.deviceTypeIdentifier, base.runtimeIdentifier]
@@ -182,7 +202,7 @@ final class WorkerSimulators: WorkerSimulating, @unchecked Sendable { // `made` 
             let named = platform.map { "platform=\($0)," } ?? ""
             simulators.append(WorkerSimulator(udid: udid, name: name, destination: "\(named)id=\(udid)"))
         }
-        return simulators
+        return PreparedWorkerSimulators(simulators: simulators, baseNotShutDown: base.isShutdown ? nil : base)
     }
 
     func listsASimulator(namedBy destination: String) async -> Bool {

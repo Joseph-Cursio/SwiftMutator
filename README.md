@@ -2371,8 +2371,11 @@ worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own), below)
   runs. SwiftMutator never shuts your own simulator down: if it is shut down, each is a clone of
   it, with its settings and data; if it is booted, a booted simulator can't be cloned, so each is
   a new one of its kind and runtime, without your simulator's data, such as its locale, keychain,
-  permissions and installed apps. The baseline is your own test command, though, so with parallel
-  testing on, xcodebuild shuts your simulator down to clone it, as it does without SwiftMutator. Every one is deleted when the run ends (see [Stopping a run](#stopping-a-run)).
+  permissions and installed apps; if a run with no mutant on then fails, the run says how to let
+  the next one clone it (see the fallback below). The baseline is your own test command, though,
+  so with parallel testing on, xcodebuild shuts your simulator down to clone it, as it does
+  without SwiftMutator. Every one is deleted when the run ends (see [Stopping a
+  run](#stopping-a-run)).
 - **One build.** Every worker tests in the mutated project, from the build the baseline made, so
   no copy is made or built. Each has its own `.xctestrun`, `muter.xctestrun` for worker 0 and
   `muter-worker<n>.xctestrun` for the others, which its mutant is switched on in, and its own
@@ -2403,6 +2406,21 @@ worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own), below)
   ```
   👷 Testing one mutant at a time on the test command's destination: worker 0's run with no mutant on, on its simulator, didn't pass (its log is no-mutant run worker 0.log).
   ```
+
+  If the simulators were new ones because your simulator wasn't shut down, and a run with no
+  mutant on failed on its tests or ran past `buildTimeout`, rather than on a simulator that was
+  gone or failed twice to launch it, the reason goes on to name your simulator, the state it was
+  in when they were made, and its UDID, as the tests may need its settings and data:
+
+  ```
+  👷 Testing one mutant at a time, though 4 workers were asked for: worker 2's run with no mutant on, on its simulator, didn't pass (its log is no-mutant run worker 2.log). Your iPhone 17 Pro was booted when the workers' simulators were made, so they were new ones, without its settings and data: if it is booted once this run has ended, shut it down (`xcrun simctl shutdown 693E96A4-A11F-4223-B131-CFC50C9A17B8`), and the next run clones it.
+  ```
+
+  A lone worker's says "the worker's simulator was made, so that was a new one". Whether your
+  simulator is booted once the run has ended depends on the run: tests on your destination boot
+  it, but under parallel testing xcodebuild shuts it down to clone it, so the next run may clone
+  it with nothing for you to do. Only this line says why a run fell back: the results file
+  records how many workers it used, not why.
 
   A Mac, Mac Catalyst, physical-device or `generic/…` destination always tests one at a time: a
   Mac app's test runs share its `UserDefaults`, saved state and container, and SwiftMutator makes

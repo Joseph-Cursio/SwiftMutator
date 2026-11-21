@@ -33,6 +33,9 @@ struct SimulatorWorkerSetup {
     /// The simulators made for a run's workers, in worker order, or why it has none though it was to have some.
     struct Simulators: Sendable {
         var made: [WorkerSimulator] = []
+        /// The simulator the run's first `-destination` names, when `made` were made anew because it wasn't shut down
+        /// (`PreparedWorkerSimulators.baseNotShutDown`), which a failed check run's reason then names.
+        var baseNotShutDown: SimctlDevice?
         var unavailable: String?
         /// Whether the baseline decides whether to keep a lone worker's simulator, before its check run
         /// (`checkedAgainstTheBaseline(_:log:)`).
@@ -181,8 +184,10 @@ struct SimulatorWorkerSetup {
         interruption.afterWorkEnds { [simulators] in await simulators.removeAll() }
         do {
             let mutatedProject = state.mutatedProjectDirectoryURL
-            return try await Simulators(
-                made: workerSimulators.prepare(count, like: destination, for: mutatedProject),
+            let prepared = try await workerSimulators.prepare(count, like: destination, for: mutatedProject)
+            return Simulators(
+                made: prepared.simulators,
+                baseNotShutDown: prepared.baseNotShutDown,
                 checkedAgainstBaseline: checkedAgainstBaseline
             )
         } catch let unavailable as WorkerSimulatorsUnavailable {
@@ -260,7 +265,10 @@ struct SimulatorWorkerSetup {
         // The lowest-numbered failure, so the same worker is named whichever run finished first.
         if let failed = runs.first(where: { $0.outcome != .passed || $0.timedOut }) {
             return try await fallingBack(
-                after: failed, keptLog: logs[failed.worker] != nil, configuration: configuration
+                after: failed,
+                keptLog: logs[failed.worker] != nil,
+                simulators: simulators,
+                configuration: configuration
             )
         }
         // The runs that printed a line shaped like a failed test or a crash, each with the first such line.

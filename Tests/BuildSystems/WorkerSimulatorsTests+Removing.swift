@@ -11,7 +11,7 @@ extension WorkerSimulatorsTests {
             }
         }
         let simulators = makeSimulators()
-        let made = try await simulators.prepare(2, like: "id=\(iPhone17Pro)", for: mutatedProject)
+        let made = try await simulators.prepare(2, like: "id=\(iPhone17Pro)", for: mutatedProject).simulators
         let commandsBefore = simctl.commands.count
 
         await simulators.removeAll()
@@ -39,7 +39,7 @@ extension WorkerSimulatorsTests {
             }
         }
         let simulators = makeSimulators()
-        let made = try await simulators.prepare(2, like: "id=\(iPhone17Pro)", for: mutatedProject)
+        let made = try await simulators.prepare(2, like: "id=\(iPhone17Pro)", for: mutatedProject).simulators
         await simulators.removeAll()
         XCTAssertEqual(simulators.recorded, made.map(\.udid))
         simctl.answering { _ in nil }

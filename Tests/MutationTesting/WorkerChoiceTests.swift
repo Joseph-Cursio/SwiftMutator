@@ -151,6 +151,31 @@ final class WorkerChoiceTests: XCTestCase {
         XCTAssertEqual(choice.sentence, "👷 Testing one mutant at a time instead: the reason.")
     }
 
+    // A failed check run's reason can end with a sentence of its own, on how the next run can clone the destination's
+    // simulator (`SimulatorWorkerSetup.cloningHint(for:simulators:)`): each form ends it with one full stop.
+    func test_aReasonEndingInASentenceOfItsOwn_endsWithOneFullStop_inEveryForm() {
+        let reason = "worker 0's run with no mutant on, on its simulator, didn't pass (its log is no-mutant run worker "
+            + "0.log). Your iPhone 17 was booted when the workers' simulators were made, so they were new ones, "
+            + "without its settings and data: if it is booted once this run has ended, shut it down "
+            + "(`xcrun simctl shutdown 1A2B`), and the next run clones it"
+        let choices = [
+            WorkerChoice(asked: 2, used: 1, unsupportedReason: reason, mutantsToTest: 40, fellBack: true),
+            WorkerChoice(asked: 1, used: 1, unsupportedReason: reason, mutantsToTest: 40, fellBack: true),
+            WorkerChoice(
+                asked: 4, used: 1, unsupportedReason: reason, mutantsToTest: 90, fellBack: true, isDefaultCount: true
+            ),
+        ]
+
+        XCTAssertEqual(choices.map(\.sentence), [
+            "👷 Testing one mutant at a time, though 2 workers were asked for: \(reason).",
+            "👷 Testing one mutant at a time on the test command's destination: \(reason).",
+            "👷 Testing one mutant at a time instead: \(reason).",
+        ])
+        for sentence in choices.compactMap(\.sentence) {
+            XCTAssertTrue(sentence.hasSuffix("the next run clones it."), sentence)
+        }
+    }
+
     func test_theDefaultCount_isOnlyThatOfASwiftPMRunWithoutOne() {
         current.processorCount = 18
         let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])

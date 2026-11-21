@@ -187,4 +187,23 @@ extension PerformMutationTestingLoneWorkerTests {
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self), [])
         XCTAssertFalse(ioDelegate.methodCalls.contains { $0.hasPrefix("runTestSuite") })
     }
+
+    // As with several workers: a simulator made anew, as the destination's wasn't shut down, lacks its settings and
+    // data, so a failed check run says how the next run can clone it, of the one simulator made.
+    func test_oneWorker_aFailedCheckRun_onASimulatorMadeAnew_saysHowTheNextRunCanCloneTheDestinations() async throws {
+        ioDelegate.testRunsWithoutBuildingWritingTo["no-mutant run worker 0"] = (.failed, "** TEST FAILED **")
+        workerSimulators.preparingAnew(from: .iPhone17Pro("Booted"))
+        let choices = sentChoices()
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(choices().map(\.sentence), [
+            "👷 Testing one mutant at a time on the test command's destination: worker 0's run with no mutant on, on "
+                + "its simulator, didn't pass (its log is no-mutant run worker 0.log). Your iPhone 17 Pro was booted "
+                + "when the worker's simulator was made, so that was a new one, without its settings and data: if it "
+                + "is booted once this run has ended, shut it down "
+                + "(`xcrun simctl shutdown 693E96A4-A11F-4223-B131-CFC50C9A17B8`), and the next run clones it.",
+        ])
+        assertTestedOnTheDestination()
+    }
 }
