@@ -78,10 +78,15 @@ enum RunEvent {
     case timedTestRunStopped(seconds: TimeInterval, log: String?)
     /// The run stopped before its first mutant, and recorded why in the results file at `path` (`ResultsStopped`).
     case stoppedRunRecorded(path: String)
-    /// More than one worker tests mutants through `swift test`, so their tests share `UserDefaults.standard` (#92).
+    /// More than one worker tests mutants through `swift test`, or runs XCTest tests or Linux tests directly, so their
+    /// tests share `UserDefaults.standard` (#92, `DirectTestRun.isolatesUserDefaults`).
     case workersShareUserDefaults
     /// A direct run of the tests, with no mutant on, changed `path` in the project, so workers keep a clone each.
     case testBundlesWroteInTheProject(path: String)
+    /// A direct run of the tests, with no mutant on, wrote nothing in the project, but property and example reruns of
+    /// its XCTest tests run `swift test`, in each worker's own folder, so workers keep a clone each
+    /// (`MuterConfiguration.propertyRerunsLeaveDirectRuns`).
+    case propertyRerunsKeepClones
     /// The build failed on `count` mutants' code, which `CompileRecovery` took out, before it builds again. Only a
     /// build that passes shows they were at fault: the project itself may not compile.
     case buildingAgainWithoutMutants(count: Int)

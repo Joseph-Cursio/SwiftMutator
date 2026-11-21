@@ -52,15 +52,15 @@ extension PerformMutationTesting {
         let direct: DirectTestRun
         switch await directTestRun(configuration, state.mutatedProjectDirectoryURL) {
         case let .success(probed):
-            direct = probed
+            direct = probed.withXCTestBundles(ranIn: baselineLog)
 
         case let .failure(unavailable):
             try Task.checkCancellation()
             return unavailable.reason.map(notDirect) ?? notRunDirectly
         }
         try Task.checkCancellation()
-        if DirectTestRun.ranXCTestTests(in: baselineLog) {
-            return notDirect("the baseline ran XCTest tests, which only `swift test` runs")
+        if let reason = direct.whyXCTestTestsNeedSwiftTest {
+            return notDirect(reason)
         }
 
         let directConfiguration = configuration.withDirectTestRun(direct)

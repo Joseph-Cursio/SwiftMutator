@@ -206,9 +206,9 @@ extension PerformMutationTesting {
             if configuration.testSuiteTimeout == nil {
                 testRunSeconds = direct.seconds
             }
-            // Only a direct run's tests have `UserDefaults` of their own. Sent on Linux too, which never runs directly,
-            // and which keeps the shared domain in `~/.config/<package>-test-runner.plist`.
-            if pool.count > 1, configuration.directTestRun == nil {
+            // Only a direct run's Swift Testing tests on macOS have `UserDefaults` of their own. XCTest tests run by
+            // `xctest` share its domain, and Linux keeps the shared domain in `~/.config/<target>-test-runner.plist`.
+            if pool.count > 1, configuration.directTestRun?.isolatesUserDefaults != true {
                 events.send(.workersShareUserDefaults)
             }
         }
@@ -247,6 +247,8 @@ extension PerformMutationTesting {
     /// on one worker, which its time limit and its results file's header must say. A stop meanwhile throws a
     /// CancellationError, with nothing yet to report. When `direct` wrote nothing, a SwiftPM run needs no clones: its
     /// workers beyond the first are only names, in `session` as clones are, and test from the mutated project's build.
+    /// Unless property reruns would run `swift test` in each worker's folder (`propertyRerunsLeaveDirectRuns`), which
+    /// the run says.
     private func workers(
         testing plan: ResumePlan,
         on simulators: SimulatorWorkerSetup.Simulators,
@@ -254,7 +256,11 @@ extension PerformMutationTesting {
         state: AnyMutationTestState,
         session: TestingSession
     ) async throws -> SimulatorWorkerSetup.Workers {
-        let (configuration, mayShareBuild) = (direct.configuration, direct.wroteNothing)
+        let configuration = direct.configuration
+        let mayShareBuild = direct.wroteNothing && !configuration.propertyRerunsLeaveDirectRuns
+        if direct.wroteNothing, !mayShareBuild {
+            events.send(.propertyRerunsKeepClones)
+        }
         let workers = try await simulatorWorkerSetup.workers(
             configuration.workerCount(testing: plan.toRun.count, sharingBuild: mayShareBuild),
             on: simulators,

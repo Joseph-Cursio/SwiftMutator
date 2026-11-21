@@ -51,7 +51,8 @@ extension MuterConfiguration {
 
     /// This configuration with its runs testing only what `propertyTestFilter` selects: `swift test`, and the test
     /// bundles run directly, with `--filter` for each entry, and xcodebuild with `-only-testing:`. nil without a
-    /// filter, or for a build system that takes neither (`propertyRerunsUnsupportedReason`).
+    /// filter, or for a build system that takes neither (`propertyRerunsUnsupportedReason`). Bundles run directly
+    /// with XCTest tests run through `swift test` instead (`DirectTestRun.filtered(by:)`).
     func withPropertyTestFilter() -> Self? {
         guard let filter = propertyTestFilter, !filter.isEmpty, propertyRerunsUnsupportedReason == nil else {
             return nil
@@ -60,7 +61,7 @@ extension MuterConfiguration {
         switch buildSystem {
         case .swift:
             copy.testFilterArguments = filter.flatMap { ["--filter", $0] }
-            copy.directTestRun = directTestRun?.adding(copy.testFilterArguments)
+            copy.directTestRun = directTestRun?.filtered(by: copy.testFilterArguments)
 
         case .xcodebuild:
             copy.testFilterArguments = filter.map { "-only-testing:\($0)" }
@@ -72,16 +73,24 @@ extension MuterConfiguration {
     }
 
     /// This configuration with its runs testing everything but what `propertyTestFilter` selects: `swift test`, and the
-    /// test bundles run directly, with `--skip` for each entry. nil without a filter, or for any other build system,
-    /// whose runs don't stop at their first failed test, so record no list cut short that this would settle.
+    /// test bundles run directly, with `--skip` for each entry, as `withPropertyTestFilter()` has them. nil without a
+    /// filter, or for any other build system, whose runs don't stop at their first failed test, so record no list cut
+    /// short that this would settle.
     func withPropertyTestsSkipped() -> Self? {
         guard let filter = propertyTestFilter, !filter.isEmpty, propertyRerunsUnsupportedReason == nil,
               buildSystem == .swift
         else { return nil }
         var copy = self
         copy.testFilterArguments = filter.flatMap { ["--skip", $0] }
-        copy.directTestRun = directTestRun?.adding(copy.testFilterArguments)
+        copy.directTestRun = directTestRun?.filtered(by: copy.testFilterArguments)
         return copy
+    }
+
+    /// Whether the property and example reruns leave the bundles run directly for `swift test`, as a run of XCTest
+    /// tests does with a test filter (`withPropertyTestFilter()`). `swift test` then runs in each worker's folder, so
+    /// workers can't share one build.
+    var propertyRerunsLeaveDirectRuns: Bool {
+        directTestRun?.runsXCTest == true && withPropertyTestFilter() != nil
     }
 
     /// This configuration with an xcodebuild mutant's runs testing as `worker` says.

@@ -7,11 +7,14 @@ final class SharedBuildRunTests: MuterTestCase {
     private let project = URL(fileURLWithPath: "/project_mutated.noindex")
     private let named = URL(fileURLWithPath: "/project_mutated_worker1.noindex")
     private let direct = DirectTestRun(
-        helper: "/toolchain/swiftpm-testing-helper",
+        platform: .macOS(
+            helper: "/toolchain/swiftpm-testing-helper",
+            platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
+            xctest: nil
+        ),
         productsFolder: ".build/out/Products/Debug",
         bundles: ["CoreTests"],
         testFiles: [:],
-        platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
         arguments: ["--skip-build"]
     )
     private var clonedCounts: [Int] = []
@@ -93,6 +96,62 @@ final class SharedBuildRunTests: MuterTestCase {
         XCTAssertEqual(said, ["Tests"])
         XCTAssertEqual(Set(ioDelegate.configurations.map(\.directTestRun?.sharedBuild)), [nil])
         XCTAssertEqual(choices.map(\.sharesBuild), [false])
+    }
+
+    // Linux's clones are full copies, which a direct run of the runners saves as macOS's helper runs do (#281).
+    func test_aLinuxDirectRunThatWroteNothing_needsNoClone() async throws {
+        let linux = DirectTestRun(
+            platform: .linux,
+            productsFolder: ".build/out/Products/Debug-linux-x86_64",
+            bundles: ["CoreTests"],
+            testFiles: [:],
+            arguments: ["--skip-build"]
+        )
+        current.directTestRun = { _, _ in .success(linux) }
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(clonedCounts, [])
+        XCTAssertEqual(
+            ioDelegate.configurations.map(\.directTestRun), [linux, linux].map { $0.sharingBuild(of: project) }
+        )
+        XCTAssertEqual(choices.map(\.sharesBuild), [true])
+    }
+
+    // A property rerun of XCTest tests runs `swift test`, in each worker's own folder, so the workers get clones.
+    func test_anXCTestDirectRun_withPropertyReruns_getsClones() async throws {
+        let xctestRun = DirectTestRun(
+            platform: .macOS(helper: "/h", platformDeveloperFolder: "/P", xctest: "/Xcode/usr/bin/xctest"),
+            productsFolder: ".build/out/Products/Debug",
+            bundles: ["CoreTests"],
+            testFiles: [:],
+            arguments: ["--skip-build"]
+        )
+        current.directTestRun = { _, _ in .success(xctestRun) }
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift",
+            arguments: ["test"],
+            mutationTestWorkers: 2,
+            propertyTests: ["*Properties*"],
+            propertyTestFilter: ["Properties"]
+        )
+        ioDelegate.baselineTestLog = """
+            Test Suite 'CoreTests.xctest' passed at 2026-11-20 17:00:00.000.
+            \t Executed 4 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds
+            ✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
+            """
+        ioDelegate.testRunsWithoutBuilding = [(.passed, ioDelegate.baselineTestLog)]
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        let said = Locked(0)
+        whenSent(.propertyRerunsKeepClones) { _ in said.change { $0 += 1 } }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(clonedCounts, [1])
+        XCTAssertEqual(choices.map(\.sharesBuild), [false])
+        XCTAssertEqual(said.value, 1, "the run says why the workers get clones")
+        XCTAssertEqual(ioDelegate.configurations.first?.directTestRun?.xctestBundles, ["CoreTests"])
     }
 
     // No clone to pay back, so the count needs no more mutants than it has workers.

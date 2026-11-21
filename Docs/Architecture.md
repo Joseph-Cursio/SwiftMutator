@@ -122,8 +122,9 @@ switch, and the copy is built once.
   `SIMCTL_CHILD_<ID>=YES` for a simulator, and writes the ID into the worker's `.xctestrun` file
   ([`BuildSystems/Xcode/XCTestRun.swift`](../Sources/muterCore/BuildSystems/Xcode/XCTestRun.swift)).
 
-So no mutant needs a build of its own. A SwiftPM mutant runs `swift test --skip-build`, or, on
-macOS with Swift Testing, its test bundles directly
+So no mutant needs a build of its own. A SwiftPM mutant runs `swift test --skip-build`, or its test
+bundles directly, with `xctest` and `swiftpm-testing-helper` on macOS and each `<target>-test-runner`
+on Linux
 ([`BuildSystems/Swift/DirectTestRun.swift`](../Sources/muterCore/BuildSystems/Swift/DirectTestRun.swift)).
 An xcodebuild mutant runs `test-without-building` on the `.xctestrun` file.
 
@@ -160,7 +161,9 @@ that isn't set:
   nothing in the copy
   ([`BuildSystems/Swift/ProjectFiles.swift`](../Sources/muterCore/BuildSystems/Swift/ProjectFiles.swift)):
   every worker then tests from the copy's build (`DirectTestRun.sharedBuild`), and is only a name for
-  what is its own beside the copy.
+  what is its own beside the copy. Clones are still made when the direct run includes XCTest tests and
+  `propertyTestFilter` is set, since property and example reruns then run `swift test` in each worker's
+  own folder (`MuterConfiguration.propertyRerunsLeaveDirectRuns`).
 - xcodebuild: every worker tests the one build, each on a simulator of its own
   ([`SimulatorWorkerSetup.swift`](../Sources/muterCore/MutationSteps/SimulatorWorkerSetup.swift),
   [`BuildSystems/Xcode/WorkerSimulators.swift`](../Sources/muterCore/BuildSystems/Xcode/WorkerSimulators.swift)).

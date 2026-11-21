@@ -10,6 +10,8 @@ final class DirectTestRunTests: MuterTestCase {
     /// executable is its second argument. A bundle that waits gives a stopped run time to stop before it ends. One
     /// named for `UserDefaults` says what its domain, its process's name, holds, then writes to it.
     var helper: URL { directory.appendingPathComponent("swiftpm-testing-helper") }
+    /// Stands for `xctest`: says what it was given, then runs its bundle's XCTest "tests", named for what they do.
+    var xctest: URL { directory.appendingPathComponent("xctest") }
 
     // A worker with no clone starts in the shared project, and runs its build, with what's its own named after it.
     func test_aSharedBuild_isRunFromTheProject_withTheWorkersOwnFiles() throws {
@@ -65,6 +67,8 @@ final class DirectTestRunTests: MuterTestCase {
         echo "✔ Test run with 2 tests in 1 suite passed after 0.1 seconds."
         """.write(to: helper, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+        try Self.fakeXCTest.write(to: xctest, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: xctest.path)
     }
 
     // MARK: - Runs
@@ -233,7 +237,7 @@ final class DirectTestRunTests: MuterTestCase {
     // MARK: - Helpers
 
     /// Skips a test of the tests' `UserDefaults` domains where there is no `defaults` to read and remove them with, as
-    /// on Linux, where direct test runs aren't made and `removeDefaultsDomain(_:)` does nothing.
+    /// on Linux, where direct test runs make no helper link and `removeDefaultsDomain(_:)` does nothing.
     func skipUnlessDefaultsIsThere() throws {
         try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: "/usr/bin/defaults"), "no /usr/bin/defaults")
     }
@@ -254,14 +258,19 @@ final class DirectTestRunTests: MuterTestCase {
         return String(lossyUTF8: data)
     }
 
-    func makeDirectTestRun(bundles: [String], testFiles: [String: [String]] = [:]) -> DirectTestRun {
+    func makeDirectTestRun(
+        bundles: [String],
+        testFiles: [String: [String]] = [:],
+        xctestBundles: Set<String> = [],
+        arguments: [String] = ["--skip-build", "--filter", "Core"]
+    ) -> DirectTestRun {
         DirectTestRun(
-            helper: helper.path,
+            platform: .macOS(helper: helper.path, platformDeveloperFolder: "/Developer", xctest: xctest.path),
             productsFolder: ".build/out/Products/Debug",
             bundles: bundles,
             testFiles: testFiles,
-            platformDeveloperFolder: "/Developer",
-            arguments: ["--skip-build", "--filter", "Core"]
+            arguments: arguments,
+            xctestBundles: xctestBundles
         )
     }
 
@@ -272,7 +281,8 @@ final class DirectTestRunTests: MuterTestCase {
         bundles: [String],
         testFiles: [String: [String]] = [:],
         stoppingAtFirstFailure: Bool = false,
-        in folder: URL? = nil
+        in folder: URL? = nil,
+        with direct: DirectTestRun? = nil
     ) async throws -> TestRun {
         current.process = { MuterProcessFactory.makeProcess() }
         current.writeFile = World().writeFile
@@ -283,7 +293,7 @@ final class DirectTestRunTests: MuterTestCase {
             arguments: ["test", "--filter", "Core"],
             testSuiteTimeOut: 60,
             stopAtFirstFailure: stoppingAtFirstFailure ? .enabled : .disabled
-        ).withDirectTestRun(makeDirectTestRun(bundles: bundles, testFiles: testFiles))
+        ).withDirectTestRun(direct ?? makeDirectTestRun(bundles: bundles, testFiles: testFiles))
         let mutant = try MutationSchema.make(filePath: "/path/Sample.swift", position: .init(line: 1))
         let workingDirectory = try folder ?? XCTUnwrap(worker)
         let run = Task { [sut] in
