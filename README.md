@@ -456,8 +456,9 @@ example, so that removing its `# ` sets it. For a package, it starts:
 # runs them. It must be set.
 executable: /usr/bin/swift
 
-# What executable is given to run the tests. With xcodebuild they must include -destination, and
-# mutants are tested on the first one. They must be set.
+# What executable is given to run the tests. With xcodebuild they must include -destination, unless
+# the destination key gives it, and mutants are tested on the first one; the workspace, project,
+# scheme and destination keys are added to them. They must be set.
 arguments:
 - test
 
@@ -1799,13 +1800,17 @@ flag, as a plain `init` would write in the folder the command was given in.
 
 A run is still refused when there is nothing to work a test command out from (no `Package.swift`,
 Xcode workspace or Xcode project at the top of the folder, or no `swift` or `xcodebuild` on `PATH`),
-when there are two workspaces, or two projects and no workspace, and when `-c` names a file, or a
-folder, that holds no configuration. The results file's header records that the configuration was
-worked out (`configurationWorkedOut`). A resume works it out again and compares it key by key, as any
-configuration, with the run's options in: one refused for a change says which session worked its
-configuration out, and one whose configuration comes from a file now, or from none, with nothing
-that changes a result, says so and goes ahead. Projects whose guess can change, as the newest simulator does
-when another runtime is installed, are better off with the file `init` writes, committed.
+when there are two workspaces, or two projects and no workspace, and no `--workspace` or `--project`
+names one, and when `-c` names a file, or a folder, that holds no configuration. `--workspace`,
+`--project`, `--scheme` and `--destination` take the place of what the run would work out, which it
+then doesn't look for: a scheme given isn't a guess, and the line names the command the run tests
+with. A `--workspace` or `--project` that names none at the top of the folder is refused. The
+results file's header records that the configuration was worked out (`configurationWorkedOut`).
+A resume works it out again and compares it key by key, as any configuration, with the run's
+options in: one refused for a change says which session worked its configuration out, and one
+whose configuration comes from a file now, or from none, with nothing that changes a result, says
+so and goes ahead. Projects whose guess can change, as the newest simulator does when another
+runtime is installed, are better off with the file `init` writes, committed.
 
 Every key but `executable` and `arguments` can be left out. *Build systems* says which test
 commands a key does anything for: SwiftPM is `swift test`, or a wrapper with `buildSystem: swift`;
@@ -1815,8 +1820,12 @@ as it is.
 | Key | Meaning | Default | Build systems |
 |---|---|---|---|
 | `executable` | The program that runs your tests, such as `/usr/bin/swift` or `/usr/bin/xcodebuild`, or a script that runs them. A name without a `/`, such as `swift`, is looked up on `PATH` when the run starts | None: it must be set | All |
-| `arguments` | What `executable` is given to run the tests, such as `[test]` for `swift`. With xcodebuild they must include `-destination`, the first `-destination` is the one mutants are tested on, and a mutant's run keeps most of the others: see [xcodebuild's arguments](#xcodebuilds-arguments) | None: it must be set | All |
+| `arguments` | What `executable` is given to run the tests, such as `[test]` for `swift`. With xcodebuild they must include `-destination`, unless `destination` or `--destination` gives it, the first `-destination` is the one mutants are tested on, a mutant's run keeps most of the others, and `workspace`, `project`, `scheme` and `destination` are added to them: see [xcodebuild's arguments](#xcodebuilds-arguments) | None: it must be set | All |
 | `buildSystem` | `swift` or `xcodebuild`, for an `executable` whose file name isn't, such as a wrapper script; any other value refuses the run | From `executable`'s file name: `swift`, `xcodebuild`, or another command | All |
+| `workspace` | The Xcode workspace xcodebuild opens, as `-workspace` takes it, relative to the project's folder; not with `project`. It is added to `arguments`, which may name the same one, but not another, nor a project. See [xcodebuild's arguments](#xcodebuilds-arguments) | What `arguments` give | xcodebuild |
+| `project` | The Xcode project xcodebuild opens, as `-project` takes it, relative to the project's folder; not with `workspace`. It is added to `arguments`, which may name the same one, but not another, nor a workspace | What `arguments` give | xcodebuild |
+| `scheme` | The scheme xcodebuild builds and tests, as `-scheme` takes it. It is added to `arguments`, which may name the same one, but not another | What `arguments` give | xcodebuild |
+| `destination` | Where xcodebuild tests, as `-destination` takes it, or a list of them: mutants are tested on the first. They are added to `arguments`, which may give the same ones, in the same order, but not others | The `-destination`s in `arguments` | xcodebuild |
 | `exclude` | Paths, path fragments and globs to leave out of the files mutated, besides the defaults; an entry that starts with `!` keeps what it matches. See [Choosing the files](#choosing-the-files) | None besides the defaults | All |
 | `excludeCalls` | Names of functions whose calls `RemoveSideEffects` never removes, such as a logging function. Code inside those functions is still mutated, and every overload of a name is matched | None | All |
 | `coverageThreshold` | A percentage from 0 to 100, which a value outside refuses: a file whose share of lines the tests ran is at or below it is left out. A file with no lines to run is never left out. `--skip-coverage` turns coverage off | `0`: only the files no test runs are left out | SwiftPM and xcodebuild; other commands gather no coverage |
@@ -1848,7 +1857,10 @@ and `run-without-mutating`, set `mutationTestWorkers` and `mutationTestTimeout`
 `failUnder`, `--property-tests G` sets `propertyTests`, `--report format:path` sets `reports`, and
 `--operators` and `--skip-operators` choose the operators (see
 [Choosing the operators](#choosing-the-operators)). `--build-timeout S`, on those and
-`mutate-without-running`, sets `buildTimeout`, and `--exclude`, on `run` and
+`mutate-without-running`, sets `buildTimeout`, and `--workspace`, `--project`, `--scheme` and
+`--destination`, on the same three, take the place of `workspace`, `project`, `scheme` and
+`destination`, and of the same options in `arguments` (see
+[xcodebuild's arguments](#xcodebuilds-arguments)). `--exclude`, on `run` and
 `mutate-without-running`, adds an entry to `exclude`. The other keys have no flag (see
 [Commands and flags](#commands-and-flags)). `--workers` must be at least 1, and `--timeout` and
 `--build-timeout` above 0 and at most a day, 86,400 seconds, as their keys must be; a flag's value
@@ -1905,6 +1917,35 @@ error, 255, whose reason names the argument and says what to do instead:
 - `-resultBundlePath`, as the coverage run, the build and the baseline would write one bundle, and
   xcodebuild fails a run whose bundle is already there;
 - `-enumerate-tests`, which runs no test, so every mutant would survive.
+
+The workspace or project, the scheme and the destinations can also be given apart from
+`arguments`: by the `workspace`, `project`, `scheme` and `destination` keys, or for one run by
+`--workspace`, `--project`, `--scheme` and `--destination`, which is repeatable
+([#262](https://github.com/Joseph-Cursio/SwiftMutator/issues/262)). SwiftMutator writes them into
+`arguments` as the run starts, before it checks them, so all of the above holds for them:
+
+- **The flag wins.** A flag replaces its key and every occurrence of its option in `arguments`,
+  where the first one was: `--destination` replaces every `-destination`, and `--workspace` or
+  `--project` replaces a `-workspace` or a `-project`, as xcodebuild opens only one.
+- **A key that disagrees with `arguments` is refused.** A key is added where `arguments` lack its
+  option: a workspace or project at the front, a scheme right after the workspace or project (or at
+  the front without one), the destinations just before the first action. One that `arguments` give
+  with another value is a configuration error, 255, that names both, as the run can't tell which is
+  meant; the same value is fine, and `arguments` keep their spelling and place. Destinations
+  compare in order, each by its `key=value` pairs; paths compare in the project's folder, so
+  `./App.xcworkspace` is `App.xcworkspace`. `workspace` with `project`, or with a `-project` in
+  `arguments`, is refused too.
+- **For xcodebuild alone.** `swift test` has no scheme, destination, workspace or project, so any of
+  them refuses a SwiftPM run, and a wrapper script takes them only with `buildSystem: xcodebuild`.
+- **Relative paths.** Name a workspace or project relative to the project's folder, as
+  `App.xcworkspace`, so the run opens the one in the copy it mutates. An absolute path, or one that
+  leaves the folder, as `../App.xcworkspace`, is refused: it would build your project, not the copy.
+- **Recorded in `arguments`.** The results file records the `arguments` they make, not the keys, and
+  a resume, a shard merge and a baseline file compare the destination as part of `arguments`, in
+  order. So moving an option from `arguments` to its key resumes the run only when `arguments` had
+  it where the key is added, as `init` writes them: `scheme: App` resumes a run whose `arguments`
+  were `[-project, App.xcodeproj, -scheme, App, -destination, D, test]`, but not one that gave the
+  scheme after the destination.
 
 ### Choosing the files
 
@@ -2410,7 +2451,9 @@ swift-mutator run --shard 1/2
   keeps its own. Every machine needs the same project, configuration, SwiftMutator build and
   toolchain: commit the configuration rather than running `init` on each machine, which writes the
   test command's full path, and build SwiftMutator once and share the binary, as every build has a
-  SHA-256 of its own.
+  SHA-256 of its own. The destination is part of the configuration, compared through `arguments`:
+  give every shard, and the run that writes a committed baseline file, the same one, as one
+  `--destination` for all of them, or `report` refuses the merge and `--baseline` the comparison.
 - **Shards are about even** in mutants, not in time: survivors take longest, and they fall where
   they fall.
 - **A shard with no mutant isn't a failure.** With fewer mutants than shards, as for a small
@@ -3589,7 +3632,9 @@ When a whole run is too long for one job:
   checks and reports the whole run had: `--fail-under`, `--baseline`, `--max-score-drop`,
   `--max-doubtful-kills`, `--write-baseline` and `--report`. The shard jobs check none of them.
   Every shard needs the same SwiftMutator build, which the cache gives them; build it in a job of
-  its own before the matrix, so the shards don't each build it on a cache miss.
+  its own before the matrix, so the shards don't each build it on a cache miss. An xcodebuild
+  project's shards also need one destination, the one the baseline file was written with: pin it
+  with the same `--destination` in every job.
 
 ### Muter's CI one-liner
 
@@ -3670,6 +3715,10 @@ as it goes (see [Results file](#results-file)). Its exit status says how it ende
 | `--verbose` | List the Swift files found, and how many mutants each file has ([Progress](#progress)) | Off |
 | `--quiet` | Print only warnings, errors and the summary, with no banner, progress or notices; no configuration key ([Progress](#progress)) | Off |
 | `--build-timeout <seconds>` | Limit each build and baseline before the first mutant, above 0 and at most 86400 ([Time limits before the first mutant](#time-limits-before-the-first-mutant)) | `buildTimeout`, else none |
+| `--workspace <path>` | Open this Xcode workspace, relative to the project's folder, in place of `workspace`, `project` and any `-workspace` or `-project` in `arguments` ([xcodebuild's arguments](#xcodebuilds-arguments)) | `workspace`, else `arguments` |
+| `--project <path>` | Open this Xcode project, relative to the project's folder, in place of `workspace`, `project` and any `-workspace` or `-project` in `arguments` ([xcodebuild's arguments](#xcodebuilds-arguments)) | `project`, else `arguments` |
+| `--scheme <name>` | Build and test this scheme, in place of `scheme` and any `-scheme` in `arguments` ([xcodebuild's arguments](#xcodebuilds-arguments)) | `scheme`, else `arguments` |
+| `--destination <specifier>` | Test on this destination, in place of `destination` and every `-destination` in `arguments`; mutants are tested on the first. Repeatable ([xcodebuild's arguments](#xcodebuilds-arguments)) | `destination`, else `arguments` |
 | `--workers <count>` | Test this many mutants at once, at least 1 ([Workers and release mode](#workers-and-release-mode)) | `mutationTestWorkers`, else up to 4 for SwiftPM, 1 for others |
 | `--timeout <seconds>` | Stop a mutant's test run after this long, above 0 and at most 86400 ([Configuration](#configuration)) | `mutationTestTimeout`, else timed from your tests |
 | `-f`, `--format <format>` | The report's format: `plain`, `json`, `html`, `xcode`, `markdown`, `stryker` or `sarif` ([Reports](#reports)) | `plain` |
@@ -3691,7 +3740,8 @@ as it goes (see [Results file](#results-file)). Its exit status says how it ende
 
 Some flags can't go together, and each refusal is a usage error:
 
-- `--since` with `--files-to-mutate`, `--resume` with `--reuse`, `--quiet` with `--verbose`.
+- `--since` with `--files-to-mutate`, `--resume` with `--reuse`, `--quiet` with `--verbose`,
+  `--workspace` with `--project`.
 - `--mutant` with any other flag that chooses mutants or continues a run: `--operators`,
   `--skip-operators`, `--files-to-mutate`, `--exclude`, `--since`, `--shard`, `--sample`, `--resume`
   or `--reuse`.
@@ -3708,7 +3758,8 @@ Some flags can't go together, and each refusal is a usage error:
 Makes the copy and writes a test plan, `muter-mappings.json`, without testing anything (see
 [Test plans](#test-plans)). It takes `run`'s `--files-to-mutate`, `--exclude`, `--operators`,
 `--skip-operators`, `-c`, `--project-folder`, `--skip-coverage`, `--skip-update-check`,
-`--verbose`, `--quiet` and `--build-timeout`, and no other flag.
+`--verbose`, `--quiet`, `--build-timeout`, `--workspace`, `--project`, `--scheme` and
+`--destination`, and no other flag.
 
 ### run-without-mutating
 
@@ -3718,7 +3769,8 @@ Tests the test plan that `mutate-without-running` wrote, in the copy as it is no
 `--skip-update-check`, `--verbose`, `--quiet`, `--build-timeout`, `--workers`, `--timeout`, every
 report and check flag from `-f` to `--property-tests`, and `--resume`, `--resume-ignoring` and
 `--force-resume`, with the same limits. `--mutant` can't be given with
-`--resume` or `--write-baseline`.
+`--resume` or `--write-baseline`. It builds the copy, so it also takes `--workspace`, `--project`,
+`--scheme` and `--destination`; nothing checks that they match those `mutate-without-running` had.
 
 | Flag | Meaning | Default |
 |---|---|---|

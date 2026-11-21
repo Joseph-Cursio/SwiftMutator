@@ -47,6 +47,7 @@ struct UnknownConfigurationKey: Equatable, Sendable {
         "excludemethods": "excludeCalls",
         "excludecalllist": "excludeCalls",
         "report": "reports",
+        "destinations": "destination",
     ]
 
     /// The known key `key` is meant as, or nil when none is close enough or two are as close. Keys are compared by

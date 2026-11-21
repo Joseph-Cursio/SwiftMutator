@@ -19,4 +19,9 @@ struct SchemeChoice: Equatable {
         self.containerName = containerName
         chosen = listed.contains(containerName) ? containerName : listed.first ?? containerName
     }
+
+    /// The scheme the run was given, as `--scheme` gives it, which is no guess: it stands as the only one listed.
+    static func given(_ scheme: String, containerName: String) -> Self {
+        Self(listed: [scheme], containerName: containerName)
+    }
 }

@@ -22,6 +22,7 @@ extension Run.Options {
         configurationURL: URL? = nil,
         projectFolder: URL? = nil,
         testPlanURL: URL? = nil,
+        xcodebuild: XcodebuildChoice = XcodebuildChoice(),
         workers: Int? = nil,
         timeout: Double? = nil,
         buildTimeout: Double? = nil,
@@ -57,6 +58,7 @@ extension Run.Options {
             verbose: verbose,
             quiet: quiet,
             testPlanURL: testPlanURL,
+            xcodebuild: xcodebuild,
             workers: workers,
             timeout: timeout,
             buildTimeout: buildTimeout,
@@ -113,7 +115,7 @@ extension DirectTestRun.Platform {
 
 /// No field is left at its default, so a copy that drops one no longer equals this, and every configuration key
 /// differs from the default's. `test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault` fails until a new
-/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButSeven_isCompared`.
+/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButEleven_isCompared`.
 func configurationWithEveryFieldSet(
     executable: String = "/usr/bin/swift",
     timeout: Double? = 30,
@@ -146,7 +148,8 @@ func configurationWithEveryFieldSet(
         propertySurvivorRerunLimit: 50,
         operators: [.ror, .swapTernary],
         skipOperators: [.swapTernary],
-        reports: [ReportRequest(format: .markdown, path: "summary.md")]
+        reports: [ReportRequest(format: .markdown, path: "summary.md")],
+        xcodebuild: everyXcodebuildKey
     )
     .withDirectTestRun(DirectTestRun(
         platform: .macOSFixture,
@@ -168,6 +171,14 @@ func configurationWithEveryFieldSet(
     return failedTestLinesAreReliable
         ? goingToItsEnd : goingToItsEnd.withUnreliableFailedTestLines(printedIn: [failedTestLookalikeLog])
 }
+
+/// Every xcodebuild key set: never so in a run, which refuses a workspace with a project, but each is a key.
+private let everyXcodebuildKey = XcodebuildChoice(
+    workspace: "App.xcworkspace",
+    project: "App.xcodeproj",
+    scheme: "App",
+    destinations: ["platform=macOS"]
+)
 
 /// A passing baseline's log with a line shaped like a failed test, which the test printed itself.
 let failedTestLookalikeLog = "✘ Test parsesAFailure() recorded an issue at ParserTests.swift:4:5: printed by the test"

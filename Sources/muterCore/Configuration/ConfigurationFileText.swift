@@ -23,7 +23,8 @@ enum ConfigurationFileText {
         Entry(
             key: .testCommandArguments,
             comment: "What executable is given to run the tests. With xcodebuild they must include -destination, "
-                + "and mutants are tested on the first one. They must be set.",
+                + "unless the destination key gives it, and mutants are tested on the first one; the workspace, "
+                + "project, scheme and destination keys are added to them. They must be set.",
             example: ["arguments:", "- test"]
         ),
         Entry(
@@ -31,6 +32,30 @@ enum ConfigurationFileText {
             comment: "swift or xcodebuild, for an executable whose file name is neither, such as a wrapper script. "
                 + "Default: from executable's file name.",
             example: ["buildSystem: xcodebuild"]
+        ),
+        Entry(
+            key: .workspace,
+            comment: "The Xcode workspace xcodebuild opens, relative to the project's folder, added to arguments as "
+                + "-workspace; not with project. Default: what arguments give.",
+            example: ["workspace: MyApp.xcworkspace"]
+        ),
+        Entry(
+            key: .project,
+            comment: "The Xcode project xcodebuild opens, relative to the project's folder, added to arguments as "
+                + "-project; not with workspace. Default: what arguments give.",
+            example: ["project: MyApp.xcodeproj"]
+        ),
+        Entry(
+            key: .scheme,
+            comment: "The scheme xcodebuild builds and tests, added to arguments as -scheme; arguments may name the "
+                + "same one, not another. Default: what arguments give.",
+            example: ["scheme: MyApp"]
+        ),
+        Entry(
+            key: .destination,
+            comment: "Where xcodebuild tests, as -destination takes it, or a list of them, added to arguments; "
+                + "mutants are tested on the first. Default: the -destination in arguments.",
+            example: ["destination: platform=iOS Simulator,name=iPhone 17 Pro"]
         ),
         Entry(
             key: .excludeFileList,
@@ -162,8 +187,7 @@ enum ConfigurationFileText {
             key: .propertySurvivorReruns,
             comment: "How many times to test each survivor again with only the property tests propertyTestFilter "
                 + "selects, stopping at the first run that doesn't pass, as a property tries a sample of inputs; 0 for "
-                + "none. It "
-                + "changes no result. Needs propertyTestFilter. Default: none.",
+                + "none. It changes no result. Needs propertyTestFilter. Default: none.",
             example: ["propertySurvivorReruns: 10"]
         ),
         Entry(

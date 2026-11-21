@@ -107,7 +107,8 @@ extension LoadConfigurationTests {
         await assertRefused(
             "Could not find muter.conf at path \(fixturesDirectory)/muter.conf.yml. There is more than one Xcode "
                 + "workspace in the project's folder (A.xcworkspace, B.xcworkspace), so SwiftMutator can't tell which "
-                + "one runs your tests. Write muter.conf.yml yourself: see Configuration in SwiftMutator's README."
+                + "one runs your tests. Name one with `--workspace <path>`, or write muter.conf.yml yourself: see "
+                + "Configuration in SwiftMutator's README."
         )
     }
 
@@ -149,5 +150,32 @@ extension LoadConfigurationTests {
 
     final class RecordedWorkedOut {
         var events: [ConfigurationWorkedOutSent] = []
+    }
+}
+
+extension LoadConfigurationTests {
+    // #262: the flags pick the workspace among two, and give the scheme and destination, so the line names the command
+    // the run tests with, which needs no merge after it.
+    func test_withoutAConfigurationFile_theFlagsChooseWhatIsWorkedOut() async throws {
+        let sent = recordedWorkedOut()
+        fileManager.fileExistsToReturn = [false, false]
+        fileManager.contentsOfDirectoryToReturn = ["A.xcworkspace", "B.xcworkspace"]
+        fileManager.subpathsToReturn = ["A.xcworkspace", "B.xcworkspace"]
+        process.stdoutToBeReturned = "/usr/bin/xcodebuild"
+        state.runOptions = .make(
+            xcodebuild: XcodebuildChoice(workspace: "B.xcworkspace", scheme: "Shop", destinations: ["platform=macOS"])
+        )
+
+        let result = try await sut.run(with: state)
+
+        let arguments = ["-workspace", "B.xcworkspace", "-scheme", "Shop", "-destination", "platform=macOS", "test"]
+        XCTAssertEqual(sent.events.first?.generated.configuration.testCommandArguments, arguments)
+        XCTAssertEqual(sent.events.first?.generated.scheme?.isAGuess, false)
+        guard case let .configurationParsed(configuration)? = result.last else {
+            XCTFail("\(result)")
+            return
+        }
+        XCTAssertEqual(configuration.testCommandArguments, arguments)
+        XCTAssertEqual(process.processesRun, [["/usr/bin/which", "xcodebuild"]])
     }
 }

@@ -28,6 +28,7 @@ struct MutateWithoutRunning: RunCommand {
             skipOperators: selection.skippedOperators,
             verbose: options.verbose,
             quiet: options.quiet,
+            xcodebuild: options.xcodebuild,
             buildTimeout: options.buildTimeout,
             createTestPlan: true
         )
