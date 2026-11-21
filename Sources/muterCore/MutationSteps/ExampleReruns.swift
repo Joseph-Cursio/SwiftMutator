@@ -30,7 +30,8 @@ struct ExampleRerunTally: Equatable {
 /// tested: those whose recorded tests are all property tests, which `propertyTests` picks out, in a list cut short. A
 /// run stopped at its first failed test records that test alone, so a property that failed first hides an example
 /// that would also have failed. This run tells "only by properties" from "by both". It never changes a mutant's result.
-/// SwiftPM only: no other test command stops at its first failed test.
+/// SwiftPM only: only its runs are given the property tests to skip (`withPropertyTestsSkipped()`), so an xcodebuild
+/// run on a simulator stopped at its first failed test leaves such a kill unsettled.
 struct ExampleReruns: Equatable {
     /// How many kills are tested again.
     let count: Int

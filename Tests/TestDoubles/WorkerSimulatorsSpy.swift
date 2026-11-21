@@ -8,9 +8,10 @@ final class WorkerSimulatorsSpy: WorkerSimulating, @unchecked Sendable { // ever
     private var preparing: Result<[WorkerSimulator], Error>?
     private var booting: Error?
     private var whileRemovingAll: (@Sendable () -> Void)?
+    private var listedDestinations: Set<String> = []
 
-    /// Each call, in order: `sweep <path>`, `prepare <count> like <destination> for <path>`, `boot <udids>` and
-    /// `removeAll`.
+    /// Each call, in order: `sweep <path>`, `prepare <count> like <destination> for <path>`, `list <destination>`,
+    /// `boot <udids>` and `removeAll`.
     var calls: [String] { lock.withLock { recordedCalls } }
 
     /// What `prepare` gives: by default as many simulators as asked for, `platform=iOS Simulator,id=SIM-<n>`.
@@ -21,6 +22,11 @@ final class WorkerSimulatorsSpy: WorkerSimulating, @unchecked Sendable { // ever
     /// What `boot` throws, if anything.
     func booting(throwing error: Error?) {
         lock.withLock { booting = error }
+    }
+
+    /// The destinations `listsASimulator(namedBy:)` finds a simulator for: none by default.
+    func listing(_ destinations: Set<String>) {
+        lock.withLock { listedDestinations = destinations }
     }
 
     /// Called by `removeAll`, from the task that calls it.
@@ -42,6 +48,11 @@ final class WorkerSimulatorsSpy: WorkerSimulating, @unchecked Sendable { // ever
             )
         })
         return try result.get()
+    }
+
+    func listsASimulator(namedBy destination: String) -> Bool {
+        record("list \(destination)")
+        return lock.withLock { listedDestinations.contains(destination) }
     }
 
     func boot(_ simulators: [WorkerSimulator]) throws {

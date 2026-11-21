@@ -122,8 +122,8 @@ final class ExampleRerunRunTests: MuterTestCase {
         XCTAssertEqual(PerformMutationTesting.exampleRerunCandidates(in: session, globs: ["*Properties*"]), [0, 8])
     }
 
-    // `swift test` and the bundles run directly take `--skip` for each entry; no other test command stops at its first
-    // failed test, so none is given one, nor a configuration with no filter.
+    // `swift test` and the bundles run directly take `--skip` for each entry; no other test command is given one,
+    // though an xcodebuild run on a simulator stops at its first failed test too, nor a configuration with no filter.
     func test_withPropertyTestsSkipped_skipsEachEntry_underSwiftTestOnly() throws {
         let swift = configuration()
         let skipping = try XCTUnwrap(swift.withPropertyTestsSkipped())

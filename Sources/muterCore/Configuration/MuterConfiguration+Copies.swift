@@ -74,8 +74,8 @@ extension MuterConfiguration {
 
     /// This configuration with its runs testing everything but what `propertyTestFilter` selects: `swift test`, and the
     /// test bundles run directly, with `--skip` for each entry, as `withPropertyTestFilter()` has them. nil without a
-    /// filter, or for any other build system, whose runs don't stop at their first failed test, so record no list cut
-    /// short that this would settle.
+    /// filter, or for any other build system: an xcodebuild run on a simulator that stopped at its first failed test
+    /// leaves a list cut short that this doesn't settle.
     func withPropertyTestsSkipped() -> Self? {
         guard let filter = propertyTestFilter, !filter.isEmpty, propertyRerunsUnsupportedReason == nil,
               buildSystem == .swift
@@ -91,6 +91,21 @@ extension MuterConfiguration {
     /// workers can't share one build.
     var propertyRerunsLeaveDirectRuns: Bool {
         directTestRun?.runsXCTest == true && withPropertyTestFilter() != nil
+    }
+
+    /// This configuration with the facts that decide whether an xcodebuild mutant's run can stop at its first failed
+    /// test, and that aren't configuration keys: whether simctl lists the first `-destination`'s simulator, the UI
+    /// test targets the run tests, and whether a run on the test command's destination tests in parallel.
+    func withStopFacts(
+        firstDestinationIsASimulator: Bool,
+        uiTestTargets: [String],
+        destinationRunsInParallel: Bool = false
+    ) -> Self {
+        var copy = self
+        copy.firstDestinationIsASimulator = firstDestinationIsASimulator
+        copy.uiTestTargets = uiTestTargets
+        copy.destinationRunsInParallel = destinationRunsInParallel
+        return copy
     }
 
     /// This configuration with an xcodebuild mutant's runs testing as `worker` says.

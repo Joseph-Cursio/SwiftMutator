@@ -69,6 +69,9 @@ struct SimulatorWorkerSetup {
         /// destination. A run tests one test at a time, as a mutant's does on its worker, and its first install and
         /// launch only make it longer.
         var checkRunSeconds: TimeInterval?
+        /// The first line, in worker order, that a check run printed that looks like a failed test or a crash, which
+        /// made failed-test lines unreliable; none when no run printed one.
+        var lookalike: String?
     }
 
     /// `simulators`, unless the run is to check its lone worker's against `baselineLog`, the passing baseline's, and
@@ -138,11 +141,7 @@ struct SimulatorWorkerSetup {
         if wanted == .enabled {
             return .simulator(checkedAgainstBaseline: false)
         }
-        let parallelizes = switch configuration.parallelTestingArguments {
-        case .unset: state.projectXCTestRun.parallelizes
-        case .enabled: true
-        case .disabled: false
-        }
+        let parallelizes = configuration.destinationRunsInParallel(given: state.projectXCTestRun)
         guard mutantsToTest >= minimumMutantsForOneWorkerSimulator, parallelizes else {
             return .noSimulator
         }
@@ -264,19 +263,20 @@ struct SimulatorWorkerSetup {
                 after: failed, keptLog: logs[failed.worker] != nil, configuration: configuration
             )
         }
-        // The logs of the runs that printed a line shaped like a failed test or a crash.
+        // The runs that printed a line shaped like a failed test or a crash, each with the first such line.
         let printingLookalikes = runs.compactMap { run in
             (FailedTestLine.first(inLog: run.testLog) ?? CrashLine.first(inLog: run.testLog)
                 ?? TrapLine.first(inLog: run.testLog) ?? XcodebuildRestartLine.first(inLog: run.testLog))
-                .map { _ in run.testLog }
+                .map { (line: $0, log: run.testLog) }
         }
         return Workers(
             count: xcodeWorkers.count,
             unavailable: nil,
             configuration: printingLookalikes.isEmpty
-                ? configuration : configuration.withUnreliableFailedTestLines(printedIn: printingLookalikes),
+                ? configuration : configuration.withUnreliableFailedTestLines(printedIn: printingLookalikes.map(\.log)),
             xcodeWorkers: xcodeWorkers,
-            checkRunSeconds: runs.map(\.seconds).max()
+            checkRunSeconds: runs.map(\.seconds).max(),
+            lookalike: printingLookalikes.first?.line
         )
     }
 }

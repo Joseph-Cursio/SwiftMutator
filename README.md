@@ -1856,7 +1856,7 @@ as it is.
 | `skipOperators` | A list of the operators to leave out. See [Choosing the operators](#choosing-the-operators) | None | All |
 | `mutationTestTimeout` | Seconds, above 0 and at most a day, before a mutant's test run is stopped. See [Timeouts are run again](#timeouts-are-run-again) | 5× a timed run of the tests with no mutant on, once more for each worker beyond the first, and at least 20 s; for another build system, or when that run fails, 3× the baseline, build included, and at least 10 s (see [Why a fork of Muter](#why-a-fork-of-muter)) | All |
 | `buildTimeout` | Seconds, above 0 and at most a day, before each step ahead of the first mutant that builds your project and runs its tests is stopped: the coverage run, each xcodebuild build for testing, each baseline run, and a worker clone's. The direct and timed test runs, which follow the baseline and don't build, get a shorter limit. See [Time limits before the first mutant](#time-limits-before-the-first-mutant) | No limit | All |
-| `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed. Never the baseline | `true` | SwiftPM |
+| `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed. Never the baseline. See [Stopping at the first failed test](#stopping-at-the-first-failed-test) | `true` | SwiftPM, and xcodebuild on a simulator |
 | `mutationTestWorkers` | How many mutants to test at once, at least 1. See [Workers and release mode](#workers-and-release-mode) and [xcodebuild workers](#xcodebuild-workers) | SwiftPM: half the processors, at most 4, and, when each needs a clone, fewer for fewer than 150 mutants. Others: 1 | SwiftPM, and xcodebuild projects that test on a simulator, which get one simulator per worker; others test one at a time |
 | `workersShareBuild` | Whether workers may test from one build when a direct run of the tests, with no mutant on, wrote nothing in the copy, unless the direct run includes XCTest tests and `propertyTestFilter` is set; `false` gives each worker a clone. See [Workers and release mode](#workers-and-release-mode) | `true` | SwiftPM, when mutants' test bundles run directly |
 | `oneWorkerSimulator` | Whether one worker tests on a simulator SwiftMutator makes: `true` whenever the destination is a simulator, `false` never. See [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own) | Unset: when the project and its baseline show it is faster | xcodebuild, with a simulator as the first `-destination` |
@@ -2150,6 +2150,47 @@ and so is a resume without `--timeout` after one with it, as the default only th
 a new limit for a file that holds results `--reuse` kept, as it doesn't record the limit they were
 tested under. A finished run can be resumed this way too. `--reuse` takes a longer limit by the same
 rule, and tests every timeout again in any case.
+
+### Stopping at the first failed test
+
+One failed test is enough to kill a mutant, so by default a mutant's test run stops at its first
+failed test, or at a crash before any failed test, which counts as a crash (`stopAtFirstFailure`,
+or `--[no-]stop-at-first-failure` for one run). Its log ends with a note that names the line that
+stopped it. Runs with no mutant on, such as the baseline and control runs, and `--mutant`'s one
+mutant always run to their end.
+
+- **SwiftPM.** Every `swift test` run can stop, unless `arguments` retry failing tests with
+  `--repeat-until`. A crash is SwiftPM's report of a test process ended by a signal. On
+  SwiftProjectLint, 255 mutants on 4 workers took 37% less time, and no verdict changed.
+- **xcodebuild.** Only a run on a simulator can stop: a worker's simulator of its own (see
+  [xcodebuild workers](#xcodebuild-workers)), or the first `-destination` when it names a
+  simulator, as `platform=iOS Simulator,name=iPhone 17 Pro` does, or an `id=` or `name=` alone that
+  simctl lists as a simulator. Killing xcodebuild ends the simulator's test process within 0.2 s
+  ([#81](https://github.com/Joseph-Cursio/SwiftMutator/issues/81)), which nothing has measured on a
+  Mac or a device. A crash is the Swift runtime's `Fatal error`, `Precondition failed` or
+  `Assertion failed` line, or xcodebuild's `Restarting after unexpected exit, crash, or test
+  timeout`; a Swift Testing test that crashes prints only the runtime's line. Parallel testing's
+  `Test case '…' failed on '…'` lines never stop a run, as they read the same for a crash. On
+  BonMot's iOS tests, 104 mutants on 2 simulator workers spent 38% less time testing mutants (28%
+  less in all), and no verdict changed; a crashed mutant's run took about 1.5 s, not up to 17 s.
+- **When xcodebuild runs don't stop.** On a Mac, Mac Catalyst included, on a device, on a
+  `generic/` destination, with `-retry-tests-on-failure` in `arguments`, and when the tests include
+  a UI test target, whose app can outlive a stopped run: `-skip-testing:<target>` in `arguments`
+  leaves one out. Nor when a lone worker tests on the first `-destination` with parallel testing
+  on, in the scheme, the test plan or `arguments`: its runs test on clones of the simulator, whose
+  failed tests xcodebuild reports only in the `failed on` lines, and stopping them wasn't measured.
+  A worker's simulator of its own tests one test at a time, so its runs stop; on the destination,
+  `-parallel-testing-enabled NO` in `arguments` does the same. A test plan that retries failing
+  tests isn't seen: a flaky test that fails and then passes on its retry would count as a kill, so
+  set `stopAtFirstFailure: false` for one.
+- **Lines that only look like a failure.** A passing baseline, or an xcodebuild worker's run with
+  no mutant on, that prints a line shaped like a failed test or a crash turns stopping off for the
+  run, and says so (see [Killing tests and suspect tests](#killing-tests-and-suspect-tests)).
+
+`stopAtFirstFailure: true` with a test command that can't stop says why as mutation testing starts,
+or, for a lone xcodebuild worker that tests in parallel, once the worker is known, and its runs go
+to their end. A mutant that both fails a test and crashes is killed by whichever comes first. The
+results file's header records whether the session's runs stopped (`stopsAtFirstFailure`).
 
 ### Workers and release mode
 
@@ -2775,8 +2816,9 @@ crash kills a mutant whichever tests failed.
 - **Xcode.** Only what it says of suspect tests.
 
 A list is complete when the run exited by itself and named every test that failed. With
-`stopAtFirstFailure`, which is on by default for SwiftPM, a killed mutant's run stops at its first
-failed test, so its list can stop there too.
+`stopAtFirstFailure`, which is on by default for SwiftPM and for xcodebuild on a simulator (see
+[Stopping at the first failed test](#stopping-at-the-first-failed-test)), a killed mutant's run
+stops at its first failed test, so its list can stop there too.
 
 Some tests print text shaped like a failed test, such as a test of a test reporter. When the
 passing baseline prints such a line, no line counts as a failed test for stopping a run or for
@@ -3019,8 +3061,9 @@ propertyTests:
   whole test run; if it ran no test or didn't pass, no kill is tested again, and the run says
   why. Each rerun that no example kills runs every example test. An `exampleRerun` line in the
   results file records each run (see [the results file](Docs/results-file.md#examplererun)).
-  xcodebuild runs don't stop at their first failed test, so their lists are cut short only by
-  the 20-test cap, and these reruns don't run for them.
+  These reruns don't run for xcodebuild, so there a kill only properties were recorded making
+  stays one by properties alone, though a run on a simulator stops at its first failed test by
+  default; `stopAtFirstFailure: false` records every failed test, up to 20.
 - **It changes no result.** It only reads what the runs recorded, so a resume lets it change, and
   `swift-mutator report --property-tests '<glob>'` splits an earlier run's kills, in place of the
   globs its header records. The JSON report's `propertyKillSummary` holds the section (see
@@ -3799,7 +3842,7 @@ as it goes (see [Results file](#results-file)). Its exit status says how it ende
 | `--keep-swiftlint-phases`, `--no-keep-swiftlint-phases` | Keep SwiftLint running in the build phases of the copy's Xcode projects, or turn it off there ([Before a long run](#before-a-long-run)) | `keepSwiftLintPhases`, else off in the copy |
 | `--workers <count>` | Test this many mutants at once, at least 1 ([Workers and release mode](#workers-and-release-mode)) | `mutationTestWorkers`, else up to 4 for SwiftPM, 1 for others |
 | `--timeout <seconds>` | Stop a mutant's test run after this long, above 0 and at most 86400 ([Configuration](#configuration)) | `mutationTestTimeout`, else timed from your tests |
-| `--stop-at-first-failure`, `--no-stop-at-first-failure` | Stop a mutant's test run at its first failed test, or don't; SwiftPM only ([Configuration](#configuration)) | `stopAtFirstFailure`, else on |
+| `--stop-at-first-failure`, `--no-stop-at-first-failure` | Stop a mutant's test run at its first failed test, or don't; SwiftPM, and xcodebuild on a simulator ([Stopping at the first failed test](#stopping-at-the-first-failed-test)) | `stopAtFirstFailure`, else on |
 | `--workers-share-build`, `--no-workers-share-build` | Let SwiftPM workers test from one build when they can, or give each a clone ([Workers and release mode](#workers-and-release-mode)) | `workersShareBuild`, else share |
 | `--one-worker-simulator`, `--no-one-worker-simulator` | Test one xcodebuild worker on a simulator of its own whenever the destination is one, or never ([One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own)) | `oneWorkerSimulator`, else decided from the project |
 | `--keep-all-logs`, `--no-keep-all-logs` | Keep every mutant's log, or only those its results line can't stand in for ([Results file](#results-file)) | `keepAllLogs`, else off |

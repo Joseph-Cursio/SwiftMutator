@@ -50,7 +50,7 @@ Discovery takes a SwiftPM package's files from its targets, keeps only the files
   - A failed check run on a simulator made with `simctl create`, because the destination's simulator was booted, doesn't say that shutting it down would let the next run clone it, with its settings and data.
   - macOS and Mac Catalyst destinations stay on 1 worker: their tests would share the Mac's `UserDefaults`, saved state and container (`MuterConfiguration.swift:588-612`).
   - The default worker count for xcodebuild is still 1, as each simulator takes about 3 GB at its peak (`MuterConfiguration.swift:572-578`). [#116] changed only SwiftPM's.
-  - xcodebuild runs have no fail-fast: `stopAtFirstFailure` applies to SwiftPM only.
+  - xcodebuild runs stop at their first failed test only on a simulator ([#282]): not on a Mac or a device, nor with UI test targets or `-retry-tests-on-failure`, and a test plan that retries failing tests isn't detected. It is on by default, as for SwiftPM, until an A/B run on an iOS app shows whether it changes verdicts.
 
 ---
 
@@ -102,3 +102,4 @@ These came after the review and have no section of their own.
 [#262]: https://github.com/Joseph-Cursio/SwiftMutator/issues/262
 [#263]: https://github.com/Joseph-Cursio/SwiftMutator/issues/263
 [#281]: https://github.com/Joseph-Cursio/SwiftMutator/issues/281
+[#282]: https://github.com/Joseph-Cursio/SwiftMutator/issues/282

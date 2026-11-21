@@ -126,7 +126,7 @@ extension PerformMutationTestingTests {
         XCTAssertEqual(sent().count, 0)
     }
 
-    func test_whenStopAtFirstFailureIsSetForXcodebuild_thenANoticeSaysItIsOff() async throws {
+    func test_whenStopAtFirstFailureIsSetForXcodebuildWithNoDestination_thenANoticeSaysItIsOff() async throws {
         let configuration = MuterConfiguration(
             executable: "/usr/bin/xcodebuild", arguments: ["test"], stopAtFirstFailure: .enabled
         )

@@ -22,7 +22,7 @@ extension ConfigurationParsingTests {
         }
     }
 
-    func test_stopsAtFirstFailure_forSwiftPMUnlessSwitchedOff() {
+    func test_stopsAtFirstFailure_forSwiftPMAndXcodebuildOnASimulator_unlessSwitchedOff() {
         let swift = MuterConfiguration(executable: "/usr/bin/swift", stopAtFirstFailure: .enabled)
         XCTAssertTrue(swift.stopsAtFirstFailure)
         XCTAssertNil(swift.stopAtFirstFailureUnsupportedReason)
@@ -33,13 +33,26 @@ extension ConfigurationParsingTests {
             MuterConfiguration(executable: "/usr/bin/swift", stopAtFirstFailure: .disabled).stopsAtFirstFailure
         )
 
-        // xcodebuild runs the tests in a process SwiftMutator can't stop, whether the key is set or not.
-        let xcode = MuterConfiguration(executable: "/usr/bin/xcodebuild", stopAtFirstFailure: .enabled)
-        XCTAssertFalse(xcode.stopsAtFirstFailure)
-        XCTAssertNotNil(xcode.stopAtFirstFailureUnsupportedReason)
+        // xcodebuild on a simulator stops as SwiftPM does: on by default, off only with an explicit false.
+        let simulator = ["-destination", "platform=iOS Simulator,name=iPhone 17 Pro", "test"]
+        let xcode = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild", arguments: simulator, stopAtFirstFailure: .enabled
+        )
+        XCTAssertTrue(xcode.stopsAtFirstFailure)
+        XCTAssertNil(xcode.stopAtFirstFailureUnsupportedReason)
+        XCTAssertTrue(MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: simulator).stopsAtFirstFailure)
+        XCTAssertFalse(
+            MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: simulator, stopAtFirstFailure: .disabled)
+                .stopsAtFirstFailure
+        )
+
+        // Without a `-destination` it can't tell that the tests run on a simulator, whether the key is set or not.
+        let noDestination = MuterConfiguration(executable: "/usr/bin/xcodebuild", stopAtFirstFailure: .enabled)
+        XCTAssertFalse(noDestination.stopsAtFirstFailure)
+        XCTAssertNotNil(noDestination.stopAtFirstFailureUnsupportedReason)
         XCTAssertFalse(MuterConfiguration(executable: "/usr/bin/xcodebuild").stopsAtFirstFailure)
 
-        // A wrapper script counts only when the configuration says it runs `swift test`.
+        // A wrapper script counts only when the configuration says it runs `swift test` or xcodebuild.
         XCTAssertFalse(MuterConfiguration(executable: "/bin/sh", stopAtFirstFailure: .enabled).stopsAtFirstFailure)
         XCTAssertFalse(MuterConfiguration(executable: "/bin/sh").stopsAtFirstFailure)
         XCTAssertTrue(
@@ -47,6 +60,12 @@ extension ConfigurationParsingTests {
                 .stopsAtFirstFailure
         )
         XCTAssertTrue(MuterConfiguration(executable: "/bin/sh", buildSystem: .swift).stopsAtFirstFailure)
+        XCTAssertTrue(
+            MuterConfiguration(executable: "/bin/sh", arguments: simulator, buildSystem: .xcodebuild)
+                .stopsAtFirstFailure
+        )
+        let wrapper = MuterConfiguration(executable: "/bin/sh", arguments: simulator, stopAtFirstFailure: .enabled)
+        XCTAssertEqual(wrapper.stopAtFirstFailureUnsupportedReason?.contains("`buildSystem`"), true)
     }
 
     func test_stopsAtFirstFailure_isOffWhenFailingTestsAreRetried() {

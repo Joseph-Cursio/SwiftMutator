@@ -9,11 +9,17 @@
 enum XcodebuildRestartLine {
     static let prefix = "Restarting after unexpected exit, crash, or test timeout"
 
+    /// Whether `line` (one line, without its line break) is xcodebuild's restart line, as `first(inLog:)` finds it:
+    /// what stops an xcodebuild run at a crash (`TestLogFollower`).
+    static func matches(_ line: some StringProtocol) -> Bool {
+        line.hasPrefix(prefix)
+    }
+
     /// The first line of `log` that starts with xcodebuild's restart line, as xcodebuild prints it, on a line of its
     /// own, so text a test prints inside another line doesn't count.
     static func first(inLog log: String) -> String? {
         log.split(whereSeparator: \.isNewline)
-            .first { $0.hasPrefix(prefix) }
+            .first(where: matches)
             .map(String.init)
     }
 }

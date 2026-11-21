@@ -74,8 +74,13 @@ extension MutationTestingDelegateTests {
     func test_whenNotStoppingAtFirstFailure_thenOutputBufferingIsLeftAlone() throws {
         let configurations = [
             MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], stopAtFirstFailure: .disabled),
-            // Switched on, but xcodebuild runs can't be stopped.
+            // Switched on, but an xcodebuild run stops only on a simulator, which these don't name.
             MuterConfiguration(executable: "/tmp/xcodebuild", arguments: ["test"], stopAtFirstFailure: .enabled),
+            MuterConfiguration(
+                executable: "/tmp/xcodebuild",
+                arguments: ["-destination", "platform=macOS", "test"],
+                stopAtFirstFailure: .enabled
+            ),
         ]
         let mutant = try MutationSchema.make(
             filePath: "/path/fileName",

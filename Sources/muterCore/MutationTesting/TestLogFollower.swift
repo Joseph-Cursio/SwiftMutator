@@ -48,12 +48,20 @@ struct TestLogFollower {
     static let readSize = 65_536
 
     let logFileUrl: URL
+    /// Whether the log is xcodebuild's, where a crash shows as the Swift runtime's trap message (`TrapLine`) or
+    /// xcodebuild's restart line (`XcodebuildRestartLine`), as `TestSuiteOutcome` reads them at the time limit. Not
+    /// for SwiftPM, whose test process can print the runtime's message and go on, and whose signal line (`CrashLine`)
+    /// follows it when the process dies of it. Parallel testing's `Test case '…' failed on '…'` lines never stop a
+    /// run: they read the same for a crash and a failed test. A worker on a simulator of its own tests one test at a
+    /// time, and a lone worker on the test command's destination that tests in parallel doesn't stop at all
+    /// (`MuterConfiguration.stopAtFirstFailureUnsupportedReason`), as nothing but a crash would stop its runs.
+    var readsXcodebuildCrashes = false
     /// How long it waits for more output once it has read everything written so far.
     var pollInterval: TimeInterval = 0.1
 
-    /// The first line that shows a failed test (`FailedTestLine`) or a crash (`CrashLine`), without colour codes, as
-    /// the reason to stop the run. Nil once the calling task is cancelled, or if the log can't be opened: the run then
-    /// goes to its end.
+    /// The first line that shows a failed test (`FailedTestLine`) or a crash (`CrashLine`, and under xcodebuild
+    /// `TrapLine` and `XcodebuildRestartLine`), without colour codes, as the reason to stop the run. Nil once the
+    /// calling task is cancelled, or if the log can't be opened: the run then goes to its end.
     func firstStop() async -> TestRunEnding.Reason? {
         guard let reader = try? FileHandle(forReadingFrom: logFileUrl) else { return nil }
         defer { try? reader.close() }
@@ -64,7 +72,7 @@ struct TestLogFollower {
                     if FailedTestLine.matches(line) {
                         return .failedTest(line: FailedTestLine.withoutColours(line))
                     }
-                    if CrashLine.matches(line) {
+                    if showsACrash(line) {
                         return .crashed(line: FailedTestLine.withoutColours(line))
                     }
                 }
@@ -74,5 +82,10 @@ struct TestLogFollower {
             try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
         }
         return nil
+    }
+
+    private func showsACrash(_ line: String) -> Bool {
+        CrashLine.matches(line)
+            || readsXcodebuildCrashes && (TrapLine.matches(line) || XcodebuildRestartLine.matches(line))
     }
 }

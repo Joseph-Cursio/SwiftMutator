@@ -106,6 +106,13 @@ final class XCTestRunTests: MuterTestCase {
         XCTAssertFalse(serial.parallelizes)
     }
 
+    func test_uiTestTargets_areNamedAsTestArgumentsNameThem() throws {
+        let withUITests = try muterCore.XCTestRun(loadPlist(for: "projectWithTestPlan"))
+        XCTAssertEqual(withUITests.uiTestTargets, ["iOSProjectUITests"])
+        XCTAssertEqual(try muterCore.XCTestRun(loadPlist(for: "project")).uiTestTargets, [])
+        XCTAssertEqual(muterCore.XCTestRun().uiTestTargets, [])
+    }
+
     private func loadPlist(for fileName: String) throws -> [String: AnyHashable] {
         let data = try XCTUnwrap(
             FileManager.default
