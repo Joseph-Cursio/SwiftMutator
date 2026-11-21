@@ -9,7 +9,8 @@ extension ResultsHeader {
     /// `resumedFormatVersion`. A session that reuses an earlier run's results is a first session, which says the same,
     /// and the file it reused from. A session whose `mutant` lines may have no `log` is in `omittedLogsFormatVersion`,
     /// whichever session it is: one that tests mutants, but for `--mutant`'s one, without `keepAllLogs`, and one that
-    /// copies reused results with no `log`, `copyingLinesWithoutLogs`.
+    /// copies reused results with no `log`, `copyingLinesWithoutLogs`. `workersOnOwnSimulators` says where an
+    /// xcodebuild session's workers tested.
     init(
         session: Int,
         startedAt: Date,
@@ -26,7 +27,8 @@ extension ResultsHeader {
         waived: [String]? = nil,
         forced: [String]? = nil,
         reusedFrom: String? = nil,
-        copyingLinesWithoutLogs: Bool = false
+        copyingLinesWithoutLogs: Bool = false,
+        workersOnOwnSimulators: WorkerDestination = .notRecorded
     ) {
         let lastTree = session == 1 ? nil : state.resumeState?.lastHeader.project
         let projectDelta = state.projectTree.flatMap { tree in
@@ -54,6 +56,7 @@ extension ResultsHeader {
             timeoutSeconds: configuration.testSuiteTimeout,
             timeoutIsDefault: state.muterConfiguration.testSuiteTimeout == nil,
             workers: workers,
+            workersOnOwnSimulators: workersOnOwnSimulators,
             stopsAtFirstFailure: configuration.stopsAtFirstFailure,
             failedTestLinesAreReliable: configuration.failedTestLinesAreReliable,
             failedTestLookalikes: configuration.failedTestLookalikes.isEmpty

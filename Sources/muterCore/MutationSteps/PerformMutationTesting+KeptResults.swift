@@ -85,12 +85,14 @@ extension PerformMutationTesting {
     }
 
     /// How a session's mutants are tested, as its header says: with `configuration`, the effective one, on `workers`
-    /// workers, after a baseline that took `baselineSeconds` and a timed test run that took `testRunSeconds`, if any.
+    /// workers, after a baseline that took `baselineSeconds` and a timed test run that took `testRunSeconds`, if any;
+    /// an xcodebuild session's on simulators of their own or on the test command's destination, `workerDestination`.
     struct MutantRunSetup {
         let configuration: MuterConfiguration
         let workers: Int
         var baselineSeconds: Double?
         var testRunSeconds: Double?
+        var workerDestination = ResultsHeader.WorkerDestination.notRecorded
     }
 
     /// The session's header, for testing `plan.toRun` of the jobs `session.keys` are of, as `setup` says. A resumed
@@ -125,7 +127,8 @@ extension PerformMutationTesting {
             waived: resume == nil ? nil : state.resumeWaived,
             forced: resume?.forced,
             reusedFrom: resume?.isReuse == true ? resume?.path : nil,
-            copyingLinesWithoutLogs: Self.copiesLinesWithoutLogs(plan, state: state)
+            copyingLinesWithoutLogs: Self.copiesLinesWithoutLogs(plan, state: state),
+            workersOnOwnSimulators: setup.workerDestination
         )
     }
 }

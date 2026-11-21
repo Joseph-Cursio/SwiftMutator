@@ -154,6 +154,21 @@ extension MergedShardsTests {
         ))
     }
 
+    // One machine's shard may test on simulators of its own, and another's on the test command's destination.
+    func test_whereEachShardsWorkersTested_isntCompared() throws {
+        var onOwnSimulators = header(1)
+        onOwnSimulators.workersOnOwnSimulators = .ownSimulators
+        var onTheDestination = header(2)
+        onTheDestination.workersOnOwnSimulators = .testCommandsDestination
+
+        let merged = try merge(
+            file("/a/results.jsonl", onOwnSimulators),
+            file("/b/results.jsonl", onTheDestination)
+        )
+
+        XCTAssertEqual(merged.forced, [])
+    }
+
     func test_aMutantTestedInTwoFiles_isRefused() {
         assertRefused(
             [file("/a/results.jsonl", header(1), sum3), file("/b/results.jsonl", header(2), sum3, alpha5)],

@@ -65,6 +65,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(header.timeoutSeconds, PerformMutationTesting.minimumTestRunTimeout)
         XCTAssertTrue(header.timeoutIsDefault)
         XCTAssertEqual(header.workers, 1)
+        XCTAssertEqual(header.workersOnOwnSimulators, .notRecorded, "a SwiftPM session's workers have no simulators")
         XCTAssertTrue(header.failedTestLinesAreReliable)
         XCTAssertEqual(header.mutantsDiscovered, 2)
         XCTAssertEqual(header.mutantsToTest, 2)

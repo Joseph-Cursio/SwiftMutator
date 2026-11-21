@@ -72,6 +72,7 @@ extension PerformMutationTestingXcodeWorkersTests {
         XCTAssertEqual(choices().map(\.used), [2])
         XCTAssertEqual(choices().map(\.unsupportedReason), [nil])
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [2])
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workersOnOwnSimulators), [.ownSimulators])
         XCTAssertFalse(workerSimulators.calls.contains("removeAll"))
         XCTAssertEqual(
             fileManager.createdFiles["/logs/no-mutant run worker 1 (launch failed).log"],

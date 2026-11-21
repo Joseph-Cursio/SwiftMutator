@@ -79,6 +79,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         )
         XCTAssertEqual(atTheChoice?.headers, 0)
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [2])
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workersOnOwnSimulators), [.ownSimulators])
         XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 4)
     }
 
@@ -227,7 +228,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
     }
 
     /// Asserts that every mutant was tested one at a time, from `muter.xctestrun`, on the test command's destination,
-    /// with parallel testing as the scheme has it.
+    /// with parallel testing as the scheme has it, as the header says.
     func assertTestedOnOneWorker(file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(
             ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") },
@@ -243,6 +244,12 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         XCTAssertEqual(
             distinct(ioDelegate.configurations.compactMap(\.xcodeWorker)),
             [firstWorker],
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            try resultsFiles.records(ResultsHeader.self).map(\.workersOnOwnSimulators),
+            [.testCommandsDestination],
             file: file,
             line: line
         )
