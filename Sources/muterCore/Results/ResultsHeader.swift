@@ -43,6 +43,9 @@ struct ResultsHeader: Codable, Equatable {
     let timeoutSeconds: Double?
     let timeoutIsDefault: Bool
     let workers: Int
+    /// Only in an xcodebuild session that tested mutants: `true` when its workers tested on simulators of their own,
+    /// `false` when its one worker tested on the test command's destination (`WorkerDestination`).
+    var workersOnOwnSimulators: WorkerDestination = .notRecorded
     let stopsAtFirstFailure: Bool
     let failedTestLinesAreReliable: Bool
     /// The tests that lines of the passing baseline, or of an xcodebuild worker's check run, showed failing, which no

@@ -2472,7 +2472,9 @@ it on, and says so:
   simulator's data, and the simulator is deleted when the run ends.
 - **Kills read differently.** A mutant that parallel testing reports as a crash of its test
   process, a `runtimeError` with no tests named, reads as `failed` on a simulator of its own, with
-  the tests that killed it in `killedBy`. Which mutants are killed doesn't change.
+  the tests that killed it in `killedBy`. Which mutants are killed doesn't change. The results
+  file's header records which way each session tested, in
+  [`workersOnOwnSimulators`](Docs/results-file.md#header).
 
 ## Mutating only what a branch changed
 

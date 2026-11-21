@@ -81,6 +81,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.worker), Array(repeating: 0, count: 6))
         XCTAssertEqual(choices().map(\.sentence), ["👷 Testing one mutant at a time, on a simulator of its own."])
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [1])
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workersOnOwnSimulators), [.ownSimulators])
         XCTAssertFalse(workerSimulators.calls.contains("removeAll"))
         await current.interruption.workEnded()
         XCTAssertEqual(workerSimulators.calls.last, "removeAll")
@@ -182,6 +183,10 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         XCTAssertEqual(workerSimulators.calls, Array(repeating: "sweep /project_mutated", count: 3))
         XCTAssertEqual(choices().count, 3)
         XCTAssertEqual(choices().compactMap(\.sentence), [])
+        XCTAssertEqual(
+            try resultsFiles.records(ResultsHeader.self).map(\.workersOnOwnSimulators),
+            Array(repeating: .testCommandsDestination, count: 3)
+        )
     }
 
     func test_oneWorker_aMacDestination_saysWhy_whenOneWorkerSimulatorIsTrue() async throws {
@@ -233,7 +238,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
     }
 
     /// Asserts that every mutant was tested from `muter.xctestrun`, on the test command's destination, with parallel
-    /// testing as the scheme has it, and none on the simulator that was deleted.
+    /// testing as the scheme has it, and none on the simulator that was deleted, as the header says.
     func assertTestedOnTheDestination(file: StaticString = #filePath, line: UInt = #line) {
         let firstWorker = MuterConfiguration.XcodeWorker(
             testRunFile: "muter.xctestrun",
@@ -251,6 +256,12 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         }
         XCTAssertEqual(Set(destinations), [destination], file: file, line: line)
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [1], file: file, line: line)
+        XCTAssertEqual(
+            try resultsFiles.records(ResultsHeader.self).map(\.workersOnOwnSimulators),
+            [.testCommandsDestination],
+            file: file,
+            line: line
+        )
     }
 
     /// The worker choices sent from now on, until the test ends.

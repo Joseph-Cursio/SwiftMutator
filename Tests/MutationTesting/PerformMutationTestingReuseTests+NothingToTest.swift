@@ -28,6 +28,27 @@ extension PerformMutationTestingReuseTests {
         XCTAssertTrue(fileManager.paths.contains("/project_muter_logs/now/baseline run.log"), "its log is kept")
     }
 
+    // An xcodebuild session with nothing left to test has no workers, so its header doesn't say where they tested.
+    func test_withNothingToTest_anXcodebuildSessionsHeader_doesntSayWhereTheWorkersTested() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-scheme", "App", "-destination", "platform=iOS Simulator,name=iPhone 17 Pro", "test"]
+        )
+        for changes in [[], [ProjectTree.FileChange(path: "README.md", kind: .added)]] {
+            try reuse(heldEverywhere(), changes: changes, waiving: ["README.md"])
+            state.resumeWaived = ["README.md"]
+            ioDelegate.testSuiteOutcomes = [.passed]
+
+            _ = try await sut.run(with: state)
+        }
+
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.mutantsToTest), [0, 0])
+        XCTAssertEqual(
+            try resultsFiles.records(ResultsHeader.self).map(\.workersOnOwnSimulators),
+            [.notRecorded, .notRecorded]
+        )
+    }
+
     // Without a log folder, as a state that bypasses the handler has, the baseline's output is discarded, and no log is
     // written in the current directory, the mutated project.
     func test_withNothingToTest_afterAChange_withNoLogFolder_keepsNoBaselineLog() async throws {

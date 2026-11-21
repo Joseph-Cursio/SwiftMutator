@@ -192,7 +192,7 @@ extension PerformMutationTesting {
     /// How `pool` tests `plan`'s mutants: with the configuration from `pool.configuration`, the effective one: on the
     /// first xcodebuild worker, and with the default time limit unless one is configured, from the baseline's
     /// `baselineSeconds`, the seconds `direct`'s run took or a timed test run. Also the timed test run's seconds, if
-    /// one passed.
+    /// one passed, and where an xcodebuild session's workers test, which its header records.
     private func mutantRuns(
         on pool: SimulatorWorkerSetup.Workers,
         testing plan: ResumePlan,
@@ -239,7 +239,8 @@ extension PerformMutationTesting {
             configuration: configuration.withDefaultTestSuiteTimeout(limit),
             workers: pool.count,
             baselineSeconds: baselineSeconds,
-            testRunSeconds: testRunSeconds
+            testRunSeconds: testRunSeconds,
+            workerDestination: ResultsHeader.WorkerDestination(of: pool, testing: plan.toRun.count)
         )
     }
 

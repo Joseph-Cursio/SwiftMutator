@@ -167,8 +167,9 @@ enum ResumeCheck {
     /// `skipCoverage` and `--mutant`'s mutant; and what identifies the SwiftMutator build, the toolchain and the
     /// SDK. Not compared: SwiftMutator's version and path, which its SHA-256 covers; the process, host and arguments;
     /// and the effective `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from
-    /// the configuration, the baseline and the timed test run. Only the build and toolchain differences are ever
-    /// `forced`. Whether a test plan was tested, and which, is compared too (`testPlanRefusals`).
+    /// the configuration, the baseline and the timed test run; nor `workersOnOwnSimulators`, where the workers tested.
+    /// Only the build and toolchain differences are ever `forced`. Whether a test plan was tested, and which, is
+    /// compared too (`testPlanRefusals`).
     ///
     /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`; the
     /// shard; and the sample. What `purpose` leaves out isn't compared.

@@ -132,6 +132,17 @@ final class ResumeCheckTests: XCTestCase {
         )
     }
 
+    // Where the workers tested follows from the test command and the run, not the results: a resume says nothing of
+    // it, whichever way the recorded session tested.
+    func test_whereTheWorkersTested_isntCompared() {
+        for destination in [ResultsHeader.WorkerDestination.ownSimulators, .testCommandsDestination] {
+            var recorded = header(of: current())
+            recorded.workersOnOwnSimulators = destination
+
+            XCTAssertEqual(check(current(), recorded: recorded), ResumeCheck.Verdict(), "\(destination)")
+        }
+    }
+
     // A limit only stops a step that runs too long, before any mutant is tested.
     func test_aChangedBuildTimeout_onlyNotifies() {
         let recorded = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], buildTimeout: 900)
