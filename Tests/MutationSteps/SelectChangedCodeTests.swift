@@ -83,8 +83,13 @@ final class SelectChangedCodeTests: MuterTestCase {
         XCTAssertFalse(steps.contains { $0 is SelectChangedCode || $0 is ListChangedSources })
         let withSince = MutationTestHandler(options: .make(since: "main", skipCoverage: true)).steps
         let names = withSince.map { "\(type(of: $0))" }
+        // Right after the baseline file, which follows the configuration, as every run that tests may have one.
         XCTAssertEqual(
             names.firstIndex(of: "SelectChangedCode"),
+            names.firstIndex(of: "LoadBaselineFile").map { $0 + 1 }
+        )
+        XCTAssertEqual(
+            names.firstIndex(of: "LoadBaselineFile"),
             names.firstIndex(of: "LoadConfiguration").map { $0 + 1 }
         )
         XCTAssertLessThan(

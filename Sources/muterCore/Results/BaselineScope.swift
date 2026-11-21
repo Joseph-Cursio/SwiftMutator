@@ -1,10 +1,13 @@
 import Foundation
 
-/// What a baseline file records of the run it was written from, and `--baseline` compares with the run that checks it:
-/// the operators, `skipCoverage`, and the configuration keys a resume compares (`ResumeCheck`), but for `executable`,
-/// an absolute path that differs between machines. Two runs that differ in any of these discover different mutants, or
-/// judge them differently, so their survivors can't be compared. Not what `--since`, `--shard`, `--sample` or
-/// `--files-to-mutate` choose: a run limited so is compared only on the mutants it tested.
+/// What a baseline file records of the run it was written from, and a run with a baseline file, `--baseline`'s or
+/// `baseline:`'s, compares with its own: the operators, `skipCoverage`, and the configuration keys that choose which
+/// mutants are found and how they are judged, `arguments`, `buildSystem`, `coverageThreshold`, `exclude`,
+/// `excludeCalls` and `mutationTestTimeout`. Not `executable`, an absolute path that differs between machines, nor the
+/// keys a resume only says (`ResumeCheck.keysThatDontAffectOutcomes`), the gate keys among them. Two runs that differ
+/// in any of these discover different mutants, or judge them differently, so their survivors can't be compared. Not
+/// what `--since`, `--shard`, `--sample` or `--files-to-mutate` choose: a run limited so is compared only on the
+/// mutants it tested.
 struct BaselineScope: Equatable {
     /// The operators by name, sorted, once each.
     let operators: [String]

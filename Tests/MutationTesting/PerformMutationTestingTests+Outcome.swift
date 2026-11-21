@@ -41,7 +41,8 @@ extension PerformMutationTestingTests {
             key: MutantKey(path: "Sources/New.swift", mutationOperatorId: .ror, line: 2, column: 5, occurrence: 0),
             snapshot: .make(before: "<", after: ">")
         )
-        state.runOptions = .make(baseline: "muter.baseline.yml", maxNewSurvivors: 2, writeBaseline: "/out/b.yml")
+        state.runOptions = .make(writeBaseline: "/out/b.yml")
+        state.muterConfiguration.gates = RunGates(baseline: "muter.baseline.yml", maxNewSurvivors: 2)
         state.apply([.baselineFileLoaded(file), .mutantsNotSelected([unselected]), .mutantsNotCovered([uncovered])])
         state.filesToMutate = ["Sources/Sum.swift"]
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]

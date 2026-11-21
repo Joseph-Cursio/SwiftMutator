@@ -245,10 +245,6 @@ private extension [MutationStep] {
             copy.removeAll { $0 is LoadResumeState }
         }
 
-        if options.baseline == nil {
-            copy.removeAll { $0 is LoadBaselineFile }
-        }
-
         if options.since == nil {
             copy.removeAll { $0 is SelectChangedCode || $0 is ListChangedSources }
         }

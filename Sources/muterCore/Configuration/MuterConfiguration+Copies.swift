@@ -102,13 +102,15 @@ extension MuterConfiguration {
 
     /// This configuration with `--workers`', `--timeout`'s, `--build-timeout`'s, `--fail-under`'s, `--property-tests`'
     /// and `--report`'s values, when given, in place of `mutationTestWorkers`, `mutationTestTimeout`, `buildTimeout`,
-    /// `failUnder`, `propertyTests` and `reports`, and `--exclude`'s entries after `exclude`'s: a run records and
+    /// `failUnder`, `propertyTests` and `reports`, `gates`, when given, in place of its own, as the gate keys with the
+    /// gate flags in (`RunGates.overridden(by:in:)`), and `--exclude`'s entries after `exclude`'s: a run records and
     /// compares them as it does the keys.
     func overriding(
         workers: Int?,
         timeout: Double?,
         buildTimeout: Double? = nil,
         failUnder: Double? = nil,
+        gates: RunGates? = nil,
         propertyTests: [String]? = nil,
         reports: [ReportRequest]? = nil,
         exclude: [String] = []
@@ -119,6 +121,7 @@ extension MuterConfiguration {
         if let timeout { copy.testSuiteTimeout = timeout }
         if let buildTimeout { copy.buildTimeout = buildTimeout }
         if let failUnder { copy.failUnder = failUnder }
+        if let gates { copy.gates = gates }
         if let propertyTests { copy.propertyTests = propertyTests }
         if let reports { copy.reports = reports }
         return copy

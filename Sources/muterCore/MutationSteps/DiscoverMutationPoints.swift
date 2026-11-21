@@ -46,7 +46,7 @@ struct DiscoverMutationPoints: MutationStep {
         events.send(.mutantsDropped(dropped))
         let uncovered = Self.uncoveredMutants(of: found, shard: shardSelection, state: state)
         let unselected = Self.unselectedMutants(of: all, keeping: mappings, state: state)
-            + (state.runOptions.baseline == nil ? [] : uncovered.leftOut)
+            + (state.muterConfiguration.gates.baseline == nil ? [] : uncovered.leftOut)
 
         return selected + (unselected.isEmpty ? [] : [.mutantsNotSelected(unselected)]) + [
             .mutationMappingsDiscovered(mappings),

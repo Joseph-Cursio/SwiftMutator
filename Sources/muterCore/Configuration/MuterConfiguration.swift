@@ -91,6 +91,12 @@ struct MuterConfiguration: Equatable, Codable {
     /// (`failUnder:`, `ScoreGate`); nil, the default, checks none. It changes no result, so a resume lets it change.
     /// A `var` only so `overriding` can copy `self` and change just this field.
     var failUnder: Double?
+    /// The baseline file a finished run's survivors and score are compared with, and how far they may fall short of it,
+    /// and how many kills may be in doubt (`baseline:`, `maxNewSurvivors:`, `maxScoreDrop:` and `maxDoubtfulKills:`);
+    /// none is set by default. `LoadConfiguration` puts the run's flags in, each in place of its key
+    /// (`RunGates.overridden(by:in:)`). They judge the run once it finishes, never a result, so a resume lets them
+    /// change. A `var` only so `overriding` can copy `self` and change just this field.
+    var gates: RunGates
     /// The globs that pick out property tests (`propertyTests:`, `PropertyTestPattern`), which the reports split each
     /// kill by (`PropertyKillSummary`); nil, the default, splits none. They change only what the reports say, never a
     /// mutant's result, so a resume lets them change. A `var` only so `overriding` can copy `self` and change just this
@@ -197,6 +203,10 @@ struct MuterConfiguration: Equatable, Codable {
         case keepLogFolders
         case keepSwiftLintPhases
         case failUnder
+        case baseline
+        case maxNewSurvivors
+        case maxScoreDrop
+        case maxDoubtfulKills
         case propertyTests
         case propertyTestFilter
         case propertySurvivorReruns
@@ -227,6 +237,7 @@ struct MuterConfiguration: Equatable, Codable {
         keepLogFolders: Int? = nil,
         keepSwiftLintPhases: ConfigurationSwitch = .unset,
         failUnder: Double? = nil,
+        gates: RunGates = RunGates(),
         propertyTests: [String]? = nil,
         propertyTestFilter: [String]? = nil,
         propertySurvivorReruns: Int? = nil,
@@ -256,6 +267,7 @@ struct MuterConfiguration: Equatable, Codable {
         self.keepLogFolders = keepLogFolders
         self.keepSwiftLintPhases = keepSwiftLintPhases
         self.failUnder = failUnder
+        self.gates = gates
         self.propertyTests = propertyTests
         self.propertyTestFilter = propertyTestFilter
         self.propertySurvivorReruns = propertySurvivorReruns
@@ -294,6 +306,7 @@ struct MuterConfiguration: Equatable, Codable {
         keepLogFolders = try Self.whole(forKey: .keepLogFolders, in: 2 ... Int.max, in: container)
         keepSwiftLintPhases = try container.decode(ConfigurationSwitch.self, forKey: .keepSwiftLintPhases)
         failUnder = try Self.percent(forKey: .failUnder, in: container)
+        gates = try Self.runGates(in: container)
         propertyTests = try Self.globs(forKey: .propertyTests, in: container)
         propertyTestFilter = try Self.globs(forKey: .propertyTestFilter, in: container)
         propertySurvivorReruns = try Self.whole(forKey: .propertySurvivorReruns, in: 0 ... Int.max, in: container)
@@ -315,8 +328,8 @@ struct MuterConfiguration: Equatable, Codable {
     }
 
     /// Writes each configuration key as `init(from:)` reads it, in the order of `CodingKeys`, leaving out those not
-    /// set. `failUnder` is written in YAML as plain decimal digits (`WrittenPercent`), which `init(from:)` reads back,
-    /// rather than as Yams writes a number, 8e+1.
+    /// set. `failUnder` and `maxScoreDrop` are written in YAML as plain decimal digits (`WrittenPercent`), which
+    /// `init(from:)` reads back, rather than as Yams writes a number, 8e+1.
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(testCommandArguments, forKey: .testCommandArguments)
@@ -340,6 +353,7 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(keepLogFolders, forKey: .keepLogFolders)
         try container.encode(keepSwiftLintPhases, forKey: .keepSwiftLintPhases)
         try container.encodeIfPresent(failUnder.map(WrittenPercent.init), forKey: .failUnder)
+        try encodeRunGates(in: &container)
         try container.encodeIfPresent(propertyTests, forKey: .propertyTests)
         try container.encodeIfPresent(propertyTestFilter, forKey: .propertyTestFilter)
         try container.encodeIfPresent(propertySurvivorReruns, forKey: .propertySurvivorReruns)

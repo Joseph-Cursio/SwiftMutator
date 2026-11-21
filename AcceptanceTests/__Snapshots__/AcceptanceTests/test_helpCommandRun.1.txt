@@ -100,22 +100,27 @@ OPTIONS:
                           allows, once the report is written. Only the mutants
                           tested are compared. Exit with status 8 if the file
                           can't be read, or records another scope: other
-                          operators, or another configuration.
+                          operators, or another configuration. For a run, in
+                          place of baseline.
   --max-new-survivors <count>
                           With --baseline, how many new survivors pass: a whole
-                          number, 0 or more. 0 when not given.
+                          number, 0 or more. 0 when not given. For a run, in
+                          place of maxNewSurvivors, with --baseline or baseline.
   --max-score-drop <points>
                           With --baseline, exit with status 2 when the score,
                           counted as --fail-under counts it, is more than this
                           many points below the baseline file's, from 0 to 100,
                           once the report is written. Flaky tests alone move
                           the score a point or two between runs, so 0 fails at
-                          random. Only a whole run's score is compared.
+                          random. Only a whole run's score is compared. For a
+                          run, in place of maxScoreDrop, with --baseline or
+                          baseline.
   --max-doubtful-kills <count>
                           Exit with status 2 when more kills than this whole
                           number are doubtful, once the report is written:
                           those only suspect tests made that no rerun alone
-                          settled, and those whose code never ran.
+                          settled, and those whose code never ran. For a run,
+                          in place of maxDoubtfulKills.
   --write-baseline <path> Save the survivors to a baseline file at this path,
                           such as muter.baseline.yml, for --baseline to compare
                           later runs with. Only a whole run's results make one.

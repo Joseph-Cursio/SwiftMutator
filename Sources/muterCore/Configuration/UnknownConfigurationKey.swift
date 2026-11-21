@@ -8,6 +8,9 @@ struct UnknownConfigurationKey: Equatable, Sendable {
     let key: String
     /// The known key `key` is closest to, if it is close enough to be meant: see `closest(to:)`.
     let closest: String?
+    /// The flag `key` names, for a flag that has no key, as `--write-baseline`; nil for any other key, and then
+    /// `closest` says what it may mean.
+    var flag: String?
 
     /// The keys of `data`'s top-level mapping, YAML or JSON, that no configuration key is, in the order they are
     /// written, once each; none if it isn't a mapping, which decoding refuses. A YAML merge key, `<<`, isn't one: the
@@ -22,7 +25,10 @@ struct UnknownConfigurationKey: Equatable, Sendable {
         var seen: Set<String> = []
         return keys(of: mapping)
             .filter { !known.contains($0) && seen.insert($0).inserted }
-            .map { Self(key: $0, closest: closest(to: $0)) }
+            .map { name in
+                let named = flagsOnly[normalized(name)]
+                return Self(key: name, closest: named == nil ? closest(to: name) : nil, flag: named)
+            }
     }
 
     /// `mapping`'s keys, with those of the mappings a merge key merges in its place.
@@ -33,6 +39,12 @@ struct UnknownConfigurationKey: Equatable, Sendable {
             return merged.flatMap(keys(of:))
         }
     }
+
+    /// Flags a key is likely written for that have no key, by their names as `normalized` gives them. A baseline file
+    /// is written once in a while, from a whole run, so `--write-baseline` is given on that run's command line alone.
+    private static let flagsOnly = [
+        "writebaseline": "--write-baseline",
+    ]
 
     /// Names a key is likely written as that are not close to it by their letters, each with its key: a run flag's
     /// name, or another name for what the key holds.

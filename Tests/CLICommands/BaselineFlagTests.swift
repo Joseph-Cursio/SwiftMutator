@@ -29,10 +29,15 @@ final class BaselineFlagTests: XCTestCase {
         XCTAssertFalse(MutateWithoutRunning.helpMessage(columns: 200).contains("--baseline"))
     }
 
-    // `--baseline` alone allows no new survivor; without it, nothing is compared.
-    func test_maxNewSurvivors_is0_withBaselineAlone_andNilWithout() throws {
+    // A run's flags are taken as given: `LoadConfiguration` makes `maxNewSurvivors` 0 once it knows whether a key
+    // gives the baseline file (`LoadConfigurationTests+Gates`). `report` reads no configuration, so `--baseline`
+    // alone allows no new survivor there.
+    func test_maxNewSurvivors_isAsGiven_forARun_and0_withBaselineAlone_forAReport() throws {
         let alone = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--baseline", "b.yml"]) as? Run).runOptions
-        XCTAssertEqual(alone.maxNewSurvivors, 0)
+        XCTAssertNil(alone.maxNewSurvivors)
+        XCTAssertEqual(alone.gateFlags, RunGates(baseline: URL(argument: "b.yml")?.path))
+        let report = try XCTUnwrap(MuterCommand.parseAsRoot(["report", "r.jsonl", "--baseline", "b.yml"]) as? Report)
+        XCTAssertEqual(report.reportOptions.allowedNewSurvivors, 0)
         let plain = try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions
         XCTAssertNil(plain.baseline)
         XCTAssertNil(plain.maxNewSurvivors)
@@ -41,12 +46,15 @@ final class BaselineFlagTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(writeBaseline: "b.yml"), .make())
     }
 
-    func test_maxNewSurvivors_withoutBaseline_orNotAWholeNumber_isAUsageError() {
-        for command in [["run"], ["report", "r.jsonl"], ["run-without-mutating", "plan.json"]] {
-            assertUsageError(
-                command + ["--max-new-survivors", "2"],
-                "--max-new-survivors only applies with --baseline."
-            )
+    // For `report` alone: a run's configuration may give the file as `baseline:`, so `LoadConfiguration` refuses a
+    // run's count with no file (`LoadConfigurationTests+Gates`).
+    func test_maxNewSurvivors_withoutBaseline_orNotAWholeNumber_isAUsageError() throws {
+        assertUsageError(
+            ["report", "r.jsonl", "--max-new-survivors", "2"],
+            "--max-new-survivors only applies with --baseline."
+        )
+        for command in [["run"], ["run-without-mutating", "plan.json"]] {
+            XCTAssertNoThrow(try MuterCommand.parseAsRoot(command + ["--max-new-survivors", "2"]), "\(command)")
         }
         for value in ["-1", "1.5", "x"] {
             assertUsageError(
@@ -89,9 +97,13 @@ final class BaselineFlagTests: XCTestCase {
         }
     }
 
-    func test_maxScoreDrop_withoutBaseline_orABadValue_isAUsageError() {
-        for command in [["run"], ["report", "r.jsonl"], ["run-without-mutating", "plan.json"]] {
-            assertUsageError(command + ["--max-score-drop", "2"], "--max-score-drop only applies with --baseline.")
+    func test_maxScoreDrop_withoutBaseline_orABadValue_isAUsageError() throws {
+        assertUsageError(
+            ["report", "r.jsonl", "--max-score-drop", "2"],
+            "--max-score-drop only applies with --baseline."
+        )
+        for command in [["run"], ["run-without-mutating", "plan.json"]] {
+            XCTAssertNoThrow(try MuterCommand.parseAsRoot(command + ["--max-score-drop", "2"]), "\(command)")
         }
         for value in ["-1", "100.5", "1e2", "0.0000001", "x"] {
             assertUsageError(
@@ -109,7 +121,8 @@ final class BaselineFlagTests: XCTestCase {
         }
     }
 
-    // They are flags, not configuration, so a resume doesn't compare them: a resume may give them or not.
+    // A resume may give them or not: the keys they stand for judge only the run's end, so a resume only says a change
+    // (`ResumeCheck.keysThatDontAffectOutcomes`).
     func test_aResume_takesTheNewFlags() {
         XCTAssertNoThrow(
             try MuterCommand.parseAsRoot([

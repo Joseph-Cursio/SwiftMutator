@@ -2,6 +2,37 @@
 import XCTest
 
 extension ResumeCheckTests {
+    /// What a resume says of each key `configurationWithEveryFieldSet()` sets that no result depends on, from a
+    /// header that sets none.
+    private static let noticesOfEveryKeyNoResultDependsOn = [
+        #"baseline was not set and is "muter.baseline.yml" now, which no result depends on."#,
+        "buildTimeout was not set and is 600 now, which no result depends on.",
+        "controlRunEvery was not set and is 50 now, which no recorded result depends on, though it chooses "
+            + "which kills are tested again alone.",
+        "failUnder was not set and is 80 now, which no result depends on.",
+        "keepAllLogs was not set and is true now, which no result depends on.",
+        "keepLogFolders was not set and is 3 now, which no result depends on.",
+        "keepSwiftLintPhases was not set and is true now, which no result depends on.",
+        "maxDoubtfulKills was not set and is 3 now, which no result depends on.",
+        "maxNewSurvivors was not set and is 2 now, which no result depends on.",
+        "maxScoreDrop was not set and is 1.5 now, which no result depends on.",
+        "mutationTestWorkers was not set and is 4 now, which no result depends on.",
+        "oneWorkerSimulator was not set and is true now, which no result depends on.",
+        "propertySurvivorRerunLimit was not set and is 50 now, which no result depends on.",
+        "propertySurvivorReruns was not set and is 10 now, which no result depends on.",
+        #"propertyTestFilter was not set and is ["Properties"] now, which no result depends on."#,
+        #"propertyTests was not set and is ["*Properties*"] now, which no result depends on."#,
+        #"reports was not set and is ["markdown:summary.md"] now, which no result depends on."#,
+        "stopAtFirstFailure was not set and is false now, which no result depends on.",
+        "suspectKillReruns was not set and is 25 now, which no recorded result depends on, though it chooses "
+            + "which kills are tested again alone.",
+        "suspectTestFilePercent was not set and is 30 now, which no recorded result depends on, though it "
+            + "chooses which kills are tested again alone.",
+        "suspectTestMinimumFiles was not set and is 5 now, which no recorded result depends on, though it "
+            + "chooses which kills are tested again alone.",
+        "workersShareBuild was not set and is false now, which no result depends on.",
+    ]
+
     func test_everyConfigurationKeyButEleven_isCompared() {
         // A new configuration key is compared unless it is added to keysThatDontAffectOutcomes, and fails this test
         // either way, so each one is a decision. A results header never holds workspace, project, scheme or
@@ -32,33 +63,7 @@ extension ResumeCheckTests {
         // And the reason more that this run worked its configuration out, as the fixture's is.
         XCTAssertEqual(verdict.refusals.count, 12)
         XCTAssertEqual(verdict.refusals.last, .configurationWorkedOut(then: false, now: true))
-        XCTAssertEqual(
-            verdict.notices,
-            [
-                "buildTimeout was not set and is 600 now, which no result depends on.",
-                "controlRunEvery was not set and is 50 now, which no recorded result depends on, though it chooses "
-                    + "which kills are tested again alone.",
-                "failUnder was not set and is 80 now, which no result depends on.",
-                "keepAllLogs was not set and is true now, which no result depends on.",
-                "keepLogFolders was not set and is 3 now, which no result depends on.",
-                "keepSwiftLintPhases was not set and is true now, which no result depends on.",
-                "mutationTestWorkers was not set and is 4 now, which no result depends on.",
-                "oneWorkerSimulator was not set and is true now, which no result depends on.",
-                "propertySurvivorRerunLimit was not set and is 50 now, which no result depends on.",
-                "propertySurvivorReruns was not set and is 10 now, which no result depends on.",
-                #"propertyTestFilter was not set and is ["Properties"] now, which no result depends on."#,
-                #"propertyTests was not set and is ["*Properties*"] now, which no result depends on."#,
-                #"reports was not set and is ["markdown:summary.md"] now, which no result depends on."#,
-                "stopAtFirstFailure was not set and is false now, which no result depends on.",
-                "suspectKillReruns was not set and is 25 now, which no recorded result depends on, though it chooses "
-                    + "which kills are tested again alone.",
-                "suspectTestFilePercent was not set and is 30 now, which no recorded result depends on, though it "
-                    + "chooses which kills are tested again alone.",
-                "suspectTestMinimumFiles was not set and is 5 now, which no recorded result depends on, though it "
-                    + "chooses which kills are tested again alone.",
-                "workersShareBuild was not set and is false now, which no result depends on.",
-            ]
-        )
+        XCTAssertEqual(verdict.notices, Self.noticesOfEveryKeyNoResultDependsOn)
     }
 
     // Where one worker tests, on the destination or on a simulator of its own, can change a kill's kind, but not
@@ -119,6 +124,7 @@ extension ResumeCheckTests {
             ResumeCheck.configurationDifferences(MuterConfiguration(), configurationWithEveryFieldSet()),
             [
                 .init(name: "arguments", was: "[]", isNow: #"["test"]"#),
+                .init(name: "baseline", was: nil, isNow: #""muter.baseline.yml""#),
                 .init(name: "buildSystem", was: nil, isNow: #""swift""#),
                 .init(name: "buildTimeout", was: nil, isNow: "600"),
                 .init(name: "controlRunEvery", was: nil, isNow: "50"),
@@ -131,6 +137,9 @@ extension ResumeCheckTests {
                 .init(name: "keepAllLogs", was: nil, isNow: "true"),
                 .init(name: "keepLogFolders", was: nil, isNow: "3"),
                 .init(name: "keepSwiftLintPhases", was: nil, isNow: "true"),
+                .init(name: "maxDoubtfulKills", was: nil, isNow: "3"),
+                .init(name: "maxNewSurvivors", was: nil, isNow: "2"),
+                .init(name: "maxScoreDrop", was: nil, isNow: "1.5"),
                 .init(name: "mutationTestTimeout", was: nil, isNow: "30"),
                 .init(name: "mutationTestWorkers", was: nil, isNow: "4"),
                 .init(name: "oneWorkerSimulator", was: nil, isNow: "true"),

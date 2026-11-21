@@ -88,10 +88,10 @@ struct DiscoverSourceFiles: MutationStep {
         throw failure
     }
 
-    /// Whether a run compares the mutants of code no test ran: with `--baseline`, but for a run of one mutant, which
-    /// compares no survivors.
+    /// Whether a run compares the mutants of code no test ran: with a baseline file, `--baseline`'s or `baseline:`'s,
+    /// but for a run of one mutant, which compares no survivors.
     static func comparesUncoveredMutants(_ state: AnyMutationTestState) -> Bool {
-        state.runOptions.baseline != nil && state.runOptions.mutant == nil
+        state.muterConfiguration.gates.baseline != nil && state.runOptions.mutant == nil
     }
 
     /// Why `--since` leaves nothing to mutate when it leaves no file to: discovery leaves out each changed file that

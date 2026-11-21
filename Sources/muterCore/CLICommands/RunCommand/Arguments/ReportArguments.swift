@@ -64,7 +64,7 @@ struct ReportArguments: ParsableArguments {
             "Compare the survivors with those of this baseline file, which --write-baseline saved, and exit with "
                 + "status 2 when more are new than --max-new-survivors allows, once the report is written. Only the "
                 + "mutants tested are compared. Exit with status 8 if the file can't be read, or records another "
-                + "scope: other operators, or another configuration.",
+                + "scope: other operators, or another configuration. For a run, in place of baseline.",
             valueName: "path"
         ),
         // Made absolute now, as `--write-baseline`'s path is: a run reads it once it has moved into the project.
@@ -75,7 +75,8 @@ struct ReportArguments: ParsableArguments {
     @Option(
         name: .customLong("max-new-survivors"),
         help: ArgumentHelp(
-            "With --baseline, how many new survivors pass: a whole number, 0 or more. 0 when not given.",
+            "With --baseline, how many new survivors pass: a whole number, 0 or more. 0 when not given. For a run, in "
+                + "place of maxNewSurvivors, with --baseline or baseline.",
             valueName: "count"
         ),
         transform: { text in
@@ -93,7 +94,7 @@ struct ReportArguments: ParsableArguments {
             "With --baseline, exit with status 2 when the score, counted as --fail-under counts it, is more than "
                 + "this many points below the baseline file's, from 0 to 100, once the report is written. Flaky tests "
                 + "alone move the score a point or two between runs, so 0 fails at random. Only a whole run's score is "
-                + "compared.",
+                + "compared. For a run, in place of maxScoreDrop, with --baseline or baseline.",
             valueName: "points"
         ),
         transform: { text in
@@ -112,7 +113,8 @@ struct ReportArguments: ParsableArguments {
         name: .customLong("max-doubtful-kills"),
         help: ArgumentHelp(
             "Exit with status 2 when more kills than this whole number are doubtful, once the report is written: "
-                + "those only suspect tests made that no rerun alone settled, and those whose code never ran.",
+                + "those only suspect tests made that no rerun alone settled, and those whose code never ran. For a "
+                + "run, in place of maxDoubtfulKills.",
             valueName: "count"
         ),
         transform: { text in
@@ -179,19 +181,24 @@ struct ReportArguments: ParsableArguments {
     }
 
     /// Refuses two reports at one path, for every command: a run's at another's partial report too is refused by
-    /// `validateForARun()`, as `report` writes none. `--max-new-survivors` and `--max-score-drop` say only what
-    /// `--baseline` allows.
+    /// `validateForARun()`, as `report` writes none.
     func validate() throws {
         if let problem = PropertyTestPattern.problem(with: propertyTests) {
             throw ValidationError("--property-tests: \(problem).")
         }
+        try refuseAClash(ofARun: false)
+    }
+
+    /// Refuses, for `report`, `--max-new-survivors` and `--max-score-drop` without `--baseline`: they say only what its
+    /// file allows, and `report` reads no configuration that could give one. A run leaves them to `LoadConfiguration`,
+    /// as `baseline:` may give its file (`RunGates.overridden(by:in:)`).
+    func validateForAReport() throws {
         if maxNewSurvivors != nil, baseline == nil {
             throw ValidationError("--max-new-survivors only applies with --baseline.")
         }
         if maxScoreDrop != nil, baseline == nil {
             throw ValidationError("--max-score-drop only applies with --baseline.")
         }
-        try refuseAClash(ofARun: false)
     }
 
     /// Refuses a report at the path another's partial report takes when a run stops, for `run` and

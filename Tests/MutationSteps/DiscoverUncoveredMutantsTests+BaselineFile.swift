@@ -20,7 +20,7 @@ extension DiscoverUncoveredMutantsTests {
         let nothing = await error { try await DiscoverMutationPoints().run(with: state) }
         XCTAssertEqual((nothing as? NothingToMutate)?.reason, .noMutantOnChangedLines)
 
-        state.runOptions = .make(baseline: "muter.baseline.yml")
+        state.muterConfiguration.gates = RunGates(baseline: "muter.baseline.yml")
         let tested = MutantKey(
             path: "Sign.swift",
             mutationOperatorId: .relationalBoundary,
@@ -53,7 +53,7 @@ extension DiscoverUncoveredMutantsTests {
         ), Run.message(showing: only))
 
         // Allowed, they pass, and the run exits 0.
-        state.runOptions = .make(baseline: "muter.baseline.yml", maxNewSurvivors: 3)
+        state.muterConfiguration.gates = RunGates(baseline: "muter.baseline.yml", maxNewSurvivors: 3)
         let allowed = try await onlyUncoveredMutants(of: state)
         XCTAssertEqual(allowed.check.result, .passed)
         XCTAssertNil(ExitCode.exitStatus(afterRunFailedWith: allowed))
@@ -68,7 +68,7 @@ extension DiscoverUncoveredMutantsTests {
     func assertTheScoreAndKillsVerdicts_followTheSurvivors() async throws {
         // As a run does: the score of the code --since chose isn't compared, and no kill is doubtful, as none was
         // tested.
-        state.runOptions = .make(
+        state.muterConfiguration.gates = RunGates(
             baseline: "muter.baseline.yml",
             maxNewSurvivors: 3,
             maxScoreDrop: 2,
@@ -83,7 +83,7 @@ extension DiscoverUncoveredMutantsTests {
                 + "chose isn't the whole project's.\n✅ No doubtful kills."
         ), Run.message(showing: checked))
         // Too many new survivors still fail it.
-        state.runOptions = .make(baseline: "muter.baseline.yml", maxScoreDrop: 2, maxDoubtfulKills: 0)
+        state.muterConfiguration.gates = RunGates(baseline: "muter.baseline.yml", maxScoreDrop: 2, maxDoubtfulKills: 0)
         let failed = try await onlyUncoveredMutants(of: state)
         XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: failed), .scoreBelowThreshold)
     }
@@ -106,7 +106,7 @@ extension DiscoverUncoveredMutantsTests {
             NothingToMutate(reason: .noFileDiscovered(count: 1), selection: selection)
         )
 
-        state.runOptions = .make(baseline: "muter.baseline.yml")
+        state.muterConfiguration.gates = RunGates(baseline: "muter.baseline.yml")
         state.apply([.baselineFileLoaded(baselineFile(recording: []))])
         let changes = try await DiscoverSourceFiles().run(with: state)
         XCTAssertEqual(changes, [.sourceFileCandidatesDiscovered([]), .uncoveredSourceFilesDiscovered([left])])
@@ -121,12 +121,14 @@ extension DiscoverUncoveredMutantsTests {
         whole.mutationOperatorList = state.mutationOperatorList
         whole.mutatedProjectDirectoryURL = state.mutatedProjectDirectoryURL
         whole.projectDirectoryURL = state.projectDirectoryURL
+        // Without the baseline file `state` compares with.
         whole.muterConfiguration = state.muterConfiguration
+        whole.muterConfiguration.gates = RunGates()
         whole.apply([.candidatePathsListed(["Check.swift"])])
         whole.projectCoverage = state.projectCoverage
         let noFile = await error { try await DiscoverSourceFiles().run(with: whole) }
         XCTAssertEqual(noFile as? MuterError, .noSourceFilesDiscovered)
-        whole.runOptions = .make(baseline: "muter.baseline.yml", maxScoreDrop: 2)
+        whole.muterConfiguration.gates = RunGates(baseline: "muter.baseline.yml", maxScoreDrop: 2)
         whole.apply([.baselineFileLoaded(baselineFile(recording: []))])
         whole.apply(try await DiscoverSourceFiles().run(with: whole))
         let wholeOnly = try await onlyUncoveredMutants(of: whole)
@@ -150,7 +152,7 @@ extension DiscoverUncoveredMutantsTests {
         state.uncoveredSourceFiles = [left]
         let selection = ChangeSelection.make(files: [ChangedFile(path: "Empty.swift", sha256: "", lines: [])])
         state.apply([.changesSelected(selection)])
-        state.runOptions = .make(baseline: "muter.baseline.yml")
+        state.muterConfiguration.gates = RunGates(baseline: "muter.baseline.yml")
         state.apply([.baselineFileLoaded(baselineFile(recording: []))])
 
         let nothing = await error { try await DiscoverMutationPoints().run(with: state) }

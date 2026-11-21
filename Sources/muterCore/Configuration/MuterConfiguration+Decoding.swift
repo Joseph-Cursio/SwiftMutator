@@ -64,10 +64,11 @@ extension MuterConfiguration {
     /// plain decimal digits, with at most `ScoreGate.maximumDecimals` decimals, so not 1e2, 0x50, 8_0 or 1:20, which
     /// YAML would read as numbers. A JSON configuration, such as a results file's header, holds a number instead,
     /// whose shortest decimal form is checked the same way. Throws on any other value, so a typo is a configuration
-    /// error rather than "unset".
+    /// error rather than "unset", giving `examples` of values it takes.
     static func percent(
         forKey key: CodingKeys,
-        in container: KeyedDecodingContainer<CodingKeys>
+        in container: KeyedDecodingContainer<CodingKeys>,
+        examples: String = "80 or 72.5"
     ) throws -> Double? {
         // YAML gives any scalar as the text it is written with; JSON gives only a string so.
         let text: String
@@ -86,7 +87,7 @@ extension MuterConfiguration {
                 forKey: key,
                 in: container,
                 debugDescription: "\(key.stringValue) must be a number from 0 to 100, with at most "
-                    + "\(ScoreGate.maximumDecimals) decimals, such as 80 or 72.5, not \(shown)"
+                    + "\(ScoreGate.maximumDecimals) decimals, such as \(examples), not \(shown)"
             )
         }
         return percent

@@ -57,9 +57,9 @@ extension DiscoverMutationPoints {
         return (kept, leftOut)
     }
 
-    /// With `--baseline`, when the code the run chose holds no mutant to test, but mutants of code no test ran, those
-    /// compared with the baseline file, as the run would compare them at its end, with the verdicts on the score and
-    /// the kills that `--max-score-drop` and `--max-doubtful-kills` ask for, for the run to end with
+    /// With a baseline file, when the code the run chose holds no mutant to test, but mutants of code no test ran,
+    /// those compared with the baseline file, as the run would compare them at its end, with the verdicts on the score
+    /// and the kills that `maxScoreDrop` and `maxDoubtfulKills`, flags or keys, ask for, for the run to end with
     /// (`OnlyUncoveredMutants`); nil otherwise. As no shard holds a mutant to test, the first alone compares them, so
     /// that each is compared once.
     static func onlyUncoveredMutants(
@@ -89,15 +89,15 @@ extension DiscoverMutationPoints {
             uncovered: uncovered.kept.count,
             check: NewSurvivorsCheck(
                 baseline: baseline,
-                maxNewSurvivors: state.runOptions.maxNewSurvivors ?? 0,
+                maxNewSurvivors: state.muterConfiguration.gates.maxNewSurvivors ?? 0,
                 judging: outcome,
                 version: version
             ),
             // Nothing was tested, so neither can fail: the score isn't compared, and no kill is doubtful.
-            scoreDrop: state.runOptions.maxScoreDrop.map {
+            scoreDrop: state.muterConfiguration.gates.maxScoreDrop.map {
                 ScoreDropCheck(baseline: baseline, maxScoreDrop: $0, judging: outcome)
             },
-            doubtfulKills: state.runOptions.maxDoubtfulKills.map {
+            doubtfulKills: state.muterConfiguration.gates.maxDoubtfulKills.map {
                 DoubtfulKillsCheck(maxDoubtfulKills: $0, judging: outcome)
             }
         )
@@ -121,10 +121,10 @@ extension DiscoverMutationPoints {
             .sorted { ($0.path, $0.position.utf8Offset) < ($1.path, $1.position.utf8Offset) }
     }
 
-    /// With `--baseline`, the mutants of `all` that `--changed-lines`, `--sample` and `--shard` left out of `kept`,
-    /// with their keys among all of them: each takes its place's repeats with it, so these are the keys a whole run
-    /// gives them. Empty without `--baseline`, which alone compares them, and for a run of one mutant, which compares
-    /// none.
+    /// With a baseline file, `--baseline`'s or `baseline:`'s, the mutants of `all` that `--changed-lines`, `--sample`
+    /// and `--shard` left out of `kept`, with their keys among all of them: each takes its place's repeats with it, so
+    /// these are the keys a whole run gives them. Empty without a baseline file, which alone compares them, and for a
+    /// run of one mutant, which compares none.
     static func unselectedMutants(
         of all: [SchemataMutationMapping],
         keeping kept: [SchemataMutationMapping],
@@ -132,7 +132,7 @@ extension DiscoverMutationPoints {
     ) -> [UnselectedMutant] {
         let options = state.runOptions
         let leavesSomeOut = options.sample != nil || options.shard != nil || state.changeSelection?.changedLines == true
-        guard options.baseline != nil, options.mutant == nil, leavesSomeOut else { return [] }
+        guard state.muterConfiguration.gates.baseline != nil, options.mutant == nil, leavesSomeOut else { return [] }
         let root = state.mutatedProjectDirectoryURL
         let keptKeys = Set(MutantKey.keys(for: kept.flatMap(\.mutationSchemata), under: root))
         let schemata = all.mergeByFilePath().flatMap(\.mutationSchemata)

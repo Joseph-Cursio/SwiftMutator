@@ -24,6 +24,7 @@ struct LoadConfiguration: MutationStep {
                     timeout: state.runOptions.timeout,
                     buildTimeout: state.runOptions.buildTimeout,
                     failUnder: state.runOptions.failUnder,
+                    gates: try gates(of: configuration, state: state),
                     propertyTests: state.runOptions.propertyTests,
                     reports: state.runOptions.reports,
                     exclude: state.runOptions.exclude
@@ -166,6 +167,18 @@ struct LoadConfiguration: MutationStep {
             throw MuterError.configurationParsingError(reason: reason)
         }
         return configuration
+    }
+
+    /// The gates a run with `state` judges its end by: the keys of `configuration`, with the run's flags in, each in
+    /// place of its key, and a key's baseline file resolved against the project's folder, the current one, unless
+    /// `--write-baseline` writes that file. None for `mutate-without-running`, which tests nothing, so takes no flag
+    /// and ignores the keys.
+    private func gates(of configuration: MuterConfiguration, state: AnyMutationTestState) throws -> RunGates {
+        guard !state.runOptions.createTestPlan else { return RunGates() }
+        let options = state.runOptions
+        return try configuration.gates.overridden(
+            by: options.gateFlags, in: fileManager.currentDirectoryPath, writing: options.writeBaseline
+        )
     }
 
     /// Stops a run whose `resolved` configuration, the run's flags already in, would save two reports to one file, a

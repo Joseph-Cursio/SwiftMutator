@@ -146,6 +146,30 @@ enum ConfigurationFileText {
             example: ["failUnder: 80"]
         ),
         Entry(
+            key: .baseline,
+            comment: "A baseline file, which --write-baseline saves, relative to the project's folder: a finished run "
+                + "with more new survivors than maxNewSurvivors allows exits with status 2. Every run that tests reads "
+                + "it, and exits with status 8 if it can't, so commit it with this key. Default: none.",
+            example: ["baseline: muter.baseline.yml"]
+        ),
+        Entry(
+            key: .maxNewSurvivors,
+            comment: "How many new survivors pass, against the baseline file, 0 or more. Needs baseline. Default: 0.",
+            example: ["maxNewSurvivors: 0"]
+        ),
+        Entry(
+            key: .maxScoreDrop,
+            comment: "How many points, from 0 to 100, a finished whole run's score may fall below the baseline "
+                + "file's before it exits with status 2. Needs baseline. Default: the score isn't compared.",
+            example: ["maxScoreDrop: 2"]
+        ),
+        Entry(
+            key: .maxDoubtfulKills,
+            comment: "How many kills may be in doubt, 0 or more, before a finished run exits with status 2: those "
+                + "only suspect tests made, and those whose code never ran. Default: none are counted.",
+            example: ["maxDoubtfulKills: 5"]
+        ),
+        Entry(
             key: .suspectTestFilePercent,
             comment: "The share of the files with a killed mutant, from 1 to 100, that a test must have failed for "
                 + "mutants in to be suspect. Default: \(SuspectTestThresholds.standard.filePercent).",
@@ -233,37 +257,5 @@ enum ConfigurationFileText {
             }
         }
         return lines.joined(separator: "\n") + "\n"
-    }
-
-    /// Each key the configuration writes, with its value as YAML.
-    private static func values(of configuration: MuterConfiguration) throws -> [String: Node] {
-        let mapping = try Yams.compose(yaml: YAMLEncoder().encode(configuration))?.mapping
-        var values: [String: Node] = [:]
-        for (key, value) in mapping ?? [:] {
-            if let name = key.string {
-                values[name] = value
-            }
-        }
-        return values
-    }
-
-    /// The text in lines of at most `width` characters, broken between words.
-    static func wrapped(_ text: String, width: Int) -> [String] {
-        var lines: [String] = []
-        var line = ""
-        for word in text.split(separator: " ") {
-            if line.isEmpty {
-                line = String(word)
-            } else if line.count + 1 + word.count <= width {
-                line += " \(word)"
-            } else {
-                lines.append(line)
-                line = String(word)
-            }
-        }
-        if !line.isEmpty {
-            lines.append(line)
-        }
-        return lines
     }
 }

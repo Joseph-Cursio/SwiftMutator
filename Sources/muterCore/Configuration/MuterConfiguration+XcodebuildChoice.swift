@@ -210,17 +210,20 @@ extension MuterConfiguration {
         try container.encodeIfPresent(xcodebuild.destinations, forKey: .destination)
     }
 
-    private static func text(
+    /// The string `key` holds, or nil if it isn't set. Throws on a blank one, or a value of another type, naming
+    /// `what` it must be, then what leaving it out does, `leftOut`.
+    static func text(
         forKey key: CodingKeys,
         naming what: String,
-        in container: KeyedDecodingContainer<CodingKeys>
+        in container: KeyedDecodingContainer<CodingKeys>,
+        leftOut: String = "Leave it out to keep what arguments give."
     ) throws -> String? {
         guard container.contains(key) else { return nil }
         guard let written = try? container.decode(String.self, forKey: key), !written.trimmed.isEmpty else {
             throw DecodingError.dataCorruptedError(
                 forKey: key,
                 in: container,
-                debugDescription: "\(key.stringValue) must be \(what). Leave it out to keep what arguments give."
+                debugDescription: "\(key.stringValue) must be \(what). \(leftOut)"
             )
         }
         return written
