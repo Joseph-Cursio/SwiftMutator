@@ -79,7 +79,8 @@ final class WorkerSimulatorsTests: MuterTestCase {
             ["clone", iPhone17Pro, names[0]],
             ["clone", iPhone17Pro, names[1]],
         ])
-        XCTAssertEqual(made, [
+        XCTAssertNil(made.baseNotShutDown, "its clones have its settings and data")
+        XCTAssertEqual(made.simulators, [
             WorkerSimulator(
                 udid: "AAAAAAAA-0000-0000-0000-000000000000",
                 name: names[0],
@@ -91,11 +92,12 @@ final class WorkerSimulatorsTests: MuterTestCase {
                 destination: "platform=iOS Simulator,id=AAAAAAAA-0000-0000-0000-000000000001"
             ),
         ])
-        XCTAssertEqual(simulators.recorded, made.map(\.udid))
+        XCTAssertEqual(simulators.recorded, made.simulators.map(\.udid))
         XCTAssertEqual(simctl.timeLimits, [60, 60, 60])
     }
 
-    // `simctl clone` refuses a booted simulator, and SwiftMutator never shuts the user's down.
+    // `simctl clone` refuses a booted simulator, and SwiftMutator never shuts the user's down. It is given back, so
+    // that a failed check run can say how the next run can clone it.
     func test_aBootedSimulator_isMadeAnew_fromItsDeviceTypeAndRuntime_andNeverShutDown() async throws {
         simctl.answering { $0.first == "create" ? .init(output: "BBBBBBBB-0000-0000-0000-000000000000\n") : nil }
 
@@ -112,7 +114,18 @@ final class WorkerSimulatorsTests: MuterTestCase {
             "\(simctl.commands)"
         )
         // An id alone names no platform, so the runtime's is used.
-        XCTAssertEqual(made.map(\.destination), ["platform=iOS Simulator,id=BBBBBBBB-0000-0000-0000-000000000000"])
+        XCTAssertEqual(
+            made.simulators.map(\.destination),
+            ["platform=iOS Simulator,id=BBBBBBBB-0000-0000-0000-000000000000"]
+        )
+        XCTAssertEqual(made.baseNotShutDown, SimctlDevice(
+            udid: bootedTwin,
+            name: "swiftmutator-probe-twin",
+            state: "Booted",
+            isAvailable: true,
+            deviceTypeIdentifier: "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+            runtimeIdentifier: "com.apple.CoreSimulator.SimRuntime.iOS-26-5"
+        ))
     }
 
     func test_aFailure_deletesTheSimulatorsMadeBeforeIt_andSaysWhy() async throws {

@@ -6,6 +6,7 @@ final class WorkerSimulatorsSpy: WorkerSimulating, @unchecked Sendable { // ever
     private let lock = NSLock()
     private var recordedCalls: [String] = []
     private var preparing: Result<[WorkerSimulator], Error>?
+    private var baseNotShutDown: SimctlDevice?
     private var booting: Error?
     private var whileRemovingAll: (@Sendable () -> Void)?
     private var listedDestinations: Set<String> = []
@@ -17,6 +18,12 @@ final class WorkerSimulatorsSpy: WorkerSimulating, @unchecked Sendable { // ever
     /// What `prepare` gives: by default as many simulators as asked for, `platform=iOS Simulator,id=SIM-<n>`.
     func preparing(_ result: Result<[WorkerSimulator], Error>) {
         lock.withLock { preparing = result }
+    }
+
+    /// The destination's simulator that `prepare` says wasn't shut down, so that it made its simulators anew rather
+    /// than cloning it: none by default.
+    func preparingAnew(from base: SimctlDevice?) {
+        lock.withLock { baseNotShutDown = base }
     }
 
     /// What `boot` throws, if anything.
@@ -38,7 +45,7 @@ final class WorkerSimulatorsSpy: WorkerSimulating, @unchecked Sendable { // ever
         record("sweep \(mutatedProject.path)")
     }
 
-    func prepare(_ count: Int, like destination: String, for mutatedProject: URL) throws -> [WorkerSimulator] {
+    func prepare(_ count: Int, like destination: String, for mutatedProject: URL) throws -> PreparedWorkerSimulators {
         record("prepare \(count) like \(destination) for \(mutatedProject.path)")
         let result = lock.withLock { preparing } ?? .success((0..<count).map { worker in
             WorkerSimulator(
@@ -47,7 +54,8 @@ final class WorkerSimulatorsSpy: WorkerSimulating, @unchecked Sendable { // ever
                 destination: "platform=iOS Simulator,id=SIM-\(worker)"
             )
         })
-        return try result.get()
+        let base = lock.withLock { baseNotShutDown }
+        return try PreparedWorkerSimulators(simulators: result.get(), baseNotShutDown: base)
     }
 
     func listsASimulator(namedBy destination: String) -> Bool {
