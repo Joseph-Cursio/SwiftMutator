@@ -1,5 +1,4 @@
 import Foundation
-import Yams
 
 struct MuterConfiguration: Equatable, Codable {
     /// A `var` only so `choosingXcodebuildOptions(_:in:)` can copy `self` and change just this field.
@@ -167,6 +166,21 @@ struct MuterConfiguration: Equatable, Codable {
     /// worker once the baseline has passed (see `XcodeWorker`). A `var` only so `forXcodeWorker` can copy `self` and
     /// change just this field.
     var xcodeWorker: XcodeWorker?
+    /// Whether simctl lists a simulator that the test command's first `-destination` names by its `id=` or `name=`
+    /// alone, without a platform, so that a mutant's xcodebuild run on it can stop at its first failed test
+    /// (`stopAtFirstFailureUnsupportedReason`). Not a configuration key: looked up as mutation testing starts
+    /// (`PerformMutationTesting.withStopFacts(_:)`). A `var` only so `withStopFacts` can copy `self` and change it.
+    var firstDestinationIsASimulator = false
+    /// The UI test targets (`XCTestRun.uiTestTargets`) that a mutant's xcodebuild run tests, which keep it from
+    /// stopping at its first failed test. Not a configuration key: read from the `.xctestrun` as mutation testing
+    /// starts (`PerformMutationTesting.withStopFacts(_:)`). A `var` only so `withStopFacts` can copy `self` and change
+    /// it.
+    var uiTestTargets: [String] = []
+    /// Whether a mutant's xcodebuild run on the test command's own destination tests in parallel, on clones of its
+    /// simulator (`destinationRunsInParallel(given:)`), which keeps a lone worker there from stopping at its first
+    /// failed test. Not a configuration key: read as mutation testing starts
+    /// (`PerformMutationTesting.withStopFacts(_:)`). A `var` only so `withStopFacts` can copy `self` and change it.
+    var destinationRunsInParallel = false
     /// What a run's test command adds to select some of the tests: `--filter` or `-only-testing:` for each of
     /// `propertyTestFilter`'s entries (`withPropertyTestFilter`). Not a configuration key; a `var` only so that can
     /// copy `self` and change just this field.
@@ -370,30 +384,5 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(operators, forKey: .operators)
         try container.encodeIfPresent(skipOperators, forKey: .skipOperators)
         try container.encodeIfPresent(reports, forKey: .reports)
-    }
-
-    init(from data: Data) throws {
-        do {
-            self = try YAMLDecoder().decode(Self.self, from: data)
-        } catch {
-            let yamlError = error
-            do {
-                self = try JSONDecoder().decode(Self.self, from: data)
-            } catch {
-                // YAML's reason, which names the key at fault, rather than that the file isn't JSON.
-                throw yamlError
-            }
-        }
-    }
-
-    static let fileName = "muter.conf"
-    static let `extension` = "yml"
-    static let fileNameWithExtension = "\(fileName).\(`extension`)"
-    static let legacyFileNameWithExtension = "\(fileName).json"
-
-    var asData: Data {
-        get throws {
-            Data(try YAMLEncoder().encode(self).utf8)
-        }
     }
 }

@@ -94,10 +94,16 @@ extension MutationTestingDelegateTests {
             // A kill tested again alone, in the environment of a run that stops.
             MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 60)
                 .goingToEachRunsEnd(),
-            // Switched on, but xcodebuild runs can't be stopped.
+            // Switched on, but an xcodebuild run stops only on a simulator, which these don't name.
             MuterConfiguration(
                 executable: "/tmp/xcodebuild",
                 arguments: ["test"],
+                testSuiteTimeOut: 60,
+                stopAtFirstFailure: .enabled
+            ),
+            MuterConfiguration(
+                executable: "/tmp/xcodebuild",
+                arguments: ["-destination", "platform=iOS,id=00008110-0001", "test"],
                 testSuiteTimeOut: 60,
                 stopAtFirstFailure: .enabled
             ),

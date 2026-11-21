@@ -15,6 +15,20 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
         testTargets.contains { $0["ParallelizationEnabled"] as? Bool == true }
     }
 
+    /// Its UI test targets (`IsUITestBundle`), each once, by the name `-only-testing` and `-skip-testing` take: its
+    /// `BlueprintName`, else its `ProductModuleName`. A mutant's xcodebuild run that tests one doesn't stop at its
+    /// first failed test (`MuterConfiguration.uiTestTargets`).
+    var uiTestTargets: [String] {
+        var names: [String] = []
+        for target in testTargets where target["IsUITestBundle"] as? Bool == true {
+            let name = (target["BlueprintName"] ?? target["ProductModuleName"]) as? String ?? "a target with no name"
+            if !names.contains(name) {
+                names.append(name)
+            }
+        }
+        return names
+    }
+
     /// Every test target's entry, as `updateEnvironmentVariable` finds them: in each of `TestConfigurations`'
     /// `TestTargets`, or in the legacy format, every dictionary at the top level.
     private var testTargets: [[String: AnyHashable]] {

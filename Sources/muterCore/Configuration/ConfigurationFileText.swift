@@ -100,7 +100,7 @@ enum ConfigurationFileText {
         Entry(
             key: .stopAtFirstFailure,
             comment: "Whether a mutant's test run stops at its first failed test, which already decides that it is "
-                + "killed. SwiftPM only. Default: true.",
+                + "killed. SwiftPM, and xcodebuild on a simulator. Default: true.",
             example: ["stopAtFirstFailure: true"]
         ),
         Entry(

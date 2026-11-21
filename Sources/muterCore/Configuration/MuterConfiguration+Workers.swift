@@ -104,4 +104,20 @@ extension MuterConfiguration {
             return .unset
         }
     }
+
+    /// Whether a mutant's run on the test command's destination, as the baseline's is, tests in parallel, on clones of
+    /// its simulator: as the test command's arguments say (`parallelTestingArguments`), else as `xctestrun`, the
+    /// project's `.xctestrun`, does (`XCTestRun.parallelizes`).
+    func destinationRunsInParallel(given xctestrun: XCTestRun) -> Bool {
+        switch parallelTestingArguments {
+        case .unset:
+            return xctestrun.parallelizes
+
+        case .enabled:
+            return true
+
+        case .disabled:
+            return false
+        }
+    }
 }

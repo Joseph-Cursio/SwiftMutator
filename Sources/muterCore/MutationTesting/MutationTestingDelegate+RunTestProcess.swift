@@ -6,15 +6,16 @@ import Darwin.C
 import Foundation
 
 extension MutationTestingDelegate {
+    /// Runs `process`, which writes its log to `logFileUrl`, until it exits, its time limit, or, with a `follower` of
+    /// that log, its first failed test or crash.
     func runTestProcess(
         _ process: Process,
         logFileUrl: URL,
         withTimeout timeout: TimeInterval?,
-        stoppingAtFirstFailure: Bool,
+        following follower: TestLogFollower?,
         failedTestLinesAreReliable: Bool
     ) async throws -> TestRun {
         let ending = TestRunEnding()
-        let follower = stoppingAtFirstFailure ? TestLogFollower(logFileUrl: logFileUrl) : nil
         let locker = mutatedProjectLocker
         let run: @Sendable () async throws -> TestingExecutionResult = {
             try await Self.runToExit(process, follower: follower, ending: ending, recordingIn: locker)
@@ -54,10 +55,16 @@ extension MutationTestingDelegate {
             timeoutExecution: executionResult,
             failedTestLinesAreReliable: failedTestLinesAreReliable
         )
+        let underXcodebuild = follower?.readsXcodebuildCrashes == true
         let note: String? = switch ending.reason {
-        case let .failedTest(line): Self.noteForRunStopped(at: line, after: testExecutionLog)
-        case let .crashed(line): Self.noteForRunStopped(atCrash: line, after: testExecutionLog)
-        default: nil
+        case let .failedTest(line):
+            Self.noteForRunStopped(at: line, after: testExecutionLog)
+
+        case let .crashed(line):
+            Self.noteForRunStopped(atCrash: line, after: testExecutionLog, underXcodebuild: underXcodebuild)
+
+        default:
+            nil
         }
         if let note {
             testExecutionLog += note
@@ -153,9 +160,16 @@ extension MutationTestingDelegate {
         )
     }
 
-    /// The note that ends the log of a run stopped at a crash, as `noteForRunStopped(at:after:)` does.
-    static func noteForRunStopped(atCrash crashLine: String, after log: String) -> String {
-        note(stopped: "at a crash (stopAtFirstFailure); the test bundles after it", at: crashLine, after: log)
+    /// The note that ends the log of a run stopped at a crash, as `noteForRunStopped(at:after:)` does. After a crash,
+    /// `swift test` goes on to the test bundles after the one that crashed, and xcodebuild to the tests after the one
+    /// that did, in a new runner.
+    static func noteForRunStopped(
+        atCrash crashLine: String,
+        after log: String,
+        underXcodebuild: Bool = false
+    ) -> String {
+        let notRun = underXcodebuild ? "the tests after it" : "the test bundles after it"
+        return note(stopped: "at a crash (stopAtFirstFailure); \(notRun)", at: crashLine, after: log)
     }
 
     /// Appends `note` to the file at `url`. One that can't be written to keeps the log it has: the run's `testLog`

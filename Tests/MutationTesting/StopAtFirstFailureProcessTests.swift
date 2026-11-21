@@ -1,12 +1,12 @@
 @testable import muterCore
 import XCTest
 
-/// These run real test commands, shell scripts that print what `swift test` prints, through the real
-/// process factory and time limit, and kill every process they start however a test ends.
+/// These run real test commands, shell scripts that print what `swift test` prints, or xcodebuild in the extension's,
+/// through the real process factory and time limit, and kill every process they start however a test ends.
 final class StopAtFirstFailureProcessTests: MuterTestCase {
-    private let sut = MutationTestingDelegate()
-    private let directory = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
-    private let launched = Locked<[Foundation.Process]>([])
+    let sut = MutationTestingDelegate()
+    let directory = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
+    let launched = Locked<[Foundation.Process]>([])
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -162,7 +162,7 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
 
     /// Runs a mutant's tests with the real process factory and time limit, in this test's folder, as a
     /// parallel worker runs them in its clone.
-    private func runMutantsTests(
+    func runMutantsTests(
         using configuration: MuterConfiguration
     ) async throws -> TestRun {
         current.process = { [launched] in
@@ -198,18 +198,18 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
         XCTAssertTrue(groupsEmptied, "processes are left in the process groups \(groups.sorted())")
     }
 
-    private func pid(writtenTo name: String) -> Int32? {
+    func pid(writtenTo name: String) -> Int32? {
         (try? String(contentsOf: directory.appendingPathComponent(name), encoding: .utf8))
             .flatMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
     }
 
     /// Whether no process has this ID.
-    private func isGone(_ pid: Int32) -> Bool {
+    func isGone(_ pid: Int32) -> Bool {
         kill(pid, 0) == -1 && errno == ESRCH
     }
 
     /// Polls `condition` until it holds or `timeout` seconds pass, and returns whether it held.
-    private static func waitUntil(within timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
+    static func waitUntil(within timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {
             guard Date() < deadline else { return false }

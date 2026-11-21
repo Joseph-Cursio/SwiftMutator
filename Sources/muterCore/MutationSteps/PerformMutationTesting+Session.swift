@@ -21,9 +21,11 @@ extension PerformMutationTesting {
 
         // Only an explicit `true` asked for it, so only that is worth saying, and before the baseline run,
         // which can take minutes. Not a configuration error: the same configuration may be used with
-        // another test command.
-        if state.muterConfiguration.stopAtFirstFailure == .enabled,
-           let reason = state.muterConfiguration.stopAtFirstFailureUnsupportedReason {
+        // another test command. The workers, not known yet, change it only for a lone xcodebuild worker on the test
+        // command's destination that tests in parallel, which is said once it is known: an xcodebuild run's workers
+        // get simulators of their own only when its first destination is a simulator, whose runs can stop too.
+        let configured = await withStopFacts(state)
+        if configured.stopAtFirstFailure == .enabled, let reason = configured.stopAtFirstFailureUnsupportedReason {
             events.send(.stopAtFirstFailureTurnedOff(reason: reason))
         }
 
@@ -44,7 +46,7 @@ extension PerformMutationTesting {
         // The mutants that don't compile have a result, written below, so they count in the header and a resume's plan,
         // and aren't in anything that tests them.
         let testing = plan.leavingOut { baseline.leftOut[jobs[$0].schema.id] != nil }
-        let muterConfiguration = mutantConfiguration(after: baseline, state: state)
+        let muterConfiguration = mutantConfiguration(configured, after: baseline, state: state)
 
         // A lone worker's simulator can be deleted here, once the baseline shows it wouldn't be faster.
         let checked = try await simulatorWorkerSetup.checkedAgainstTheBaseline(
@@ -159,14 +161,16 @@ extension PerformMutationTesting {
         return baseline
     }
 
-    /// The configuration the mutants run with, before the workers and the timed test run settle it, from the
-    /// configured one and what the passing `baseline` printed.
-    private func mutantConfiguration(after baseline: BaselineRun, state: AnyMutationTestState) -> MuterConfiguration {
+    /// The configuration the mutants run with, before the workers and the timed test run settle it, from `configured`,
+    /// the run's own with its facts (`withStopFacts(_:)`), and what the passing `baseline` printed.
+    private func mutantConfiguration(
+        _ configured: MuterConfiguration,
+        after baseline: BaselineRun,
+        state: AnyMutationTestState
+    ) -> MuterConfiguration {
         let testLog = baseline.testLog
         // One mutant's run shows every test it fails, not only the first.
-        var muterConfiguration = state.selectedMutant == nil
-            ? state.muterConfiguration
-            : state.muterConfiguration.withoutStoppingAtFirstFailure()
+        var muterConfiguration = state.selectedMutant == nil ? configured : configured.withoutStoppingAtFirstFailure()
         // A passing run can't show a failed test or a crash, so these tests print text shaped like one. Under a
         // mutant it could stop the run, or count a timed-out run killed, although every test passed, so such lines
         // don't count for this run, nor do the tests they show failing count among a mutant's failed tests. Checked
@@ -213,6 +217,7 @@ extension PerformMutationTesting {
             }
         }
         configuration = Self.onFirstXcodeWorker(configuration, state, pool.xcodeWorkers.first)
+        sayWhetherTheFirstWorkerTurnedStoppingOff(configuration, before: pool.configuration)
         // An xcodebuild run's is on the first worker, as its mutants run, after any check runs, which paid for each
         // simulator's first install and launch.
         if testRunSeconds == nil, timesATestRun, configuration.testSuiteTimeout == nil,
@@ -266,6 +271,7 @@ extension PerformMutationTesting {
             on: simulators,
             in: RunContext(state: state, configuration: configuration, session: session)
         ) { testOutput(named: $0, state: state) }
+        sayWhetherCheckRunsTurnedStoppingOff(workers, configuration: configuration)
         let sharesBuild = workers.count > 1 && mayShareBuild
         if !plan.toRun.isEmpty {
             let choice = WorkerChoice(

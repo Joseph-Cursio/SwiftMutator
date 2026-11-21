@@ -59,27 +59,6 @@ extension MuterConfiguration {
         )
     }
 
-    /// Why a mutant's test run can't be stopped at its first failed test with this test command, or nil.
-    var stopAtFirstFailureUnsupportedReason: String? {
-        if buildSystem != .swift {
-            return "it works only for `swift test` (set `buildSystem: swift` if `executable` wraps it); "
-                + "other test commands run tests where SwiftMutator can't stop them"
-        }
-        if testCommandArguments.contains(where: { $0.hasPrefix("--repeat-until") }) {
-            return "the test arguments retry failing tests (--repeat-until), so a failure doesn't decide the run"
-        }
-        return nil
-    }
-
-    /// Whether mutants' test runs stop at their first failed test: unless `stopAtFirstFailure` is `disabled`,
-    /// whenever this test command supports it and failed-test lines are reliable. Baselines never do.
-    /// On by default since an A/B run on SwiftProjectLint (255 mutants, 4 workers) took 37% less time and
-    /// the switch changed no mutant's verdict. A mutant that both fails a test and crashes can be reported
-    /// killed by a test failure rather than by a runtime error, depending on which comes first.
-    var stopsAtFirstFailure: Bool {
-        stopAtFirstFailureUnsupportedReason == nil && failedTestLinesAreReliable && stopAtFirstFailure != .disabled
-    }
-
     /// Why `propertyTestFilter` can't be used with this configuration; nil when it can, or isn't set. It names the
     /// flags too, which give the keys' values when given.
     var propertyRerunsUnsupportedReason: String? {

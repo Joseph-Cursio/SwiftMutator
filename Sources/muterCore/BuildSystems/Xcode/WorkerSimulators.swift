@@ -14,6 +14,10 @@ protocol WorkerSimulating: Sendable {
     /// or a CancellationError, leaving them to `removeAll()`.
     func prepare(_ count: Int, like destination: String, for mutatedProject: URL) async throws -> [WorkerSimulator]
 
+    /// Whether simctl lists an available simulator that `destination`, a `-destination` value, names
+    /// (`SimulatorDestination.resolve(in:)`); false when it names none, or simctl can't list them.
+    func listsASimulator(namedBy destination: String) async -> Bool
+
     /// Boots `simulators`, all at once, and returns once each has finished booting. Throws
     /// `WorkerSimulatorsUnavailable` when one doesn't boot, or a CancellationError.
     func boot(_ simulators: [WorkerSimulator]) async throws
@@ -179,6 +183,13 @@ final class WorkerSimulators: WorkerSimulating, @unchecked Sendable { // `made` 
             simulators.append(WorkerSimulator(udid: udid, name: name, destination: "\(named)id=\(udid)"))
         }
         return simulators
+    }
+
+    func listsASimulator(namedBy destination: String) async -> Bool {
+        guard let wanted = SimulatorDestination(destination: destination), let list = await list() else {
+            return false
+        }
+        return wanted.resolve(in: list) != nil
     }
 
     func boot(_ simulators: [WorkerSimulator]) async throws {

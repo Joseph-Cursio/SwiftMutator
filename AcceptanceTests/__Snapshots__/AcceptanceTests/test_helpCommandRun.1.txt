@@ -103,7 +103,8 @@ OPTIONS:
                           place of mutationTestTimeout. At most a day, 86400.
   --stop-at-first-failure/--no-stop-at-first-failure
                           Stop a mutant's test run at its first failed test, or
-                          don't, in place of stopAtFirstFailure. SwiftPM only.
+                          don't, in place of stopAtFirstFailure. SwiftPM, and
+                          xcodebuild on a simulator.
   --workers-share-build/--no-workers-share-build
                           Let SwiftPM workers test from one build when they
                           can, or give each a clone, in place of

@@ -168,6 +168,7 @@ func configurationWithEveryFieldSet(
         destination: "platform=iOS Simulator,id=8C5A2F0E-1B2C-4D3E-9F40-5A6B7C8D9E0F",
         parallelTestingOff: true
     ))
+    .withStopFacts(firstDestinationIsASimulator: true, uiTestTargets: ["AppUITests"], destinationRunsInParallel: true)
     // So `testFilterArguments` is set too, as for a property rerun's runs.
     .withPropertyTestFilter() ?? MuterConfiguration()
     let goingToItsEnd = configuration.goingToEachRunsEnd().workedOutFromTheProject()

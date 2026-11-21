@@ -169,11 +169,16 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             // testing can start, so it runs to its end, or its time limit. A run with no mutant switched on is one too.
             let stopsAtFirstFailure = !isBenchmark && schemata != .null && configuration.stopsAtFirstFailure
                 && !configuration.runsGoToTheirEnd
+            // Under xcodebuild, a crash shows in other lines than SwiftPM's (`TestLogFollower.readsXcodebuildCrashes`).
+            let underXcodebuild = configuration.buildSystem == .xcodebuild
+            let follower = stopsAtFirstFailure
+                ? TestLogFollower(logFileUrl: testLogUrl, readsXcodebuildCrashes: underXcodebuild)
+                : nil
             var run = try await runTestProcess(
                 launchedProcess,
                 logFileUrl: testLogUrl,
                 withTimeout: timeLimit,
-                stoppingAtFirstFailure: stopsAtFirstFailure,
+                following: follower,
                 failedTestLinesAreReliable: configuration.failedTestLinesAreReliable
             )
             if schemata != .null {
