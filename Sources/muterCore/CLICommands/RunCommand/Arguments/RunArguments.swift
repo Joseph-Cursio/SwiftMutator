@@ -56,6 +56,50 @@ struct RunArguments: ParsableArguments {
     )
     var buildTimeout: Double?
 
+    @Option(
+        name: .customLong("workspace"),
+        help: ArgumentHelp(
+            "The Xcode workspace to test, relative to the project's folder, in place of the workspace and project "
+                + "keys and any -workspace or -project in arguments.",
+            valueName: "path"
+        )
+    )
+    var workspace: String?
+
+    @Option(
+        name: .customLong("project"),
+        help: ArgumentHelp(
+            "The Xcode project to test, relative to the project's folder, in place of the workspace and project keys "
+                + "and any -workspace or -project in arguments.",
+            valueName: "path"
+        )
+    )
+    var project: String?
+
+    @Option(
+        name: .customLong("scheme"),
+        help: ArgumentHelp(
+            "The scheme to build and test, in place of the scheme key and any -scheme in arguments.",
+            valueName: "name"
+        )
+    )
+    var scheme: String?
+
+    @Option(
+        name: .customLong("destination"),
+        help: ArgumentHelp(
+            "Where to test, as xcodebuild's -destination takes it, in place of the destination key and every "
+                + "-destination in arguments; mutants are tested on the first. Repeatable.",
+            valueName: "specifier"
+        )
+    )
+    var destinations: [String] = []
+
+    /// What `--workspace`, `--project`, `--scheme` and `--destination` give.
+    var xcodebuild: XcodebuildChoice {
+        XcodebuildChoice(workspace: workspace, project: project, scheme: scheme, destinations: destinations)
+    }
+
     /// The project folder is only checked here: the run moves into it once it starts (`RunCommand.run(with:)`), as
     /// the flags are also read by tests, which never move.
     func validate() throws {
@@ -65,8 +109,22 @@ struct RunArguments: ParsableArguments {
         if quiet, verbose {
             throw ValidationError("--quiet and --verbose can't be given together.")
         }
+        try validateXcodebuildChoice()
         if let buildTimeout, !(buildTimeout > 0 && buildTimeout <= TestingArguments.longestTimeout) {
             throw ValidationError("--build-timeout must be a number of seconds above 0, and at most a day (86400).")
+        }
+    }
+
+    /// xcodebuild opens one workspace or project, and a blank value would give it none.
+    private func validateXcodebuildChoice() throws {
+        if workspace != nil, project != nil {
+            throw ValidationError("--workspace and --project can't be given together: xcodebuild opens one of them.")
+        }
+        let given: [(flag: String, value: String?)] = [
+            ("--workspace", workspace), ("--project", project), ("--scheme", scheme),
+        ] + destinations.map { ("--destination", $0) }
+        if let blank = given.first(where: { $0.value?.trimmed.isEmpty == true }) {
+            throw ValidationError("\(blank.flag) can't be blank.")
         }
     }
 }

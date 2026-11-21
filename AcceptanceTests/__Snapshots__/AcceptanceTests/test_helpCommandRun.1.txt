@@ -64,6 +64,20 @@ OPTIONS:
                           of the first mutant is stopped (the coverage run, a
                           build, a baseline), in place of buildTimeout. At most
                           a day, 86400.
+  --workspace <path>      The Xcode workspace to test, relative to the
+                          project's folder, in place of the workspace and
+                          project keys and any -workspace or -project in
+                          arguments.
+  --project <path>        The Xcode project to test, relative to the project's
+                          folder, in place of the workspace and project keys
+                          and any -workspace or -project in arguments.
+  --scheme <name>         The scheme to build and test, in place of the scheme
+                          key and any -scheme in arguments.
+  --destination <specifier>
+                          Where to test, as xcodebuild's -destination takes it,
+                          in place of the destination key and every
+                          -destination in arguments; mutants are tested on the
+                          first. Repeatable.
   --workers <count>       How many mutants to test at once, in place of
                           mutationTestWorkers (SwiftPM, or xcodebuild on a
                           simulator, which gets one simulator per worker).

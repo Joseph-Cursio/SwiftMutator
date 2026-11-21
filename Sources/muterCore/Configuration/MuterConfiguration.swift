@@ -2,7 +2,8 @@ import Foundation
 import Yams
 
 struct MuterConfiguration: Equatable, Codable {
-    let testCommandArguments: [String]
+    /// A `var` only so `choosingXcodebuildOptions(_:in:)` can copy `self` and change just this field.
+    var testCommandArguments: [String]
     // A `var` only so `withExecutable` can copy `self` and change just this field. Rebuilding with
     // `init` instead silently resets any field the call leaves out, as every parameter has a default.
     var testCommandExecutable: String
@@ -43,6 +44,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that
     /// restores env / forwards SIMCTL_CHILD_ vars) whose filename isn't literally `xcodebuild`/`swift`.
     let explicitBuildSystem: BuildSystem?
+    /// What xcodebuild opens, builds and tests on, as the `workspace`, `project`, `scheme` and `destination` keys give
+    /// it. `LoadConfiguration` writes it into `testCommandArguments`, then clears it, so a results header records it in
+    /// `arguments` alone (`choosingXcodebuildOptions(_:in:)`). A `var` only so that can copy `self` and change just
+    /// this field.
+    var xcodebuild: XcodebuildChoice
     /// Whether a mutant's test run stops at its first failed test (`stopAtFirstFailure:`), which already
     /// decides that the mutant is killed. `unset` leaves it to the default; see `stopsAtFirstFailure`. A `var` only so
     /// `withoutStoppingAtFirstFailure` can copy `self` and change just this field.
@@ -175,6 +181,10 @@ struct MuterConfiguration: Equatable, Codable {
         case testSuiteTimeout = "mutationTestTimeout"
         case buildTimeout
         case explicitBuildSystem = "buildSystem"
+        case workspace
+        case project
+        case scheme
+        case destination
         case mutationTestWorkers
         case workersShareBuild
         case stopAtFirstFailure
@@ -223,7 +233,8 @@ struct MuterConfiguration: Equatable, Codable {
         propertySurvivorRerunLimit: Int? = nil,
         operators: [MutationOperator.Id]? = nil,
         skipOperators: [MutationOperator.Id]? = nil,
-        reports: [ReportRequest]? = nil
+        reports: [ReportRequest]? = nil,
+        xcodebuild: XcodebuildChoice = XcodebuildChoice()
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -252,6 +263,7 @@ struct MuterConfiguration: Equatable, Codable {
         self.operators = operators
         self.skipOperators = skipOperators
         self.reports = reports
+        self.xcodebuild = xcodebuild
     }
 
     init(from decoder: Decoder) throws {
@@ -268,6 +280,7 @@ struct MuterConfiguration: Equatable, Codable {
         testSuiteTimeout = try Self.number(forKey: .testSuiteTimeout, in: container)
         buildTimeout = try Self.number(forKey: .buildTimeout, in: container)
         explicitBuildSystem = try Self.buildSystem(forKey: .explicitBuildSystem, in: container)
+        xcodebuild = try Self.xcodebuildChoice(in: container)
         mutationTestWorkers = try container.decodeIfPresent(Int.self, forKey: .mutationTestWorkers)
         workersShareBuild = try container.decode(ConfigurationSwitch.self, forKey: .workersShareBuild)
         // Throws on a value that isn't a Boolean, so a typo is a configuration error rather than "unset".
@@ -314,6 +327,7 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(testSuiteTimeout, forKey: .testSuiteTimeout)
         try container.encodeIfPresent(buildTimeout, forKey: .buildTimeout)
         try container.encodeIfPresent(explicitBuildSystem, forKey: .explicitBuildSystem)
+        try encodeXcodebuildChoice(in: &container)
         try container.encodeIfPresent(mutationTestWorkers, forKey: .mutationTestWorkers)
         try container.encode(workersShareBuild, forKey: .workersShareBuild)
         try container.encode(stopAtFirstFailure, forKey: .stopAtFirstFailure)

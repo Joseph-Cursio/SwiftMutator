@@ -38,6 +38,9 @@ extension Run {
         /// current folder. The results file records the project's path, so it records nothing of its own.
         let projectFolder: URL?
         let testPlanURL: URL?
+        /// `--workspace`, `--project`, `--scheme` and `--destination`: what xcodebuild opens, builds and tests on, in
+        /// place of their keys and of their options in `arguments` (`MuterConfiguration.choosingXcodebuildOptions`).
+        let xcodebuild: XcodebuildChoice
         /// `--workers`: how many mutants to test at once, in place of `mutationTestWorkers`.
         let workers: Int?
         /// `--timeout`: seconds before a mutant's test run is stopped, in place of `mutationTestTimeout`.
@@ -116,6 +119,7 @@ extension Run {
             verbose: Bool = false,
             quiet: Bool = false,
             testPlanURL: URL? = nil,
+            xcodebuild: XcodebuildChoice = XcodebuildChoice(),
             workers: Int? = nil,
             timeout: Double? = nil,
             buildTimeout: Double? = nil,
@@ -150,6 +154,7 @@ extension Run {
             self.configurationURL = configurationURL
             self.projectFolder = projectFolder
             self.testPlanURL = testPlanURL
+            self.xcodebuild = xcodebuild
             self.workers = workers
             self.timeout = timeout
             self.buildTimeout = buildTimeout
@@ -198,6 +203,7 @@ extension Run {
                 lhs.configurationURL == rhs.configurationURL &&
                 lhs.projectFolder == rhs.projectFolder &&
                 lhs.testPlanURL == rhs.testPlanURL &&
+                lhs.xcodebuild == rhs.xcodebuild &&
                 lhs.workers == rhs.workers &&
                 lhs.timeout == rhs.timeout &&
                 lhs.buildTimeout == rhs.buildTimeout &&
@@ -237,6 +243,7 @@ extension Run {
                 verbose: false,
                 quiet: false,
                 testPlanURL: nil,
+                xcodebuild: XcodebuildChoice(),
                 workers: nil,
                 timeout: nil,
                 failUnder: nil,

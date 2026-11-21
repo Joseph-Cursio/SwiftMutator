@@ -14,16 +14,25 @@ extension MuterConfiguration {
     /// The configuration for the project whose folder `directory` holds `directoryContents`, paths relative to it.
     /// Each path keeps its relative form, so that what `XcodebuildTrustCheck` looks for in it is looked for only below
     /// the project's folder. An Xcode workspace or project at the top of the folder wins, then a `Package.swift`;
-    /// otherwise it is empty, to fill in. It throws when there are several workspaces, or no workspace and several
-    /// projects.
-    static func generated(from directoryContents: [FilePath], in directory: FilePath) async throws
-        -> GeneratedConfiguration {
+    /// otherwise it is empty, to fill in. What `given` names, as the run's `--workspace`, `--project`, `--scheme` and
+    /// `--destination` do, is taken in place of what would be worked out, which is then never looked for. It throws
+    /// when there are several workspaces, or no workspace and several projects, and `given` names none, saying the
+    /// run's `--workspace` or `--project` can name one when `namingFlags`, and when it names one that isn't at the top
+    /// of the folder.
+    static func generated(
+        from directoryContents: [FilePath],
+        in directory: FilePath,
+        choosing given: XcodebuildChoice = XcodebuildChoice(),
+        namingFlags: Bool = false
+    ) async throws -> GeneratedConfiguration {
         let base = URL(fileURLWithPath: directory, isDirectory: true)
         let contentURLs = directoryContents.map { URL(fileURLWithPath: $0, relativeTo: base) }
         let topLevel = contentURLs.filter { !$0.relativePath.trimmingCharacters(in: ["/"]).contains("/") }
+        let container = try given.container.map { try XcodeContainer.named($0, among: topLevel, in: base) }
+            ?? XcodeContainer.find(among: topLevel, namingFlags: namingFlags)
 
-        if let container = try XcodeContainer.find(among: topLevel),
-           let generated = await xcodeConfiguration(for: container, besides: topLevel, in: contentURLs) {
+        if let container,
+           let generated = await xcodeConfiguration(for: container, given, besides: topLevel, in: contentURLs) {
             return generated
         }
         if let configuration = await packageConfiguration(from: topLevel) {
@@ -34,9 +43,11 @@ extension MuterConfiguration {
 
     /// `xcodebuild` with the container, the scheme `xcodebuild -list` names for it, the trust checks the project in
     /// `directoryContents` needs skipped, so that a run with no one at the Mac to trust its plugins and macros, as on
-    /// CI, still builds, and a destination. nil for a project whose `project.pbxproj` can't be read.
+    /// CI, still builds, and a destination; `given`'s scheme and destinations in place of those. nil for a project
+    /// whose `project.pbxproj` can't be read.
     private static func xcodeConfiguration(
         for container: XcodeContainer,
+        _ given: XcodebuildChoice,
         besides topLevel: [URL],
         in directoryContents: [URL]
     ) async -> GeneratedConfiguration? {
@@ -47,17 +58,30 @@ extension MuterConfiguration {
             return nil
         }
 
-        let scheme = SchemeChoice(listed: await schemes(of: container), containerName: container.name)
-        let containerArguments = [container.argument, container.url.lastPathComponent, "-scheme", scheme.chosen]
+        let scheme: SchemeChoice
+        if let givenScheme = given.scheme {
+            scheme = .given(givenScheme, containerName: container.name)
+        } else {
+            scheme = SchemeChoice(listed: await schemes(of: container), containerName: container.name)
+        }
+        // The given path as written, as the run's arguments will have it once its flags are merged in.
+        let containerPath = given.container?.path ?? container.url.lastPathComponent
+        let containerArguments = [container.argument, containerPath, "-scheme", scheme.chosen]
         let probeArguments = [container.argument, container.url.path, "-scheme", scheme.chosen]
-        let destination = projectFiles.contains { $0.contains("SDKROOT = iphoneos") }
-            ? "platform=iOS Simulator,name=\(await iosDestination())"
-            : await macOSDestination(probeArguments)
+        let destinations: [String]
+        if let givenDestinations = given.destinations {
+            destinations = givenDestinations
+        } else if projectFiles.contains(where: { $0.contains("SDKROOT = iphoneos") }) {
+            destinations = ["platform=iOS Simulator,name=\(await iosDestination())"]
+        } else {
+            destinations = [await macOSDestination(probeArguments)]
+        }
         let skippedTrustChecks = XcodebuildTrustCheck.needed(by: directoryContents).map(\.skippingArgument)
 
         let configuration = await MuterConfiguration(
             executable: executablePath("xcodebuild"),
-            arguments: containerArguments + skippedTrustChecks + ["-destination", destination, "test"]
+            arguments: containerArguments + skippedTrustChecks + destinations.flatMap { ["-destination", $0] }
+                + ["test"]
         )
         return GeneratedConfiguration(configuration: configuration, scheme: scheme)
     }

@@ -2,9 +2,10 @@
 import XCTest
 
 extension ResumeCheckTests {
-    func test_everyConfigurationKeyButSeven_isCompared() {
+    func test_everyConfigurationKeyButEleven_isCompared() {
         // A new configuration key is compared unless it is added to keysThatDontAffectOutcomes, and fails this test
-        // either way, so each one is a decision.
+        // either way, so each one is a decision. A results header never holds workspace, project, scheme or
+        // destination, which a run writes into arguments, so they are compared there.
         let verdict = check(
             current(configuration: configurationWithEveryFieldSet()),
             recorded: header(of: current(configuration: MuterConfiguration())),
@@ -18,14 +19,18 @@ extension ResumeCheckTests {
                 "arguments",
                 "buildSystem",
                 "coverageThreshold",
+                "destination",
                 "exclude",
                 "excludeCalls",
                 "executable",
                 "mutationTestTimeout",
+                "project",
+                "scheme",
+                "workspace",
             ]
         )
         // And the reason more that this run worked its configuration out, as the fixture's is.
-        XCTAssertEqual(verdict.refusals.count, 8)
+        XCTAssertEqual(verdict.refusals.count, 12)
         XCTAssertEqual(verdict.refusals.last, .configurationWorkedOut(then: false, now: true))
         XCTAssertEqual(
             verdict.notices,
@@ -118,6 +123,7 @@ extension ResumeCheckTests {
                 .init(name: "buildTimeout", was: nil, isNow: "600"),
                 .init(name: "controlRunEvery", was: nil, isNow: "50"),
                 .init(name: "coverageThreshold", was: "0", isNow: "80"),
+                .init(name: "destination", was: nil, isNow: #"["platform=macOS"]"#),
                 .init(name: "exclude", was: "[]", isNow: #"["Generated"]"#),
                 .init(name: "excludeCalls", was: "[]", isNow: #"["print"]"#),
                 .init(name: "executable", was: #""""#, isNow: #""/usr/bin/swift""#),
@@ -129,17 +135,20 @@ extension ResumeCheckTests {
                 .init(name: "mutationTestWorkers", was: nil, isNow: "4"),
                 .init(name: "oneWorkerSimulator", was: nil, isNow: "true"),
                 .init(name: "operators", was: nil, isNow: #"["RelationalOperatorReplacement","SwapTernary"]"#),
+                .init(name: "project", was: nil, isNow: #""App.xcodeproj""#),
                 .init(name: "propertySurvivorRerunLimit", was: nil, isNow: "50"),
                 .init(name: "propertySurvivorReruns", was: nil, isNow: "10"),
                 .init(name: "propertyTestFilter", was: nil, isNow: #"["Properties"]"#),
                 .init(name: "propertyTests", was: nil, isNow: #"["*Properties*"]"#),
                 .init(name: "reports", was: nil, isNow: #"["markdown:summary.md"]"#),
+                .init(name: "scheme", was: nil, isNow: #""App""#),
                 .init(name: "skipOperators", was: nil, isNow: #"["SwapTernary"]"#),
                 .init(name: "stopAtFirstFailure", was: nil, isNow: "false"),
                 .init(name: "suspectKillReruns", was: nil, isNow: "25"),
                 .init(name: "suspectTestFilePercent", was: nil, isNow: "30"),
                 .init(name: "suspectTestMinimumFiles", was: nil, isNow: "5"),
                 .init(name: "workersShareBuild", was: nil, isNow: "false"),
+                .init(name: "workspace", was: nil, isNow: #""App.xcworkspace""#),
             ]
         )
     }

@@ -13,7 +13,11 @@ struct LoadConfiguration: MutationStep {
     ) async throws -> [MutationTestState.Change] {
         let configurationPath = configurationPath(state.runOptions)
         do {
-            let configuration = try checked(try await readOrWorkOutConfiguration(at: configurationPath, state: state))
+            // Before the checks, so they see the arguments the run tests with.
+            let configuration = try checked(
+                try await readOrWorkOutConfiguration(at: configurationPath, state: state)
+                    .choosingXcodebuildOptions(state.runOptions.xcodebuild, in: fileManager.currentDirectoryPath)
+            )
             let resolved = try await withResolvedExecutable(configuration)
                 .overriding(
                     workers: state.runOptions.workers,
@@ -57,9 +61,10 @@ struct LoadConfiguration: MutationStep {
         return try await workedOutConfiguration(missing: configurationPath, state: state)
     }
 
-    /// What `init` would write in the project's folder, which it says, with the scheme it guessed and the trust checks
-    /// it skips. Refused, as a missing file was, when there is nothing to work a test command out from, or more than
-    /// one workspace or project to choose between.
+    /// What `init` would write in the project's folder, with the workspace or project, scheme and destinations the
+    /// run's flags give in place of its guesses, which it says, with the scheme it guessed and the trust checks it
+    /// skips. Refused, as a missing file was, when there is nothing to work a test command out from, more than one
+    /// workspace or project to choose between and no flag that names one, or a flag that names one not there.
     private func workedOutConfiguration(
         missing configurationPath: String,
         state: AnyMutationTestState
@@ -80,7 +85,9 @@ struct LoadConfiguration: MutationStep {
         do {
             // Only the trust checks of an Xcode project look below the top.
             let contents = hasAnXcodeContainer ? fileManager.subpaths(atPath: folder) ?? topLevel : topLevel
-            generated = try await MuterConfiguration.generated(from: contents, in: folder)
+            generated = try await MuterConfiguration.generated(
+                from: contents, in: folder, choosing: state.runOptions.xcodebuild, namingFlags: true
+            )
         } catch {
             throw MuterError.configurationParsingError(reason: "\(missing). \(error)")
         }
@@ -151,7 +158,8 @@ struct LoadConfiguration: MutationStep {
 
         guard isConfigurationValid(configuration) else {
             throw MuterError.configurationParsingError(
-                reason: "Please provide a valid `-destination` argument for your project"
+                reason: "Give xcodebuild a destination to test on: `destination:` in the configuration, "
+                    + "`--destination`, or `-destination` in `arguments`."
             )
         }
         if let reason = Self.argumentRefused(in: configuration) {

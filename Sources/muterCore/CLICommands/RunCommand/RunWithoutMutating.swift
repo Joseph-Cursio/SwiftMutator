@@ -48,6 +48,7 @@ struct RunWithoutMutating: RunCommand {
             verbose: options.verbose,
             quiet: options.quiet,
             testPlanURL: testPlanURL,
+            xcodebuild: options.xcodebuild,
             workers: testing.workers,
             timeout: testing.timeout,
             buildTimeout: options.buildTimeout,

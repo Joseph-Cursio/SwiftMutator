@@ -144,6 +144,7 @@ struct Run: RunCommand {
             skipOperators: selection.skippedOperators,
             verbose: options.verbose,
             quiet: options.quiet,
+            xcodebuild: options.xcodebuild,
             workers: testing.workers,
             timeout: testing.timeout,
             buildTimeout: options.buildTimeout,
