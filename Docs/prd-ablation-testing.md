@@ -6,7 +6,7 @@
 
 - **It builds on what's there.** Git change selection from `run --since`, the copy and its lock, workers, failed-test parsing from logs, control-run ideas for flakiness, the results file and the reports all carry over. Operators and discovery don't. One-build switching would share its hard parts with [#309](https://github.com/Joseph-Cursio/SwiftMutator/issues/309), hand-written patches as mutants.
 - **Build it in four steps** ([Milestones](#milestones)): the revert check first, with a build for each variant, then parts and the table, then one build for all variants, then telling "unneeded" from "untested".
-- **Decide before starting:** whether it's a new command or a `run` flag, how parts are grouped by default, and what counts as a "new test" ([Open questions](#open-questions)).
+- **Decide before starting:** whether it's a subcommand or an executable of its own (a subcommand first is recommended), how parts are grouped by default, and what counts as a "new test" ([Open questions](#open-questions)).
 
 ## Problem
 
@@ -24,7 +24,7 @@ Mutation testing doesn't answer this. `run --since --changed-lines` mutates the 
 4. **Tell flaky tests apart,** by running each variant several times and running the unchanged fix as a control.
 5. **Output ready for a PR:** a Markdown snippet, the table in the terminal, and a JSON report.
 6. **A CI gate:** a non-zero exit when the new tests pass without the source change.
-7. **Reuse SwiftMutator's runner and reports,** not a second tool in the same repository.
+7. **Reuse SwiftMutator's runner and reports,** not a second runner in the same repository.
 
 ## Non-goals
 
@@ -197,7 +197,11 @@ The command is another step list for `MutationTestHandler`, like `run`, `mutate-
 
 ## Open questions
 
-1. **A command or a flag?** `swift-mutator ablate` keeps `run`'s flags and exit status about mutants; `run --ablate` would share more parsing. A separate command looks clearer, as `triage` and `report` are.
+1. **A subcommand, or an executable of its own?** Not a `run` flag: ablation has its own flags, output and exit statuses, and `run`'s are about mutants. **Recommended: start as a subcommand, `swift-mutator ablate`, built so it can become an executable later.**
+   - *For a subcommand.* Most of the work is in `muterCore` already: build systems, workers and clones, direct test runs, failed-test parsing, timeouts, the results file and the reports. The purpose is closer to mutation testing than it looks, as an ablation variant is a patch that undoes part of the diff, which #309 would run as a mutant. A subcommand still has its own flags, help and exit statuses, as `report` and `triage` do.
+   - *Against an executable now.* The package has one product, `swift-mutator`, and the `Makefile`, the release script, the Homebrew formula and the update check all assume it. A second one doubles the install paths and versions to keep in step, and would still read `muter.conf.yml`.
+   - *What would change it.* Someone who wants only the revert check in CI won't look in a mutation tester, and the README is about 4,000 lines. If that audience shows up, a second product such as `swift-ablate`, another `.executable` over `muterCore` with a README of its own, is a small change.
+   - *Keeping the option open.* Put the ablation code in a module, or at least a folder, of its own that depends on `muterCore`, and keep the command itself thin, so splitting it out is a `Package.swift` and release change, not a refactor.
 2. **The default parts:** raw `-U0` hunks, or hunks grouped by their enclosing function, accessor or closure? Grouping matches how people describe a fix; raw hunks are simpler to explain.
 3. **What's a "new test"** for `--require-revert-fails`? Tests in test files the branch changed is easy to compute but counts an edited old test as new. Tests whose names aren't at the merge base is stricter, and needs the test list of both sides.
 4. **The default number of repeats.** 3 matches the hand-made #473 runs; a test that fails 10% of the time by chance fails all 3 runs 0.1% of the time. 5 is safer for concurrency tests and costs two-thirds more.
