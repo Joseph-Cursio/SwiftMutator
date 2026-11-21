@@ -151,9 +151,12 @@ enum TestSuiteOutcome: String, Codable, CaseIterable {
         }
     }
 
+    /// A summary that counts a failure. XCTest's names its skipped tests first, as `Executed 85 tests, with 3 tests
+    /// skipped and 1 failure (0 unexpected)`, so its failures can follow `and` as well as `with`.
     private static var testFailureRegEx: NSRegularExpression {
         NSRegularExpression.regexWithPattern(
             #"test\(s\)? failed|with ([1-9][0-9]*) (failure|issue)|with ([1-9][0-9]*) tests? failed"#
+                + #"|skipped and ([1-9][0-9]*) failure"#
         )
     }
 
