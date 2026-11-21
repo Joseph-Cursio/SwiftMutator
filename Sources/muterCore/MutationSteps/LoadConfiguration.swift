@@ -54,13 +54,16 @@ struct LoadConfiguration: MutationStep {
                 reason: "Could not find \(MuterConfiguration.fileName) at path \(configurationPath)"
             )
         }
-        return try await workedOutConfiguration(missing: configurationPath)
+        return try await workedOutConfiguration(missing: configurationPath, state: state)
     }
 
     /// What `init` would write in the project's folder, which it says, with the scheme it guessed and the trust checks
     /// it skips. Refused, as a missing file was, when there is nothing to work a test command out from, or more than
     /// one workspace or project to choose between.
-    private func workedOutConfiguration(missing configurationPath: String) async throws -> MuterConfiguration {
+    private func workedOutConfiguration(
+        missing configurationPath: String,
+        state: AnyMutationTestState
+    ) async throws -> MuterConfiguration {
         let folder = fileManager.currentDirectoryPath
         let missing = "Could not find \(MuterConfiguration.fileName) at path \(configurationPath)"
         // The folder's top first, so that a run from the wrong folder, as a home folder, is refused at once, without
@@ -84,8 +87,15 @@ struct LoadConfiguration: MutationStep {
         guard !generated.configuration.testCommandExecutable.isEmpty else {
             throw MuterError.configurationParsingError(reason: Self.noTestCommand(in: generated, missing: missing))
         }
-        // Without `--configuration`, the file missing is the project's own.
-        events.send(.configurationWorkedOut(generated, missing: MuterConfiguration.fileNameWithExtension))
+        // Without `--configuration`, the file missing is the project's own. With `--project-folder`, the folder the
+        // command was given in is another, where a plain `init` would write the file.
+        events.send(
+            .configurationWorkedOut(
+                generated,
+                missing: MuterConfiguration.fileNameWithExtension,
+                projectFolder: state.runOptions.projectFolder == nil ? nil : folder
+            )
+        )
         return generated.configuration.workedOutFromTheProject()
     }
 
@@ -117,7 +127,7 @@ struct LoadConfiguration: MutationStep {
             let file = isLegacy
                 ? "\(configurationPath.pathWithoutFileName)/\(MuterConfiguration.legacyFileNameWithExtension)"
                 : configurationPath
-            events.send(.configurationKeysUnknown(unknownKeys, file: shown(file)))
+            events.send(.configurationKeysUnknown(unknownKeys, file: shown(file, state: state)))
         }
         let configuration = try MuterConfiguration(from: configurationData)
 
@@ -231,10 +241,15 @@ struct LoadConfiguration: MutationStep {
 
     /// `path` as a warning names it: relative to the current folder when it is in it, as `muter.conf.yml` or
     /// `ci/muter.conf.yml`, and else in full, so a file `--configuration` chose isn't taken for the project's own.
-    private func shown(_ path: String) -> String {
+    /// Always in full with `--project-folder`: the current folder is then the project, not the one the command was
+    /// given in.
+    private func shown(_ path: String, state: AnyMutationTestState) -> String {
         let folder = fileManager.currentDirectoryPath.standardizingPath + "/"
         let standardized = path.standardizingPath
-        return standardized.hasPrefix(folder) ? String(standardized.dropFirst(folder.count)) : standardized
+        guard state.runOptions.projectFolder == nil, standardized.hasPrefix(folder) else {
+            return standardized
+        }
+        return String(standardized.dropFirst(folder.count))
     }
 
     private func configurationPath(_ options: Run.Options) -> String {

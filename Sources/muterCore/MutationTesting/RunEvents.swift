@@ -11,8 +11,9 @@ enum RunEvent {
     /// The keys of the configuration file, by its name, that SwiftMutator doesn't know and so ignores.
     case configurationKeysUnknown([UnknownConfigurationKey], file: String)
     /// No configuration file was at `missing`, the project's `muter.conf.yml`, so the run tests with what `init` would
-    /// write there.
-    case configurationWorkedOut(GeneratedConfiguration, missing: String)
+    /// write there. `projectFolder` is the project's folder when `--project-folder` moved the run into it, and nil
+    /// when it is the folder the command was given in.
+    case configurationWorkedOut(GeneratedConfiguration, missing: String, projectFolder: String? = nil)
 
     /// What `--since` chose, before anything is copied.
     case changesSelected(ChangeSelection)

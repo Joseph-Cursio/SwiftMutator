@@ -40,6 +40,27 @@ extension LoggerTests {
         ])
     }
 
+    // #262: made with `--project-folder`, the plan is tested from the folder the command was given in, so the command
+    // names the project's folder, and the copy is named in full.
+    func test_testPlanFileCreated_withAProjectFolder_namesItInTheCommand() {
+        sut.testPlanFileCreated(
+            TestPlanCreated(
+                path: "/Users/a/My Project/muter-mappings.json",
+                mutatedProject: "/Users/a/My Project_mutated",
+                mutants: 2,
+                files: 1,
+                operators: nil,
+                projectFolder: "/Users/a/My Project"
+            )
+        )
+
+        XCTAssertEqual(Array(printer.linesPassed.dropFirst().prefix(2)), [
+            "✏️ You can fix its copy, /Users/a/My Project_mutated, by hand before testing it.",
+            "▶️ Test it: swift-mutator run-without-mutating --project-folder '/Users/a/My Project' "
+                + "'/Users/a/My Project/muter-mappings.json'",
+        ])
+    }
+
     // A plan in format 0 records no project files to check against.
     func test_testPlanSourcesUnchecked_saysHowToHaveThePlanChecked() {
         sut.testPlanSourcesUnchecked()

@@ -43,12 +43,16 @@ struct LoadedTestPlan: Equatable, Sendable {
 /// holds.
 struct TestPlanCreated: Equatable {
     let path: String
-    /// The copy, as the plan names it: relative to the project folder, as `../Foo_mutated.noindex`.
+    /// The copy, as the plan names it: relative to the project folder, as `../Foo_mutated.noindex`; in full with
+    /// `--project-folder`, as the folder the command was given in is then another.
     let mutatedProject: String
     let mutants: Int
     let files: Int
     /// The operators the mutants were chosen by, by name and sorted; nil when every operator was.
     let operators: [String]?
+    /// The project's folder when `--project-folder` moved the run into it, which testing the plan needs too; nil when
+    /// it is the folder the command was given in.
+    var projectFolder: String?
 }
 
 /// A test plan as the steps use it: its paths absolute, wherever the plan file holds them relative to the project

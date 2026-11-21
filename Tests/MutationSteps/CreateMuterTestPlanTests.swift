@@ -32,6 +32,24 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         XCTAssertEqual(writeFile.pathPassed, "/path/to/project/muter-mappings.json")
     }
 
+    // With `--project-folder`, the hints are followed from another folder than the project: the copy is named in full,
+    // and the project's folder is sent for the command that tests the plan.
+    func test_withAProjectFolder_theCopyIsNamedInFull_andTheFolderIsSent() async throws {
+        let state = makeState()
+        state.runOptions = .make(projectFolder: URL(fileURLWithPath: "/path/to/project"))
+
+        let expect = expectation(forEvent: .testPlanFileCreated) { event in
+            let created = event.object as? TestPlanCreated
+            XCTAssertEqual(created?.mutatedProject, "/path/to/project_mutated")
+            XCTAssertEqual(created?.projectFolder, "/path/to/project")
+            return true
+        }
+
+        _ = try sut.run(with: state)
+
+        await fulfillment(of: [expect], timeout: 2)
+    }
+
     func test_writesThePlanAsTestPlanCodingDoes() throws {
         let state = makeState()
 

@@ -8,13 +8,13 @@ final class BaselineFlagTests: XCTestCase {
     func test_theFlags_reachTheRunOptions_ofEachCommandThatTests_andTheHelp() throws {
         let arguments = ["--baseline", "muter.baseline.yml", "--max-new-survivors", "3", "--write-baseline", "b.yml"]
         let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run"] + arguments) as? Run).runOptions
-        XCTAssertEqual(run.baseline, "muter.baseline.yml")
+        XCTAssertEqual(run.baseline, URL(argument: "muter.baseline.yml")?.path)
         XCTAssertEqual(run.maxNewSurvivors, 3)
         XCTAssertEqual(run.writeBaseline, URL(argument: "b.yml")?.path)
         let plan = try MuterCommand.parseAsRoot(["run-without-mutating"] + arguments + ["plan.json"])
         XCTAssertEqual(try XCTUnwrap(plan as? RunWithoutMutating).runOptions.maxNewSurvivors, 3)
         let report = try XCTUnwrap(MuterCommand.parseAsRoot(["report", "r.jsonl"] + arguments) as? Report)
-        XCTAssertEqual(report.reportOptions.baseline, "muter.baseline.yml")
+        XCTAssertEqual(report.reportOptions.baseline, URL(argument: "muter.baseline.yml")?.path)
         XCTAssertEqual(report.reportOptions.allowedNewSurvivors, 3)
         XCTAssertEqual(report.reportOptions.writeBaseline, URL(argument: "b.yml")?.path)
         XCTAssertThrowsError(try MuterCommand.parseAsRoot(["mutate-without-running", "--baseline", "b.yml"]))
@@ -159,6 +159,25 @@ final class BaselineFlagTests: XCTestCase {
             "--report markdown:/out/b.yml and --write-baseline /out/b.yml would save to the same file: give each "
                 + "report a path of its own."
         )
+    }
+
+    // A run with `--project-folder` moves into the project before it reads the file, so a relative path is made
+    // absolute as the flags are read, against the folder the command was given in, as `--write-baseline`'s is: else
+    // the file is read from the project. `report` shares the flag.
+    func test_baseline_isMadeAbsolute_againstTheCurrentFolder() throws {
+        let folder = FileManager.default.currentDirectoryPath
+        XCTAssertEqual(current.fileManager.currentDirectoryPath, folder)
+        for (given, read) in [
+            ("muter.baseline.yml", "\(folder)/muter.baseline.yml"),
+            ("ci/muter.baseline.yml", "\(folder)/ci/muter.baseline.yml"),
+            ("/out/muter.baseline.yml", "/out/muter.baseline.yml"),
+            ("~/muter.baseline.yml", URL.expandingTilde("~/muter.baseline.yml")),
+        ] {
+            let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--baseline", given]) as? Run)
+            XCTAssertEqual(run.runOptions.baseline, read, given)
+            let report = try XCTUnwrap(MuterCommand.parseAsRoot(["report", "r.jsonl", "--baseline", given]) as? Report)
+            XCTAssertEqual(report.reportOptions.baseline, read, given)
+        }
     }
 
     private func assertUsageError(

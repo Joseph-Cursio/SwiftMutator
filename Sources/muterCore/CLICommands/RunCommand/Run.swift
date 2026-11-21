@@ -4,7 +4,7 @@ import Foundation
 struct Run: RunCommand {
     static let configuration = CommandConfiguration(
         commandName: "run",
-        abstract: "Performs mutation testing for the Swift project contained within the current directory."
+        abstract: "Performs mutation testing for the Swift project in the current folder, or in --project-folder's."
     )
 
     // First, so the help lists --files-to-mutate and --operators before the rest.
@@ -128,6 +128,7 @@ struct Run: RunCommand {
             skipCoverage: options.skipCoverage || lone.mutant != nil,
             skipUpdateCheck: options.skipUpdateCheck,
             configurationURL: options.configurationURL,
+            projectFolder: options.projectFolder,
             filesToMutate: selection.filesToMutate,
             exclude: selection.exclude,
             since: since,

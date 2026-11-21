@@ -51,6 +51,27 @@ extension MutationTestObserverTests {
         XCTAssertEqual(Array(printer.linesPassed.suffix(3)), [workedOut, schemeGuessed, trustChecksSkipped])
     }
 
+    // #262: with `--project-folder`, a plain `init` would write in the folder the command was given in, so the line
+    // names the project's folder, and the `init` that writes the file there.
+    func test_configurationWorkedOut_withAProjectFolder_namesItInTheInitCommand() throws {
+        try sut.start()
+
+        runEvents.send(.configurationWorkedOut(
+            GeneratedConfiguration(
+                configuration: MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
+                scheme: nil
+            ),
+            missing: "muter.conf.yml",
+            projectFolder: "/Users/a/My Package"
+        ))
+
+        let command: String = "/usr/bin/swift test"
+        let workedOut: String = "⚙️ There is no muter.conf.yml in /Users/a/My Package, so this run tests with what "
+            + "`swift-mutator init` would write there: \(command.bold). `swift-mutator init --project-folder "
+            + "'/Users/a/My Package'` writes it to a file you can edit."
+        XCTAssertEqual(printer.linesPassed.last, workedOut)
+    }
+
     func test_stopAtFirstFailureTurnedOff_isPrinted() throws {
         try sut.start()
 

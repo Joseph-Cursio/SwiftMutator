@@ -185,7 +185,7 @@ extension RunEvent {
         case let .stoppedTakingOutMutants(builds): builds
         case let .mutantsLeftOutOfTheBuild(leftOut): leftOut
         case let .configurationKeysUnknown(keys, file): (keys, file)
-        case let .configurationWorkedOut(generated, missing): (generated, missing)
+        case .configurationWorkedOut: self
         case let .changesSelected(selection): selection
         case let .logFoldersPruned(pruning): pruning
         case let .projectCopySkippedVanishedFiles(paths): paths

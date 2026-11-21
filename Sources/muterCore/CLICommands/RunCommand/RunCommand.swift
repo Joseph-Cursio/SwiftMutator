@@ -10,7 +10,7 @@ extension RunCommand {
         // begin with every signal at its default action (Foundation.Process).
         signal(SIGPIPE, SIG_IGN)
         let ended = await Interruptions().run {
-            try await MutationTestHandler(options: options).run()
+            try await RunWork.perform(with: options)
         }
         if let error = ended.errorToShow {
             print(Self.message(showing: error))
@@ -25,19 +25,20 @@ extension RunCommand {
         }
     }
 
-    /// What a run command prints when its work failed with `error`. A refused resume, a run refused because another
-    /// is using the project's copy, a refused test plan, a refused baseline file, a `--mutant` that names no mutant to
-    /// test on its own, a `--since` that git couldn't answer, and one with nothing to mutate or a shard with no mutant,
-    /// neither of which is a failure, or with only mutants of code no test ran, which `--baseline` compares, are
-    /// printed as they are: each is an expected outcome, and its message says what to do. The refusals of a resume, a
-    /// lock, a plan or a baseline file also exit with a status of their own, which
-    /// `ExitCode.exitStatus(afterRunFailedWith:)` gives, as do a failed baseline and an abort, which come inside the
-    /// banner; a refused `--mutant` exits as an error does. Anything else comes inside the banner that asks for a bug
-    /// report.
+    /// What a run command prints when its work failed with `error`. A project folder it couldn't move into, a refused
+    /// resume, a run refused because another is using the project's copy, a refused test plan, a refused baseline
+    /// file, a `--mutant` that names no mutant to test on its own, a `--since` that git couldn't answer, and one with
+    /// nothing to mutate or a shard with no mutant, neither of which is a failure, or with only mutants of code no test
+    /// ran, which `--baseline` compares, are printed as they are: each is an expected outcome, and its message says
+    /// what to do. The refusals of a resume, a lock, a plan or a baseline file also exit with a status of their own,
+    /// which `ExitCode.exitStatus(afterRunFailedWith:)` gives, as do a failed baseline and an abort, which come inside
+    /// the banner; a refused project folder or `--mutant` exits as an error does. Anything else comes inside the banner
+    /// that asks for a bug report.
     static func message(showing error: Error) -> String {
         switch error {
-        case is ResumeRefused, MutatedProjectLockError.inUse, is TestPlanRefused, is BaselineRefused, is MutantRefused,
-             is ChangeSelectionError, is NothingToMutate, is EmptyShard, is OnlyUncoveredMutants:
+        case is ProjectFolderRefused, is ResumeRefused, MutatedProjectLockError.inUse, is TestPlanRefused,
+             is BaselineRefused, is MutantRefused, is ChangeSelectionError, is NothingToMutate, is EmptyShard,
+             is OnlyUncoveredMutants:
             return "\(error)"
 
         default:

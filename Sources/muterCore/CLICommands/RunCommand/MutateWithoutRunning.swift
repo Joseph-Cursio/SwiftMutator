@@ -20,6 +20,7 @@ struct MutateWithoutRunning: RunCommand {
             skipCoverage: options.skipCoverage,
             skipUpdateCheck: options.skipUpdateCheck,
             configurationURL: options.configurationURL,
+            projectFolder: options.projectFolder,
             filesToMutate: selection.filesToMutate,
             exclude: selection.exclude,
             mutationOperatorsList: selection.mutationOperatorsList,

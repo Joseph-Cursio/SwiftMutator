@@ -36,6 +36,8 @@ final class FileManagerSpy: FileSystemManager, @unchecked Sendable {
     var temporaryDirectory: URL = .init(fileURLWithPath: "")
     var currentDirectoryPathToReturn: String = ""
     var changeCurrentDirectoryPath: [String] = []
+    /// Whether `changeCurrentDirectoryPath` succeeds, as it returns; the path is recorded either way.
+    var changeCurrentDirectoryPathToReturn = true
     var errorToThrow: Error?
     /// What each `createDirectory` throws, in order, nil for one that succeeds; `errorToThrow` once they run out.
     var createDirectoryErrorsToThrow: [Error?] = []
@@ -57,7 +59,7 @@ final class FileManagerSpy: FileSystemManager, @unchecked Sendable {
     ) -> Bool {
         methodCalls.append(#function)
         changeCurrentDirectoryPath.append(path)
-        return true
+        return changeCurrentDirectoryPathToReturn
     }
 
     func createDirectory(

@@ -13,15 +13,19 @@ extension Logger {
     }
 
     /// That no configuration file was at `missing`, so the run tests with the command `init` would write there, which
-    /// it names; then, as `init` says them, the scheme it guessed and the trust checks it skips.
-    func configurationWorkedOut(_ generated: GeneratedConfiguration, missing: String) {
+    /// it names; then, as `init` says them, the scheme it guessed and the trust checks it skips. With `projectFolder`,
+    /// the folder `--project-folder` named, the file is said to be missing there, and the `init` that writes it names
+    /// that folder: a plain one would write in the folder the command was given in.
+    func configurationWorkedOut(_ generated: GeneratedConfiguration, missing: String, projectFolder: String? = nil) {
         let configuration = generated.configuration
         let command = ([configuration.testCommandExecutable] + configuration.testCommandArguments)
             .map(Self.shellWord)
             .joined(separator: " ")
+        let place = projectFolder.map { " in \($0)" } ?? ""
+        let initCommand = "swift-mutator init" + (projectFolder.map { " --project-folder \(Self.shellWord($0))" } ?? "")
         print(
-            "⚙️ There is no \(missing), so this run tests with what `swift-mutator init` would write there: "
-                + "\(command.bold). `swift-mutator init` writes it to a file you can edit."
+            "⚙️ There is no \(missing)\(place), so this run tests with what `swift-mutator init` would write there: "
+                + "\(command.bold). `\(initCommand)` writes it to a file you can edit."
         )
         schemeGuessed(generated.scheme)
         trustChecksSkipped(XcodebuildTrustCheck.skipped(by: configuration.testCommandArguments))

@@ -67,6 +67,22 @@ extension LoadConfigurationTests {
         XCTAssertEqual(sent.events.map(\.file), ["ci/\(MuterConfiguration.fileNameWithExtension)", "/elsewhere/ci.yml"])
     }
 
+    // #262: with `--project-folder`, the current folder is the project, not the one the command was given in, so the
+    // file is named in full.
+    func test_withAProjectFolder_theFileIsNamedInFull() async throws {
+        let sent = recordedUnknownKeys()
+        fileManager.fileExistsToReturn = [false, true]
+        fileManager.fileContentsToReturn = Data("executable: /usr/bin/swift\narguments: [test]\ncolour: blue\n".utf8)
+        state.runOptions = .make(projectFolder: URL(fileURLWithPath: fixturesDirectory))
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(
+            sent.events.map(\.file),
+            ["\(fileManager.currentDirectoryPath)/\(MuterConfiguration.fileNameWithExtension)".standardizingPath]
+        )
+    }
+
     // What an earlier version wrote for any value but these, and then ignored, as it is now.
     func test_buildSystemUnknown_isTakenAsUnset() async throws {
         fileManager.fileExistsToReturn = [false, true]

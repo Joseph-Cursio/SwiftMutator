@@ -66,8 +66,8 @@ extension MutationTestObserver {
         case let .configurationKeysUnknown(keys, file):
             logger.configurationKeysUnknown(keys, file: file)
 
-        case let .configurationWorkedOut(generated, missing):
-            logger.configurationWorkedOut(generated, missing: missing)
+        case let .configurationWorkedOut(generated, missing, projectFolder):
+            logger.configurationWorkedOut(generated, missing: missing, projectFolder: projectFolder)
 
         case let .changesSelected(selection):
             sinceMergeBase = selection.mergeBase

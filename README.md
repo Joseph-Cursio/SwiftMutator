@@ -399,7 +399,10 @@ swift-mutator run       # runs mutation testing
 ```
 
 `swift-mutator` with no command is `swift-mutator run`. [Commands and flags](#commands-and-flags)
-lists every command and flag, and `swift-mutator help <command>` prints a command's.
+lists every command and flag, and `swift-mutator help <command>` prints a command's. From another
+folder, name the project's with `--project-folder`, as `swift-mutator run --project-folder MyProject`
+([#262](https://github.com/Joseph-Cursio/SwiftMutator/issues/262)); see
+[Commands and flags](#commands-and-flags) for which paths are then whose.
 
 A run tests in a copy of the project beside it, `<project>_mutated.noindex`, so a project has one
 run at a time. `run`, `mutate-without-running` and `run-without-mutating` lock
@@ -420,8 +423,9 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
 ### Setting up
 
 `swift-mutator init`, in the project's folder, writes `muter.conf.yml` there with the test command
-it guesses. It leaves a `muter.conf.yml` that is already there as it is, and says so, unless you add
-`--force`. It looks only at the top of the folder, and takes the first of:
+it guesses; `--project-folder <path>` writes it in another folder, for the project there. It leaves
+a `muter.conf.yml` that is already there as it is, and says so, unless you add `--force`. It looks
+only at the top of the folder, and takes the first of:
 
 - an Xcode workspace, or else an Xcode project: `xcodebuild` with `-workspace` or `-project` and its
   file name, `-scheme`, and `-destination`. The scheme is the one `xcodebuild -list` names after the
@@ -1183,8 +1187,10 @@ muter-mappings.json` then tests it. See [The test plan](Docs/test-plan.md).
 - **Fixing the copy by hand.** The run tests the copy as it is, and says which files with mutants
   differ from what `mutate-without-running` wrote. Its results file records each file's SHA-256 as
   tested.
-- **Run it from the project folder,** as `mutate-without-running` was: the plan's paths are
-  relative, and it finds its copy and loads `muter.conf.yml` from there. The configuration comes
+- **Run it from the project folder,** as `mutate-without-running` was, or name that folder with
+  `--project-folder`: the plan's paths are relative, and it finds its copy and loads
+  `muter.conf.yml` from there. A plan made with `--project-folder` says to test it with the same
+  flag, and names its copy in full. The configuration comes
   first: a folder without one, and with nothing to work one out from, as the project's `Sources`,
   stops on the missing file, with exit status 255, before the plan is read. A folder with a
   configuration, or one worked out, that holds none of the files the plan mutates is refused, with
@@ -1427,8 +1433,9 @@ report is still the one printed when there is no `-o`, and the others are only s
 its own `📝 Report generated:` line, or a warning when it couldn't be saved, which changes no exit
 status. A folder on the way to a report's path, `-o`'s too, is made if it isn't there, so
 `--report sarif:out/mutants.sarif` needs no `mkdir out` first; one that can't be made, as where a file is,
-leaves the report unsaved. A relative path is resolved against the current folder, the project's for
-a run, and a leading `~` is your home folder, for `-o` too, which a shell doesn't expand after
+leaves the report unsaved. A relative path in a flag is resolved against the current folder, the one
+the command is given in, even with `--project-folder`, and one in `reports:` against the project's
+folder. A leading `~` is your home folder, for `-o` too, which a shell doesn't expand after
 `markdown:` or `--output=`. Two reports can't share a file, nor can a run's take the path of
 another's partial report, and a path that is a folder is refused before the run starts: saving would
 replace it. Two spellings of one file, such as `Report.md` and `report.md` on a volume that ignores
@@ -1754,9 +1761,10 @@ dropped. A file is left out by [`exclude`](#choosing-the-files).
 ## Configuration
 
 `swift-mutator init` writes `muter.conf.yml` (see [Setting up](#setting-up)), and `run`,
-`mutate-without-running` and `run-without-mutating` read it from the folder they run in, or from
-the file `-c` names, if its name ends in `.yml`, or else `muter.conf.yml` in the folder it names;
-the project is still the folder they run in.
+`mutate-without-running` and `run-without-mutating` read it from the project's folder, the one they
+run in or the one `--project-folder` names, or from the file `-c` names, if its name ends in `.yml`,
+or else `muter.conf.yml` in the folder it names; `-c` doesn't change the project.
+`--project-folder` has no key, as the file is found from it.
 Keep it at the project's root, and commit it. A key SwiftMutator doesn't know is ignored, with a
 warning that names it and the key it is closest to, if any, so a misspelled
 `mutationTestTimeOut` says `Did you mean mutationTestTimeout?`
@@ -1785,6 +1793,9 @@ any scheme `init` would have guessed, and any trust check it skips
 ```
 ⚙️ There is no muter.conf.yml, so this run tests with what `swift-mutator init` would write there: /usr/bin/swift test. `swift-mutator init` writes it to a file you can edit.
 ```
+
+With `--project-folder`, the line names that folder, and the `init` it suggests takes the same
+flag, as a plain `init` would write in the folder the command was given in.
 
 A run is still refused when there is nothing to work a test command out from (no `Package.swift`,
 Xcode workspace or Xcode project at the top of the folder, or no `swift` or `xcodebuild` on `PATH`),
@@ -2607,7 +2618,8 @@ any crash; on SwiftProjectLint a survivor's log went from about 960 KB to about 
 output doesn't change.
 
 `swift-mutator report` makes a run's report from its results file, in any format. The log folder
-is beside the project, not in it, so from the project's folder, where `run` is run:
+is beside the project, not in it, so from the project's folder, where `run` is run or that
+`--project-folder` names:
 
 ```bash
 swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f html -o report.html
@@ -3617,16 +3629,27 @@ line, and link to the section that explains it.
 
 A flag that names a configuration key, such as `--workers` for `mutationTestWorkers`, takes its
 place for one run, except `--exclude`, which adds to `exclude`, and a resume compares it as it does
-the key (see [Configuration](#configuration)). A relative path is the current folder's. In the
-paths of reports and baseline files, a leading `~` is your home folder even after `=` or in quotes,
-where a shell doesn't expand it.
+the key (see [Configuration](#configuration)). A relative path is the current folder's, except, with
+`--project-folder`, those that pick files in the project, as the next paragraph says. In the paths
+of reports and baseline files, a leading `~` is your home folder even after `=` or in quotes, where
+a shell doesn't expand it.
+
+`--project-folder <path>` runs a command as if it were given in that folder, except for the paths
+on the command line: `--project-folder`'s own, `-c`, `-o`, `--report`, `--baseline`,
+`--write-baseline`, `--resume`, `--reuse` and `run-without-mutating`'s plan stay the current
+folder's. The paths that pick files in the project stay the project's: `--files-to-mutate`,
+`--exclude`, the `--resume-ignoring`, `--reuse-ignoring` and `--plan-ignoring` globs, `--mutant`'s
+path, and the `exclude` and `reports` keys. So do `muter.conf.yml` and `muter.triage.yml` when no
+flag names them, and the copy and the log folder go beside the project. A path that isn't a folder
+is a usage error. A Continue line repeats the command as given, so run it from the same folder.
 
 ### run
 
-Mutates the Swift project in the current folder and tests each mutant: in a copy beside it,
-`<project>_mutated.noindex`, with the configuration in `muter.conf.yml`, which `init` writes. It
-prints a report, or saves it with `-o`, and saves every result in a results file as it goes (see
-[Results file](#results-file)). Its exit status says how it ended (see [Exit status](#exit-status)).
+Mutates the Swift project in the current folder, or in `--project-folder`'s, and tests each mutant:
+in a copy beside it, `<project>_mutated.noindex`, with the configuration in `muter.conf.yml`, which
+`init` writes. It prints a report, or saves it with `-o`, and saves every result in a results file
+as it goes (see [Results file](#results-file)). Its exit status says how it ended (see
+[Exit status](#exit-status)).
 
 | Flag | Meaning | Default |
 |---|---|---|
@@ -3640,7 +3663,8 @@ prints a report, or saves it with `-o`, and saves every result in a results file
 | `--sample <N>` | Only test a sample of about N mutants, 1 or more ([Testing a sample of the mutants](#testing-a-sample-of-the-mutants)) | Every mutant |
 | `--seed <S>` | With `--sample`, the seed that chooses the sample; needed with `--shard` or `--resume` ([Testing a sample of the mutants](#testing-a-sample-of-the-mutants)) | Chosen and printed |
 | `--mutant <mutant>` | Test only this mutant, `path:line[:column] [Operator]`, and print its log and verdict ([Testing one mutant](#testing-one-mutant)) | None |
-| `-c`, `--configuration <path>` | A configuration file whose name ends in `.yml`, or a folder that holds `muter.conf.yml`; any other path is read as a folder; the project is still the current folder ([Configuration](#configuration)) | `muter.conf.yml` in the current folder |
+| `-c`, `--configuration <path>` | A configuration file whose name ends in `.yml`, or a folder that holds `muter.conf.yml`; any other path is read as a folder; the project is still the current folder, or `--project-folder`'s ([Configuration](#configuration)) | `muter.conf.yml` in the project's folder |
+| `--project-folder <path>` | Test the project in this folder; other paths on the command line stay the current folder's; no configuration key ([Commands and flags](#commands-and-flags)) | The current folder |
 | `--skip-coverage` | Don't gather coverage, so code no test runs is mutated too ([Choosing the files](#choosing-the-files)) | Coverage on |
 | `--skip-update-check` | Don't ask GitHub for a newer SwiftMutator release before the run ([Install](#install)) | Check on |
 | `--verbose` | List the Swift files found, and how many mutants each file has ([Progress](#progress)) | Off |
@@ -3683,16 +3707,17 @@ Some flags can't go together, and each refusal is a usage error:
 
 Makes the copy and writes a test plan, `muter-mappings.json`, without testing anything (see
 [Test plans](#test-plans)). It takes `run`'s `--files-to-mutate`, `--exclude`, `--operators`,
-`--skip-operators`, `-c`, `--skip-coverage`, `--skip-update-check`, `--verbose`, `--quiet`
-and `--build-timeout`, and no other flag.
+`--skip-operators`, `-c`, `--project-folder`, `--skip-coverage`, `--skip-update-check`,
+`--verbose`, `--quiet` and `--build-timeout`, and no other flag.
 
 ### run-without-mutating
 
 Tests the test plan that `mutate-without-running` wrote, in the copy as it is now (see
-[Test plans](#test-plans)). Run it from the project's folder. It takes `run`'s `--mutant`, `-c`,
-`--skip-coverage`, `--skip-update-check`, `--verbose`, `--quiet`, `--build-timeout`, `--workers`,
-`--timeout`, every report and check flag from `-f` to `--property-tests`, and `--resume`,
-`--resume-ignoring` and `--force-resume`, with the same limits. `--mutant` can't be given with
+[Test plans](#test-plans)). Run it from the project's folder, or name that folder with
+`--project-folder`. It takes `run`'s `--mutant`, `-c`, `--project-folder`, `--skip-coverage`,
+`--skip-update-check`, `--verbose`, `--quiet`, `--build-timeout`, `--workers`, `--timeout`, every
+report and check flag from `-f` to `--property-tests`, and `--resume`, `--resume-ignoring` and
+`--force-resume`, with the same limits. `--mutant` can't be given with
 `--resume` or `--write-baseline`.
 
 | Flag | Meaning | Default |
@@ -3740,15 +3765,17 @@ and lists them.
 
 ### init
 
-`swift-mutator init` writes `muter.conf.yml` in the current folder, with the executable and
-arguments for the Xcode workspace or project, or the Swift package, at the top of it, and every other
-key commented out under a comment that says what it does (see [Setting up](#setting-up) and
-[Configuration](#configuration)). For an Xcode project that seems to use package plugins or macros,
-the arguments skip Xcode's check that you trust them (see [Plugins and macros](#plugins-and-macros)).
+`swift-mutator init` writes `muter.conf.yml` in the current folder, or in `--project-folder`'s, with
+the executable and arguments for the Xcode workspace or project, or the Swift package, at the top
+of it, and every other key commented out under a comment that says what it does (see
+[Setting up](#setting-up) and [Configuration](#configuration)). For an Xcode project that seems to
+use package plugins or macros, the arguments skip Xcode's check that you trust them (see
+[Plugins and macros](#plugins-and-macros)).
 
 | Flag | Meaning | Default |
 |---|---|---|
 | `--force` | Replace a `muter.conf.yml` that is already there | Off: `init` leaves it as it is, says so, and exits with 1 |
+| `--project-folder <path>` | Write it in this folder, for the project there; a path that isn't a folder is a usage error | The current folder |
 
 ## Development
 
