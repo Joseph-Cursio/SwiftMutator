@@ -1,6 +1,6 @@
 # PRD: ablation testing
 
-**Status: proposal, 21 November 2026. Nothing here is built, and no issue tracks it yet.** [ablation-testing.md](ablation-testing.md) explains what ablation testing is and when it's worth it.
+**Status: proposal, 21 November 2026. Nothing here is built. [#340](https://github.com/Joseph-Cursio/SwiftMutator/issues/340) tracks the work.** [ablation-testing.md](ablation-testing.md) explains what ablation testing is and when it's worth it.
 
 `swift-mutator ablate --since <ref>` would take a branch's change, split it into parts, and test the project with each part taken back out, several times each. It would print an ablation table (part removed → tests that fail, flaky ones marked) and a Markdown snippet ready for the PR. `--revert-only` would run just the revert check, "the new tests fail without the source change", cheaply enough for CI.
 
