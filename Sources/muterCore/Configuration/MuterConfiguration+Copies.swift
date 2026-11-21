@@ -103,8 +103,8 @@ extension MuterConfiguration {
     /// This configuration with `--workers`', `--timeout`'s, `--build-timeout`'s, `--fail-under`'s, `--property-tests`'
     /// and `--report`'s values, when given, in place of `mutationTestWorkers`, `mutationTestTimeout`, `buildTimeout`,
     /// `failUnder`, `propertyTests` and `reports`, `gates`, when given, in place of its own, as the gate keys with the
-    /// gate flags in (`RunGates.overridden(by:in:)`), and `--exclude`'s entries after `exclude`'s: a run records and
-    /// compares them as it does the keys.
+    /// gate flags in (`RunGates.overridden(by:in:)`), `--exclude`'s entries after `exclude`'s, and the other keys'
+    /// flags, `keys` (`withKeyFlags(_:)`): a run records and compares them as it does the keys.
     func overriding(
         workers: Int?,
         timeout: Double?,
@@ -113,9 +113,10 @@ extension MuterConfiguration {
         gates: RunGates? = nil,
         propertyTests: [String]? = nil,
         reports: [ReportRequest]? = nil,
-        exclude: [String] = []
+        exclude: [String] = [],
+        keys: KeyFlags = KeyFlags()
     ) -> Self {
-        var copy = self
+        var copy = withKeyFlags(keys)
         copy.excludeFileList += exclude
         if let workers { copy.mutationTestWorkers = workers }
         if let timeout { copy.testSuiteTimeout = timeout }
@@ -127,10 +128,12 @@ extension MuterConfiguration {
         return copy
     }
 
-    /// This configuration with `exclude`'s entries sorted, once each, which choose the same files in any order.
+    /// This configuration with `exclude`'s and `excludeCalls`' entries sorted, once each, which choose the same files
+    /// and calls in any order.
     var withExcludesInOrder: Self {
         var copy = self
         copy.excludeFileList = Set(excludeFileList).sorted()
+        copy.excludeCallList = Set(excludeCallList).sorted()
         return copy
     }
 

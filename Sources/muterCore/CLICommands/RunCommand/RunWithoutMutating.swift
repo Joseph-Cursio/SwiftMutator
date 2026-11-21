@@ -11,6 +11,7 @@ struct RunWithoutMutating: RunCommand {
     @OptionGroup var lone: MutantArguments
     @OptionGroup var options: RunArguments
     @OptionGroup var testing: TestingArguments
+    @OptionGroup var reruns: RerunArguments
     @OptionGroup var reportOptions: ReportArguments
     // A run of a test plan resumes as `run` does. The plan's copy stands for the project: a resume compares its files.
     @OptionGroup var resuming: ResumeArguments
@@ -59,6 +60,7 @@ struct RunWithoutMutating: RunCommand {
             maxDoubtfulKills: reportOptions.maxDoubtfulKills,
             writeBaseline: reportOptions.writeBaseline,
             propertyTests: reportOptions.propertyTestGlobs,
+            keyFlags: KeyFlags(from: [options, testing, reruns]),
             resumeURL: resuming.resume,
             resumeIgnoring: resuming.resumeIgnoring,
             forceResume: resuming.forceResume,

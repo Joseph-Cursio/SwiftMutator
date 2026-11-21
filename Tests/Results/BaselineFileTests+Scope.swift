@@ -72,4 +72,24 @@ extension BaselineFileTests {
         XCTAssertEqual(rorScope.configuration.mutationTestTimeout, 30)
         XCTAssertEqual(rorScope, BaselineScope(configuration: elsewhere, operators: [.ror], skipCoverage: false))
     }
+
+    // `--exclude-calls` adds to `excludeCalls`, as `--exclude` adds to `exclude`, so a run that names the key's own
+    // entry again, or moves an entry between the key and the flag, has the same scope.
+    func test_theScope_takesExcludeCallsEntriesSorted_onceEach() throws {
+        func runScope(key: [String], flag: [String]) -> BaselineScope {
+            let configuration = MuterConfiguration(executable: "/swift", arguments: ["test"], excludeCallList: key)
+                .overriding(workers: nil, timeout: nil, keys: KeyFlags(excludeCalls: flag))
+            return BaselineScope(configuration: configuration, operators: [.ror], skipCoverage: false)
+        }
+        let keyOnly = runScope(key: ["log"], flag: [])
+        let repeated = runScope(key: ["log"], flag: ["log"])
+
+        XCTAssertEqual(repeated, keyOnly)
+        XCTAssertEqual(runScope(key: ["b"], flag: ["a"]).configuration.excludeCalls, ["a", "b"])
+        XCTAssertEqual(runScope(key: ["a"], flag: ["b"]), runScope(key: ["b"], flag: ["a"]))
+        let baseline = BaselineFile(
+            path: path, swiftMutator: "0.1.0", score: .init(killed: 1, scored: 2), scope: keyOnly, survivors: []
+        )
+        XCTAssertNoThrow(try BaselineRefused.check(repeated, against: baseline, subject: "this run"))
+    }
 }

@@ -93,6 +93,9 @@ final class ReadmeReferenceTests: MuterTestCase {
         XCTAssertTrue(flags.contains("--force-reuse"), "\(flags)")
         XCTAssertFalse(flags.contains("--plan-ignoring"), "\(flags)")
         XCTAssertFalse(flags.contains("--help"), "\(flags)")
+        // Each of an on/off pair, which the help gives as one, `--keep-all-logs/--no-keep-all-logs`.
+        XCTAssertTrue(flags.contains("--keep-all-logs"), "\(flags)")
+        XCTAssertTrue(flags.contains("--no-keep-all-logs"), "\(flags)")
     }
 
     // A row's flags are read from its first cell, without their values, and an argument's row has none.
@@ -117,14 +120,15 @@ final class ReadmeReferenceTests: MuterTestCase {
     }
 
     /// The long names on the help's option lines, such as `--configuration` in
-    /// `  -c, --configuration <configuration>   The path to the configuration file.`, but not `--help`.
+    /// `  -c, --configuration <configuration>   The path to the configuration file.`, but not `--help`. Each of an
+    /// on/off pair is one, as `--keep-all-logs` and `--no-keep-all-logs` in `  --keep-all-logs/--no-keep-all-logs`.
     private static func longFlags(inTheHelpOf arguments: ParsableArguments.Type) -> [String] {
         arguments.helpMessage(columns: 200)
             .split(separator: "\n")
             .filter { $0.hasPrefix("  -") }
             .flatMap { line in
                 let names = line.dropFirst(2).components(separatedBy: "  ").first ?? ""
-                return names.split(separator: " ")
+                return names.split { $0 == " " || $0 == "/" }
                     .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ",")) }
                     .filter { $0.hasPrefix("--") && $0 != "--help" }
             }
