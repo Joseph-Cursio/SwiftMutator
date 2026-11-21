@@ -40,16 +40,22 @@ struct CreateMuterTestPlan: MutationStep {
         )
 
         let operators = Set(state.mutationOperatorList.map(\.rawValue))
+        // With `--project-folder`, the folder the command was given in, which the hints are followed from, isn't the
+        // project: the copy is named in full, and testing the plan takes the same flag.
+        let movedIntoProject = state.runOptions.projectFolder != nil
         events.send(
             .testPlanFileCreated(
                 TestPlanCreated(
                     path: jsonUrl.path,
-                    mutatedProject: RelativePath.from(state.projectDirectoryURL, to: state.mutatedProjectDirectoryURL),
+                    mutatedProject: movedIntoProject
+                        ? state.mutatedProjectDirectoryURL.path
+                        : RelativePath.from(state.projectDirectoryURL, to: state.mutatedProjectDirectoryURL),
                     mutants: state.mutationMapping.reduce(0) { $0 + $1.mutationSchemata.count },
                     files: state.mutationMapping.count,
                     operators: operators == Set(MutationOperatorList.allOperators.map(\.rawValue))
                         ? nil
-                        : operators.sorted()
+                        : operators.sorted(),
+                    projectFolder: movedIntoProject ? state.projectDirectoryURL.path : nil
                 )
             )
         )

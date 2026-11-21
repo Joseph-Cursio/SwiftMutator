@@ -30,8 +30,9 @@ extension ResumeCheckTests {
         XCTAssertEqual(
             "\(ResumeRefusal.configurationWorkedOut(then: true, now: true))",
             "Both runs worked out their configuration, as there was no muter.conf.yml, so the project or this run's "
-                + "options gave a different one. Run with the last session's options, or have `swift-mutator init` "
-                + "write this run's configuration to a file and set it back to the last session's, to resume."
+                + "options gave a different one. Run with the last session's options, or have `swift-mutator init`, "
+                + "with the run's `--project-folder` if it has one, write this run's configuration to a file and set "
+                + "it back to the last session's, to resume."
         )
         XCTAssertEqual(
             "\(ResumeRefusal.configurationWorkedOut(then: true, now: false))",

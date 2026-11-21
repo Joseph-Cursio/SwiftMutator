@@ -34,6 +34,9 @@ extension Run {
         /// doesn't record it, and a resume doesn't compare it.
         let quiet: Bool
         let configurationURL: URL?
+        /// `--project-folder`: the folder the run moves into as it starts, which is then the project; nil for the
+        /// current folder. The results file records the project's path, so it records nothing of its own.
+        let projectFolder: URL?
         let testPlanURL: URL?
         /// `--workers`: how many mutants to test at once, in place of `mutationTestWorkers`.
         let workers: Int?
@@ -44,8 +47,8 @@ extension Run {
         let buildTimeout: Double?
         /// `--fail-under`: the percent below which a finished run's score fails it, in place of `failUnder`.
         let failUnder: Double?
-        /// `--baseline`: the baseline file, as given, whose survivors a finished run's are compared with
-        /// (`NewSurvivorsCheck`); nil without it.
+        /// `--baseline`: the baseline file, made absolute as the flags are read, whose survivors a finished run's are
+        /// compared with (`NewSurvivorsCheck`); nil without it.
         let baseline: String?
         /// `--max-new-survivors`: how many new survivors the comparison with `baseline` lets pass, 0 unless given; nil
         /// without `baseline`.
@@ -97,6 +100,7 @@ extension Run {
             skipCoverage: Bool,
             skipUpdateCheck: Bool,
             configurationURL: URL?,
+            projectFolder: URL? = nil,
             filesToMutate: [String] = [],
             exclude: [String] = [],
             since: String? = nil,
@@ -144,6 +148,7 @@ extension Run {
             self.operatorsAreNamed = operatorsAreNamed
             self.skipOperators = skipOperators
             self.configurationURL = configurationURL
+            self.projectFolder = projectFolder
             self.testPlanURL = testPlanURL
             self.workers = workers
             self.timeout = timeout
@@ -191,6 +196,7 @@ extension Run {
                 lhs.verbose == rhs.verbose &&
                 lhs.quiet == rhs.quiet &&
                 lhs.configurationURL == rhs.configurationURL &&
+                lhs.projectFolder == rhs.projectFolder &&
                 lhs.testPlanURL == rhs.testPlanURL &&
                 lhs.workers == rhs.workers &&
                 lhs.timeout == rhs.timeout &&
@@ -219,6 +225,7 @@ extension Run {
                 skipCoverage: false,
                 skipUpdateCheck: false,
                 configurationURL: nil,
+                projectFolder: nil,
                 filesToMutate: [],
                 since: nil,
                 changedLinesOnly: false,

@@ -61,6 +61,7 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(failUnder: 80), .make())
         XCTAssertNotEqual(Run.Options.make(reports: [ReportRequest(format: .markdown, path: "/out/r.md")]), .make())
         XCTAssertNotEqual(Run.Options.make(reports: []), .make())
+        XCTAssertNotEqual(Run.Options.make(projectFolder: URL(fileURLWithPath: "/work/MyApp")), .make())
     }
 
     // Added to the configuration's `exclude`, on each command that discovers mutants.

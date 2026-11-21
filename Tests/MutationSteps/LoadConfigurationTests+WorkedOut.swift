@@ -1,6 +1,13 @@
 @testable import muterCore
 import XCTest
 
+/// What a `configurationWorkedOut` event held.
+struct ConfigurationWorkedOutSent {
+    let generated: GeneratedConfiguration
+    let missing: String
+    let projectFolder: String?
+}
+
 extension LoadConfigurationTests {
     // #263: with no configuration file, a run tests with what `init` would write, says so, and marks it worked out.
     func test_withoutAConfigurationFile_theRunWorksItOut_andSaysSo() async throws {
@@ -20,8 +27,23 @@ extension LoadConfigurationTests {
         XCTAssertTrue(configuration.workedOut)
         XCTAssertEqual(sent.events.map(\.missing), [MuterConfiguration.fileNameWithExtension])
         XCTAssertEqual(sent.events.first?.generated.configuration.testCommandArguments, ["test"])
+        XCTAssertEqual(sent.events.map(\.projectFolder), [nil])
         // A package's configuration needs only the folder's top: nothing below it is listed.
         XCTAssertFalse(fileManager.methodCalls.contains("subpaths(atPath:)"))
+    }
+
+    // #262: with `--project-folder`, the run is in the project's folder, which is sent, so the line can name the
+    // `init` that writes the file there.
+    func test_withAProjectFolder_theFolderIsSent() async throws {
+        let sent = recordedWorkedOut()
+        fileManager.fileExistsToReturn = [false, false]
+        fileManager.contentsOfDirectoryToReturn = ["Package.swift"]
+        process.stdoutToBeReturned = "/usr/bin/swift"
+        state.runOptions = .make(projectFolder: URL(fileURLWithPath: fixturesDirectory))
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(sent.events.map(\.projectFolder), [fileManager.currentDirectoryPath])
     }
 
     // A file that is there isn't worked out.
@@ -117,8 +139,8 @@ extension LoadConfigurationTests {
     func recordedWorkedOut() -> RecordedWorkedOut {
         let recorded = RecordedWorkedOut()
         let observer = runEvents.observe(.configurationWorkedOut) { event in
-            if let sent = event.object as? (GeneratedConfiguration, String) {
-                recorded.events.append((generated: sent.0, missing: sent.1))
+            if case let .configurationWorkedOut(generated, missing, projectFolder)? = event.object as? RunEvent {
+                recorded.events.append(.init(generated: generated, missing: missing, projectFolder: projectFolder))
             }
         }
         addTeardownBlock { observer.cancel() }
@@ -126,6 +148,6 @@ extension LoadConfigurationTests {
     }
 
     final class RecordedWorkedOut {
-        var events: [(generated: GeneratedConfiguration, missing: String)] = []
+        var events: [ConfigurationWorkedOutSent] = []
     }
 }

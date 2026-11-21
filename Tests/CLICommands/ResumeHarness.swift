@@ -167,10 +167,10 @@ final class ResumeHarness {
         try "".write(to: hangMarker, atomically: true, encoding: .utf8)
     }
 
-    /// Starts `swift-mutator` with `arguments` in the project's folder. Foundation.Process starts it in a process group
-    /// of its own.
-    func launch(_ arguments: [String]) throws -> Launched {
-        try launch(executable: swiftMutator, arguments: arguments)
+    /// Starts `swift-mutator` with `arguments` in `folder`, the project's unless given. Foundation.Process starts it in
+    /// a process group of its own.
+    func launch(_ arguments: [String], in folder: URL? = nil) throws -> Launched {
+        try launch(executable: swiftMutator, arguments: arguments, folder: folder)
     }
 
     /// Runs `commandLine`, as a summary printed it, in a shell whose `swift-mutator` is this build: a link to it in a
@@ -191,7 +191,7 @@ final class ResumeHarness {
         )
     }
 
-    func launch(executable: URL, arguments: [String], path: String? = nil) throws -> Launched {
+    func launch(executable: URL, arguments: [String], path: String? = nil, folder: URL? = nil) throws -> Launched {
         processCount += 1
         let outputPath = root.appendingPathComponent("stdout-\(processCount).txt")
         let errorPath = root.appendingPathComponent("stderr-\(processCount).txt")
@@ -207,7 +207,7 @@ final class ResumeHarness {
         let process = Foundation.Process()
         process.executableURL = executable
         process.arguments = arguments
-        process.currentDirectoryURL = project
+        process.currentDirectoryURL = folder ?? project
         var environment = ProcessInfo.processInfo.environment
         environment["RESUME_TEST_MARKERS"] = markers.path
         if let path {

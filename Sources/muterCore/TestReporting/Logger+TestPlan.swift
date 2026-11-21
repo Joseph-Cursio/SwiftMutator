@@ -2,6 +2,7 @@
 /// project's.
 extension Logger {
     /// What the plan holds, that its copy can be fixed by hand, how to test it, and that a later run removes the copy.
+    /// The command that tests it names the project's folder when the plan was made with `--project-folder`.
     func testPlanFileCreated(_ created: TestPlanCreated) {
         let mutants = created.mutants == 1 ? "1 mutant" : "\(created.mutants) mutants"
         let files = created.files == 1 ? "1 file" : "\(created.files) files"
@@ -10,7 +11,8 @@ extension Logger {
         } ?? "every operator"
         print("💾 Mutation test plan created: \(created.path) (\(mutants) in \(files), \(operators))")
         print("✏️ You can fix its copy, \(created.mutatedProject), by hand before testing it.")
-        print("▶️ Test it: swift-mutator run-without-mutating \(Self.shellWord(created.path))")
+        let projectFolder = created.projectFolder.map { "--project-folder \(Self.shellWord($0)) " } ?? ""
+        print("▶️ Test it: swift-mutator run-without-mutating \(projectFolder)\(Self.shellWord(created.path))")
         print(
             "⚠️ A later `swift-mutator run` or `mutate-without-running` of this project removes that copy, and any fix "
                 + "in it."

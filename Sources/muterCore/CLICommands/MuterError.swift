@@ -24,7 +24,9 @@ public enum MuterError: Error, Equatable, CustomStringConvertible {
 
             You can run \("swift-mutator init".bold) to generate a configuration file, or \(
                 "swift-mutator init --force".bold
-            ) to replace the one there.
+            ) to replace the one there. Run either in the project's folder, or pass it the run's \(
+                "--project-folder".bold
+            ).
 
             ******************
             FileManager Error:

@@ -8,8 +8,8 @@ OPTIONS:
 
 SUBCOMMANDS:
   init                    Creates the configuration file that SwiftMutator uses
-  run (default)           Performs mutation testing for the Swift project
-                          contained within the current directory.
+  run (default)           Performs mutation testing for the Swift project in
+                          the current folder, or in --project-folder's.
   run-without-mutating    Performs mutation testing using the test plan.
   mutate-without-running  Mutates the source code and outputs the test plan as
                           JSON.

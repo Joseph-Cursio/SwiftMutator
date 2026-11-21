@@ -46,10 +46,34 @@ final class InitTests: MuterTestCase {
         XCTAssertFalse(try String(contentsOfFile: path, encoding: .utf8).contains("# mine"))
     }
 
-    // `--force` is the only flag.
+    // `--force` and `--project-folder` are the only flags.
     func test_parsesForce() throws {
         XCTAssertFalse(try Init.parse([]).force)
         XCTAssertTrue(try Init.parse(["--force"]).force)
+        XCTAssertNil(try Init.parse(["--force"]).projectFolder)
+    }
+
+    // The file is written in the folder given, for the project there, not in the current folder: a package's gets
+    // `test`, and an empty folder's no arguments, which no single folder read in their place could give both.
+    func test_projectFolder_isWhereTheFileIsWritten_forTheProjectThere() async throws {
+        let package = "\(directory)/package"
+        let empty = "\(directory)/empty"
+        for folder in [package, empty] {
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: false)
+        }
+        XCTAssertTrue(FileManager.default.createFile(atPath: "\(package)/Package.swift", contents: Data()))
+
+        var arguments: [[String]] = []
+        for folder in [package, empty] {
+            var parsed = try Init.parse(["--project-folder", folder])
+            XCTAssertEqual(parsed.projectFolder, URL(fileURLWithPath: folder))
+            try await parsed.run()
+
+            let contents = try XCTUnwrap(FileManager.default.contents(atPath: "\(folder)/muter.conf.yml"))
+            arguments.append(try MuterConfiguration(from: contents).testCommandArguments)
+        }
+
+        XCTAssertEqual(arguments, [["test"], []])
     }
 
     // Every key, with a comment, and those at their defaults commented out: no `coverageThreshold: 0e+0`.

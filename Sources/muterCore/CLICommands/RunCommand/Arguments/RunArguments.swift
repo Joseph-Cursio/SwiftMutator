@@ -8,6 +8,17 @@ struct RunArguments: ParsableArguments {
     )
     var configurationURL: URL?
 
+    @Option(
+        name: .customLong("project-folder"),
+        help: ArgumentHelp(
+            "The project's folder, in place of the current folder. Paths given in other flags, such as -c and -o, are "
+                + "still the current folder's; those that pick files in the project, such as --files-to-mutate, are "
+                + "the project's.",
+            valueName: "path"
+        )
+    )
+    var projectFolder: URL?
+
     @Flag(
         name: [.customLong("skip-coverage")],
         help: "Skips the step in which SwiftMutator runs your project in order to filter out files without coverage."
@@ -45,7 +56,12 @@ struct RunArguments: ParsableArguments {
     )
     var buildTimeout: Double?
 
+    /// The project folder is only checked here: the run moves into it once it starts (`RunCommand.run(with:)`), as
+    /// the flags are also read by tests, which never move.
     func validate() throws {
+        if let projectFolder, !current.fileManager.isDirectory(atPath: projectFolder.path) {
+            throw ValidationError("--project-folder must be a folder, and \(projectFolder.path) isn't one.")
+        }
         if quiet, verbose {
             throw ValidationError("--quiet and --verbose can't be given together.")
         }

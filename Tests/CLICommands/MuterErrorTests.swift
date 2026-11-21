@@ -42,6 +42,7 @@ final class MuterErrorTests: XCTestCase {
         XCTAssertTrue(description.contains(MuterConfiguration.fileNameWithExtension), description)
         XCTAssertTrue(description.contains("swift-mutator init to generate"), description)
         XCTAssertTrue(description.contains("swift-mutator init --force to replace the one there"), description)
+        XCTAssertTrue(description.contains("or pass it the run's --project-folder."), description)
         XCTAssertTrue(description.contains("FileManager Error:\n\(Self.reason)"), description)
     }
 

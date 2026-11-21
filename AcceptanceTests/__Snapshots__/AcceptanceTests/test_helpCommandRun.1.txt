@@ -1,5 +1,5 @@
-OVERVIEW: Performs mutation testing for the Swift project contained within the
-current directory.
+OVERVIEW: Performs mutation testing for the Swift project in the current
+folder, or in --project-folder's.
 
 USAGE: swift-mutator run <options>
 
@@ -45,6 +45,11 @@ OPTIONS:
                           'Sources/Foo/Bar.swift:12:9 SwapTernary'.
   -c, --configuration <configuration>
                           The path to the configuration file.
+  --project-folder <path> The project's folder, in place of the current folder.
+                          Paths given in other flags, such as -c and -o, are
+                          still the current folder's; those that pick files in
+                          the project, such as --files-to-mutate, are the
+                          project's.
   --skip-coverage         Skips the step in which SwiftMutator runs your
                           project in order to filter out files without coverage.
   --skip-update-check     Skips the step in which SwiftMutator checks for newer

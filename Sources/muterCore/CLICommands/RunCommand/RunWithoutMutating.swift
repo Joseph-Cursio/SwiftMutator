@@ -41,6 +41,7 @@ struct RunWithoutMutating: RunCommand {
             skipCoverage: options.skipCoverage,
             skipUpdateCheck: options.skipUpdateCheck,
             configurationURL: options.configurationURL,
+            projectFolder: options.projectFolder,
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
             reports: reportOptions.reportRequests,

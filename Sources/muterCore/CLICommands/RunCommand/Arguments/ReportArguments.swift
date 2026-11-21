@@ -66,7 +66,9 @@ struct ReportArguments: ParsableArguments {
                 + "mutants tested are compared. Exit with status 8 if the file can't be read, or records another "
                 + "scope: other operators, or another configuration.",
             valueName: "path"
-        )
+        ),
+        // Made absolute now, as `--write-baseline`'s path is: a run reads it once it has moved into the project.
+        transform: { URL(argument: $0)?.path ?? $0 }
     )
     var baseline: String?
 
