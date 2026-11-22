@@ -110,10 +110,12 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   wrote nothing in the copy, with no mutant on, makes no clones, and its workers test from one build,
   when mutants' test bundles run directly, unless property reruns of XCTest tests need `swift test`.
   Each worker has its own temporary directory too.
-  An xcodebuild project that tests on a simulator can have one simulator
-  per worker instead, from one build, when `mutationTestWorkers` or `--workers` asks for them (see
-  [xcodebuild workers](#xcodebuild-workers)). What tests share outside the copy can still give false
-  kills (see [Tests that share state across workers](#tests-that-share-state-across-workers)).
+  An xcodebuild project that tests on a simulator has one simulator per worker instead, from one
+  build: 2 by default on a Mac with 4 or more processors and 32 GB or more, once there are 50 or
+  more mutants, unless the baseline shows your destination would be faster, or as many as
+  `mutationTestWorkers` or `--workers` asks for (see [xcodebuild workers](#xcodebuild-workers)).
+  What tests share outside the copy can still give false kills (see [Tests that share state across
+  workers](#tests-that-share-state-across-workers)).
 - **One environment for every `swift test` run:** a mutant is switched on by its ID in a file
   beside the worker's folder, such as `MyPackage_mutated.active-mutant`, not by a variable of its
   own, so your tests don't find it among the package's files or in its `git status`. For a package
@@ -1857,9 +1859,9 @@ as it is.
 | `mutationTestTimeout` | Seconds, above 0 and at most a day, before a mutant's test run is stopped. See [Timeouts are run again](#timeouts-are-run-again) | 5× a timed run of the tests with no mutant on, once more for each worker beyond the first, and at least 20 s; for another build system, or when that run fails, 3× the baseline, build included, and at least 10 s (see [Why a fork of Muter](#why-a-fork-of-muter)) | All |
 | `buildTimeout` | Seconds, above 0 and at most a day, before each step ahead of the first mutant that builds your project and runs its tests is stopped: the coverage run, each xcodebuild build for testing, each baseline run, and a worker clone's. The direct and timed test runs, which follow the baseline and don't build, get a shorter limit. See [Time limits before the first mutant](#time-limits-before-the-first-mutant) | No limit | All |
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed. Never the baseline. See [Stopping at the first failed test](#stopping-at-the-first-failed-test) | `true` | SwiftPM, and xcodebuild on a simulator |
-| `mutationTestWorkers` | How many mutants to test at once, at least 1. See [Workers and release mode](#workers-and-release-mode) and [xcodebuild workers](#xcodebuild-workers) | SwiftPM: half the processors, at most 4, and, when each needs a clone, fewer for fewer than 150 mutants. Others: 1 | SwiftPM, and xcodebuild projects that test on a simulator, which get one simulator per worker; others test one at a time |
+| `mutationTestWorkers` | How many mutants to test at once, at least 1. See [Workers and release mode](#workers-and-release-mode) and [xcodebuild workers](#xcodebuild-workers) | SwiftPM: half the processors, at most 4, and, when each needs a clone, fewer for fewer than 150 mutants. xcodebuild on a simulator: half the processors, one for each 16 GB of memory, at most 2, and 1 for fewer than 50 mutants or with `oneWorkerSimulator: false`. Others: 1 | SwiftPM, and xcodebuild projects that test on a simulator, which get one simulator per worker; others test one at a time |
 | `workersShareBuild` | Whether workers may test from one build when a direct run of the tests, with no mutant on, wrote nothing in the copy, unless the direct run includes XCTest tests and `propertyTestFilter` is set; `false` gives each worker a clone. See [Workers and release mode](#workers-and-release-mode) | `true` | SwiftPM, when mutants' test bundles run directly |
-| `oneWorkerSimulator` | Whether one worker tests on a simulator SwiftMutator makes: `true` whenever the destination is a simulator, `false` never. See [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own) | Unset: when the project and its baseline show it is faster | xcodebuild, with a simulator as the first `-destination` |
+| `oneWorkerSimulator` | Whether one worker tests on a simulator SwiftMutator makes: `true` whenever the destination is a simulator, `false` never, which also keeps the default count of xcodebuild workers at 1. See [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own) | Unset: when the project and its baseline show it is faster | xcodebuild, with a simulator as the first `-destination` |
 | `keepAllLogs` | Keep the log of every mutant's test run, a kill's too. See [Results file](#results-file) | `false`: a mutant killed by a failed test its results line names keeps none | All |
 | `keepLogFolders` | How many runs' log folders to keep in `<project>_muter_logs`, this run's included: a whole number, at least 2, so the run before this one is always kept. Earlier runs' folders beyond it are removed once nothing can refuse the run, before its build. See [Results file](#results-file) | Unset: none is removed | All |
 | `keepSwiftLintPhases` | Keep SwiftLint running in the build phases of the copy's Xcode projects. SwiftMutator otherwise turns off each command in them that runs it, never in your project, as each mutated file turns every rule off anyway. See [Before a long run](#before-a-long-run) | `false`: turned off in the copy | xcodebuild |
@@ -2211,9 +2213,11 @@ Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, wit
   machine's processors, at most 4, and, as a clone costs about one build, on one more worker for each
   50 mutants: 1 below 50, 2 from 50, 3 from 100 and 4 from 150. Each clone adds about one build folder
   of disk while the run lasts. Workers that [share one build](#workers-and-release-mode) need no clone,
-  so that rule doesn't hold them back: only the machine and the number of mutants do. Other build systems default to 1, as an xcodebuild
-  worker needs a simulator of its own, about 3 GB at its peak. The default was set from the one project
-  measured here, on one 18-core machine; `mutationTestWorkers: 1` gives what it was before.
+  so that rule doesn't hold them back: only the machine and the number of mutants do. An xcodebuild
+  project that tests on a simulator defaults to at most 2 (see
+  [xcodebuild workers](#xcodebuild-workers)), and other build systems to 1. The default was set from
+  the one project measured here, on one 18-core machine; `mutationTestWorkers: 1` gives what it was
+  before.
 
   A clone whose baseline fails, or that can't be copied, as with a suite that can't run beside a copy
   of itself or a disk that fills up, makes a default run test one mutant at a time, and say so, rather
@@ -2360,10 +2364,57 @@ run above, all 3 control runs failed and named the test, and each kill read `(su
 An xcodebuild project whose first `-destination` is a simulator, such as
 `platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5`, or one named by its `id=` alone, tests N
 mutants at once with `mutationTestWorkers: N` or `--workers N`
-([#103](https://github.com/Joseph-Cursio/SwiftMutator/issues/103)). With one worker, the default,
+([#103](https://github.com/Joseph-Cursio/SwiftMutator/issues/103)). With neither, it tests on 2
+workers on a Mac with enough processors and memory, once there are enough mutants to pay for the
+second simulator, and otherwise on one (see the default count, below). With one worker,
 SwiftMutator also tests on a simulator of its own when that should be faster: on
 MacCloud_client_iOS, a mutant's run took 7 s on one, against 22 s on the destination (see [One
 worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own), below).
+
+- **The default count.** With no `mutationTestWorkers` or `--workers`, a run tests on half the
+  machine's processors, one worker for each 16 GB of its memory, and at most 2: a Mac with 4 or
+  more processors and 32 GB or more tests on 2, and one with less on 1. Each simulator past the
+  first costs 15 to 30 s to make, boot and check, so the second is made only for 50 mutants or
+  more; with fewer, the run has one worker, which may still get a simulator of its own (below).
+  The count of mutants includes those that won't compile, which only the baseline finds.
+  `oneWorkerSimulator: false` keeps the count at 1. A default count says so:
+
+  ```
+  👷 Testing 2 mutants at a time, each on a simulator of its own, by default: `--workers` or `mutationTestWorkers` sets another count.
+  ```
+
+  Measured on a copy of BonMot's iOS tests, 363 mutants with parallel testing off, on an 18-core
+  64 GB Mac, with two runs of each, every run giving every mutant the same outcome:
+
+  | Workers | Whole run | Before the first mutant | Mutants | Memory at its peak, above idle |
+  | --- | --- | --- | --- | --- |
+  | 1, on the destination | 541 s, 525 s | 7 s, 7 s | 512 s, 497 s | 3.1 GB, 3.7 GB |
+  | 2 | 345 s, 340 s | 36 s, 35 s | 285 s, 282 s | 12.6 GB, 18.1 GB |
+  | 3 | 309 s, 297 s | 56 s, 49 s | 227 s, 223 s | 22.5 GB, 24.1 GB |
+  | 4 | 317 s, 312 s | 69 s, 65 s | 222 s, 220 s | 27.4 GB, 28.4 GB |
+
+  The mutants stopped gaining at 3 workers, while the setup grew with each simulator, and a
+  simulator took far more memory than the 3 GB SwiftMutator once assumed. On MacCloud_client_iOS,
+  2 workers took 175 to 186 s and 4 took 167 to 169 s, at a peak of 9.9 to 10.8 GB and 14.9 to
+  17.1 GB. `--workers` can still ask for more on a large Mac.
+- **A default count checks the baseline first** when a mutant's run on your destination would
+  test in parallel, as for one worker (see [One worker on a simulator of its
+  own](#one-worker-on-a-simulator-of-its-own)), unless `oneWorkerSimulator: true`. N workers, each
+  testing one test at a time on its simulator, test N mutants at once, so a mutant takes about
+  S / N of the run's time, where S is what the baseline's tests add up to; a run on your
+  destination pays a clone and a boot, more than 10 s, on top of S / K over the baseline's K
+  clones. The workers are kept when S / N is no more than 10 s plus S / K: always when K is no
+  more than N, or S no more than 10 s for each worker, and for 2 workers with S up to 60 s on 3
+  clones, or 40 s on 4. A baseline that printed no line for a test on a clone tested one test at
+  a time, so the workers are kept then too. Otherwise their simulators are deleted before their
+  runs with no mutant on, and the run tests one mutant at a time on your destination, saying why:
+
+  ```
+  👷 Testing one mutant at a time on the test command's destination instead: the baseline's parallel testing spread 42.5 s of tests over 4 clones, which 2 workers testing one at a time, each on a simulator of its own, could make slower; `--workers 2` tests on 2 simulators anyway.
+  ```
+
+  With parallel testing off, a run on your destination tests one test at a time too, so the
+  workers are kept without a check.
 
 - **One simulator per worker, worker 0 included,** like the one the destination names, which no
   mutant runs on. Before the baseline, SwiftMutator makes them, named
@@ -2395,7 +2446,11 @@ worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own), below)
   `.log`.
 - **A fallback to one worker.** If the destination names no one simulator, or a simulator can't be
   made or booted, or a run with no mutant on fails, the simulators are deleted and the run tests
-  one mutant at a time on your destination, as without workers, and says why:
+  one mutant at a time on your destination, as without workers, and says why. A default count
+  says it tests on the test command's destination instead, and, as a lone worker, says nothing
+  for a destination that names no one simulator unless `oneWorkerSimulator: true` asked for
+  simulators. A run of too few mutants for a second simulator is a lone worker's, and says what
+  one says:
 
   ```
   👷 Testing one mutant at a time, though 4 workers were asked for: worker 2's run with no mutant on, on its simulator, didn't pass (its log is no-mutant run worker 2.log).
@@ -2433,7 +2488,9 @@ worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own), below)
   the simulator your `-destination` names was the one deleted, make it again first. A baseline the
   simulator failed to launch runs again too, once, on any number of workers, and its first log is
   kept as `baseline run (launch failed).log`.
-- **Memory.** Each booted simulator holds memory. 2 to 4 workers suit most Macs.
+- **Memory.** Each booted simulator holds memory: on BonMot, the run's peak rose by 9 to 14 GB
+  with the second worker, and by 4 to 10 GB with each one more (see the default count, above). 2
+  workers suit a Mac with 32 GB; more need more.
 
 ##### One worker on a simulator of its own
 
@@ -2467,9 +2524,11 @@ it on, and says so:
   a mutant's run there then clones nothing. A simulator of its own tests one test at a time, so its
   runs leave them out.
 - **The key.** `oneWorkerSimulator: true` uses a simulator whenever the destination is one and there
-  are 2 or more mutants to test, without these checks; `false` never uses one.
+  are 2 or more mutants to test, without these checks, and keeps a default count's simulators
+  without checking the baseline; `false` never uses one, and keeps the default count at 1, so no
+  simulator is made unless `--workers` or `mutationTestWorkers` asks for more than one worker.
   `--one-worker-simulator` and `--no-one-worker-simulator` do the same for one run. More than one
-  worker uses simulators whatever it says.
+  worker that was asked for uses simulators whatever it says.
 - **What it leaves alone.** `--mutant` and a lone mutant to test run on your destination, as do Mac,
   Mac Catalyst, physical-device and `generic/…` destinations, and destinations that name no one
   simulator, such as a device's bare `id=`. None of them prints anything about it, but a destination
@@ -3860,7 +3919,7 @@ as it goes (see [Results file](#results-file)). Its exit status says how it ende
 | `--destination <specifier>` | Test on this destination, in place of `destination` and every `-destination` in `arguments`; mutants are tested on the first. Repeatable ([xcodebuild's arguments](#xcodebuilds-arguments)) | `destination`, else `arguments` |
 | `--keep-log-folders <count>` | Keep this many runs' log folders, this run's included, at least 2 ([Results file](#results-file)) | `keepLogFolders`, else all |
 | `--keep-swiftlint-phases`, `--no-keep-swiftlint-phases` | Keep SwiftLint running in the build phases of the copy's Xcode projects, or turn it off there ([Before a long run](#before-a-long-run)) | `keepSwiftLintPhases`, else off in the copy |
-| `--workers <count>` | Test this many mutants at once, at least 1 ([Workers and release mode](#workers-and-release-mode)) | `mutationTestWorkers`, else up to 4 for SwiftPM, 1 for others |
+| `--workers <count>` | Test this many mutants at once, at least 1 ([Workers and release mode](#workers-and-release-mode)) | `mutationTestWorkers`, else up to 4 for SwiftPM, up to 2 for xcodebuild on a simulator, 1 for others |
 | `--timeout <seconds>` | Stop a mutant's test run after this long, above 0 and at most 86400 ([Configuration](#configuration)) | `mutationTestTimeout`, else timed from your tests |
 | `--stop-at-first-failure`, `--no-stop-at-first-failure` | Stop a mutant's test run at its first failed test, or don't; SwiftPM, and xcodebuild on a simulator ([Stopping at the first failed test](#stopping-at-the-first-failed-test)) | `stopAtFirstFailure`, else on |
 | `--workers-share-build`, `--no-workers-share-build` | Let SwiftPM workers test from one build when they can, or give each a clone ([Workers and release mode](#workers-and-release-mode)) | `workersShareBuild`, else share |

@@ -166,7 +166,8 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
         )
     }
 
-    // The default is SwiftPM's alone: each xcodebuild worker takes a simulator.
+    // Each xcodebuild worker takes a simulator, which a Mac of 8 GB, as every test's world has it, has no memory for
+    // (`DefaultSimulatorWorkerRunTests` has one that does).
     func test_anXcodebuildProject_stillTestsOneAtATime() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/xcodebuild",

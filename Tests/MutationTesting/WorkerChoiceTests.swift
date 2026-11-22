@@ -1,7 +1,7 @@
 @testable import muterCore
 import XCTest
 
-final class WorkerChoiceTests: XCTestCase {
+final class WorkerChoiceTests: MuterTestCase {
     func test_oneWorkerAsAskedFor_saysNothing() {
         XCTAssertNil(WorkerChoice(asked: 1, used: 1, unsupportedReason: nil, mutantsToTest: 40).sentence)
     }
@@ -176,7 +176,8 @@ final class WorkerChoiceTests: XCTestCase {
         }
     }
 
-    func test_theDefaultCount_isOnlyThatOfASwiftPMRunWithoutOne() {
+    // An xcodebuild run with no `-destination` can't test more than one at once, so it has no default count above 1.
+    func test_theDefaultCount_isOnlyThatOfARunWithoutOne() {
         current.processorCount = 18
         let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         let xcode = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])

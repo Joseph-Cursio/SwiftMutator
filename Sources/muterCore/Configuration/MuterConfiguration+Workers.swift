@@ -10,31 +10,69 @@ extension MuterConfiguration {
     /// about 100 mutants pay for the third worker, and about 150 for the third and fourth together.
     static let mutantsForEachDefaultWorker = 50
 
+    /// The most simulators an xcodebuild run makes for its workers when `mutationTestWorkers` doesn't say. On a copy of
+    /// BonMot's iOS tests, 363 mutants with parallel testing off, on an 18-core 64 GB Mac on 21 November 2026, one
+    /// worker on the destination took 541 s and 525 s, 2 workers 345 s and 340 s, 3 took 309 s and 297 s, and 4 took
+    /// 317 s and 312 s, every run giving every mutant the same outcome. The mutants' own phase stopped gaining at 3,
+    /// while each simulator past the first took 15 to 30 s more to make, boot and check, and memory rose with each
+    /// (`memoryForEachDefaultSimulatorWorker`). On MacCloud_client_iOS 2 workers took 175 to 186 s and 4 took 167 to
+    /// 169 s (#194, #282).
+    static let mostDefaultSimulatorWorkers = 2
+
+    /// The memory an xcodebuild run's default count asks of the machine for each worker's simulator, so a Mac with less
+    /// than 32 GiB tests one mutant at a time unless asked. On BonMot, as for `mostDefaultSimulatorWorkers`, the
+    /// machine's memory in use peaked 3.1 and 3.7 GB above its idle level with one worker on the destination, 12.6 and
+    /// 18.1 GB with 2 workers, 22.5 and 24.1 GB with 3, and 27.4 and 28.4 GB with 4; on MacCloud_client_iOS 9.9 to
+    /// 10.8 GB with 2 and 14.9 to 17.1 GB with 4: far more for each simulator than the 3 GB once assumed.
+    static let memoryForEachDefaultSimulatorWorker: UInt64 = 16 << 30
+
+    /// How many mutants an xcodebuild run with no `mutationTestWorkers` tests for each simulator past the first. On
+    /// BonMot, as for `mostDefaultSimulatorWorkers`, the second simulator cost about 29 s more before the first mutant,
+    /// 36 s against 7 s, and took a mutant's share of the wall time from about 1.4 s to 0.8 s: about 50 mutants pay it
+    /// back.
+    static let mutantsForEachDefaultSimulatorWorker = 50
+
     /// The most mutants to test at once, however many there are to test: `mutationTestWorkers`, at least 1, or else
-    /// `defaultWorkerCount`, for a SwiftPM project and for an xcodebuild
-    /// project whose first `-destination` is a simulator; always 1 for the others, for the reason
-    /// `parallelWorkersUnsupportedReason` gives. An xcodebuild run that can't give each worker a simulator still tests
-    /// one mutant at a time (see `SimulatorWorkerSetup`), and one xcodebuild worker may test on a simulator of its own
-    /// (`oneWorkerSimulator`).
+    /// `defaultWorkerCount`, for a SwiftPM project and for an xcodebuild project whose first `-destination` is a
+    /// simulator; always 1 for the others, for the reason `parallelWorkersUnsupportedReason` gives. An xcodebuild run
+    /// that can't give each worker a simulator still tests one mutant at a time (see `SimulatorWorkerSetup`), and one
+    /// xcodebuild worker may test on a simulator of its own (`oneWorkerSimulator`).
     var workerCount: Int {
         guard parallelWorkersUnsupportedReason == nil else { return 1 }
         return max(1, mutationTestWorkers ?? defaultWorkerCount)
     }
 
     /// How many mutants a run tests at once when `mutationTestWorkers` doesn't say: on a SwiftPM project, half the
-    /// processors, as each worker's tests already run in parallel, and at most `mostDefaultWorkers`. Otherwise 1: an
-    /// xcodebuild worker needs a simulator of its own, which takes about 3 GB at its peak.
+    /// processors, as each worker's tests already run in parallel, and at most `mostDefaultWorkers`. On an xcodebuild
+    /// project whose first `-destination` is a simulator, half the processors too, and no more than
+    /// `memoryForEachDefaultSimulatorWorker` allows of the machine's memory, as each worker's simulator holds some, and
+    /// at most `mostDefaultSimulatorWorkers`; 1 with `oneWorkerSimulator: false`, which asks for no simulator
+    /// SwiftMutator makes. Otherwise 1.
     var defaultWorkerCount: Int {
-        guard buildSystem == .swift else { return 1 }
-        return max(1, min(Self.mostDefaultWorkers, dependency(\.processorCount) / 2))
+        switch buildSystem {
+        case .swift:
+            return max(1, min(Self.mostDefaultWorkers, dependency(\.processorCount) / 2))
+
+        case .xcodebuild:
+            guard parallelWorkersUnsupportedReason == nil, oneWorkerSimulator != .disabled else { return 1 }
+            let byMemory = Int(clamping: dependency(\.physicalMemory) / Self.memoryForEachDefaultSimulatorWorker)
+            return max(1, min(Self.mostDefaultSimulatorWorkers, dependency(\.processorCount) / 2, byMemory))
+
+        case .unknown:
+            return 1
+        }
     }
 
     /// The number of mutants to test at once when `mutants` are to test, never more than they are: `workerCount`, or,
-    /// when `mutationTestWorkers` doesn't say and each worker past the first needs a clone, only as many as they pay
-    /// back (`mutantsForEachDefaultWorker`). Workers `sharingBuild` have no such cost to pay back.
+    /// when `mutationTestWorkers` doesn't say, only as many as pay back what each worker past the first costs: a clone
+    /// for SwiftPM (`mutantsForEachDefaultWorker`), a simulator for xcodebuild
+    /// (`mutantsForEachDefaultSimulatorWorker`). Workers `sharingBuild` have no such cost to pay back.
     func workerCount(testing mutants: Int, sharingBuild: Bool = false) -> Int {
         guard mutationTestWorkers == nil, !sharingBuild else { return min(workerCount, mutants) }
-        return min(workerCount, 1 + mutants / Self.mutantsForEachDefaultWorker, mutants)
+        let mutantsForEachWorker = buildSystem == .xcodebuild
+            ? Self.mutantsForEachDefaultSimulatorWorker
+            : Self.mutantsForEachDefaultWorker
+        return min(workerCount, 1 + mutants / mutantsForEachWorker, mutants)
     }
 
     /// Why this test command can't test more than one mutant at once, completing a sentence such as "Testing one

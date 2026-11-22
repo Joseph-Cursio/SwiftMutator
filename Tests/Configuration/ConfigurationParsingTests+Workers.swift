@@ -56,18 +56,20 @@ extension ConfigurationParsingTests {
             XCTAssertEqual(swift.defaultWorkerCount, count, "\(processors)")
             XCTAssertEqual(swift.workerCount, count, "\(processors)")
         }
+        // Not by the memory, which only a simulator's worker needs much of.
+        current.processorCount = 18
+        current.physicalMemory = 1 << 30
+        XCTAssertEqual(swift.defaultWorkerCount, 4)
     }
 
+    // xcodebuild on a simulator has a default of its own (`ConfigurationParsingTests+DefaultSimulatorWorkers`).
     func test_theDefaultWorkerCount_isOneForEveryOtherBuildSystem() {
         current.processorCount = 18
+        current.physicalMemory = 64 << 30
         let others = [
             MuterConfiguration(executable: "/usr/bin/make", arguments: ["test"]),
             MuterConfiguration(
                 executable: "/usr/bin/xcodebuild", arguments: ["-destination", "platform=macOS", "test"]
-            ),
-            MuterConfiguration(
-                executable: "/usr/bin/xcodebuild",
-                arguments: ["-destination", "platform=iOS Simulator,name=iPhone 17", "test"]
             ),
         ]
 
