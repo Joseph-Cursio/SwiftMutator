@@ -7,7 +7,9 @@ extension PerformMutationTesting {
     /// (`MuterConfiguration.destinationRunsInParallel`), and, for a first `-destination` that names a simulator by its
     /// `id=` or `name=` alone, without a platform, whether simctl lists it
     /// (`MuterConfiguration.firstDestinationIsASimulator`). Looked up only when they can matter: not for another build
-    /// system, nor with `stopAtFirstFailure: false`.
+    /// system, nor with `stopAtFirstFailure: false`. Whether a Mac's tests run unhosted, which decides it there too, is
+    /// `withEveryStopFact(_:)`'s to add (`MuterConfiguration.withMacWorkerFact(given:)`), as it decides the Mac's
+    /// workers as well.
     func withStopFacts(_ state: AnyMutationTestState) async -> MuterConfiguration {
         let configuration = state.muterConfiguration
         guard configuration.buildSystem == .xcodebuild, configuration.stopAtFirstFailure != .disabled else {
@@ -24,6 +26,13 @@ extension PerformMutationTesting {
             uiTestTargets: configuration.targetsTested(among: state.projectXCTestRun.uiTestTargets),
             destinationRunsInParallel: configuration.destinationRunsInParallel(given: state.projectXCTestRun)
         )
+    }
+
+    /// `state`'s configuration with every fact that decides whether its mutants' runs stop at their first failed test
+    /// before the workers are known: `withStopFacts(_:)`'s, and whether a Mac's tests run unhosted. Both a session that
+    /// tests and one that kept every result write their header with it, so the two say the same.
+    func withEveryStopFact(_ state: AnyMutationTestState) async -> MuterConfiguration {
+        await withStopFacts(state).withMacWorkerFact(given: state.projectXCTestRun)
     }
 
     /// Says that stopping at the first failed test is off when `stopAtFirstFailure: true` asked for it, and the runs

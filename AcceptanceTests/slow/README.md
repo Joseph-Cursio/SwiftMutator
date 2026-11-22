@@ -33,7 +33,7 @@ Times are recorded, and never fail a check. `--list` shows a target's scenarios,
 |---|---|---|---|---|---|
 | `full` | A plain run | The same mutants as the reference, each with its mutation and verdict | 1 h 42 min | 4.5 min | 30 min |
 | `release` | Tests built for release: `-c release -Xswiftc -enable-testing`, or the target's `XCODEBUILD_RELEASE_ARGUMENTS` | As `full` | 32 min | 4.7 min | 26 min |
-| `no-stop` | `stopAtFirstFailure: false` | As `full` | 2 h 41 min | 4.9 min | not applicable: `swift test` and simulators only |
+| `no-stop` | `stopAtFirstFailure: false` | As `full` | 2 h 41 min | 4.9 min | not yet run |
 | `reuse-nochange` | `--reuse` of `full`'s results, nothing changed | As `full`; and it kept exactly what `ResumePlan` keeps: every result but timeouts, build errors and repeated places | 48 min | 2.1 min | 1.8 min |
 | `reuse-testchange` | A test file's tests disabled, then `--reuse` of `full` | No kill only that file's tests made is kept, some other kill is, no survivor is (for XCTest, no kill is kept at all), and the console says why: as test files changed; its verdicts are those of a full run of the same edited tree (`full-testchange`), and the edit moved some | 1 h 30 min, and 1 h 41 min for `full-testchange` | 4.5 min, and 4.5 min for `full-testchange` | not applicable: `yams-swiftpm` checks it |
 | `reuse-sourcechange` | A comment added to a source file with no mutants: `--reuse`, stopped once its header is written; then `--reuse --reuse-ignoring` that file | The first plans to test everything again; the second keeps what `reuse-nochange` keeps, and records the waiver | 1 min, then 47 | 0.5 min, then 2.1 | 0.4 min, then 1.8 |
@@ -71,14 +71,14 @@ Its `Package.resolved` isn't in git, and several of its dependencies take `from:
 [Yams](https://github.com/jpsim/Yams), a YAML library, at one pin on its `main`, run two ways. It is small, has no dependencies, and its tests are XCTest. It ships an Xcode project whose scheme tests it on macOS. Each way has 594 mutants under the ten operators, with nothing excluded.
 
 - **`yams-swiftpm`** runs `swift test` with 4 workers. XCTest names a test `-[Module.Class testA]`, with no file, so after a test file changes SwiftMutator keeps no kill (`ReuseChanges.killHolds`). `reuse-testchange` checks that rule here: it renames each `func test…` in `TEST_CHANGE_FILE`, and each reference to it, as in an `allTests` list, so XCTest no longer runs them.
-- **`yams-xcodebuild`** runs `xcodebuild test` on the project's scheme, on this Mac. SwiftMutator tests one mutant at a time on a Mac destination, so a run takes much longer. Its arguments, in its file, each with a reason:
+- **`yams-xcodebuild`** runs `xcodebuild test` on the project's scheme, on this Mac, with one worker, as when its reference was made, so a run takes much longer. Its arguments, in its file, each with a reason:
   - only one of the test plan's two configurations;
   - parallel testing off;
   - Debug, as `swift test` builds;
   - `CI=true`, which skips the project's SwiftLint build phase;
   - macOS 12 at the least, which Xcode 27 requires.
 
-  Two scenarios don't apply. `no-stop` can't, as `stopAtFirstFailure` works only with `swift test` and with xcodebuild on a simulator, and this target tests on the Mac. `reuse-testchange` would check the rule `yams-swiftpm` checks, at the cost of two full runs.
+  Its tests run in Xcode's `xctest` agent, with parallel testing off, so its runs stop at their first failed test or crash, as `swift test`'s do, and `no-stop` runs them to their end. The reference was made with runs that went to their end; a run that stops kills its mutant all the same, and the check reads a failed test and a crash alike. One scenario doesn't apply: `reuse-testchange` would check the rule `yams-swiftpm` checks, at the cost of two full runs.
 - **Skipped tests.** One, in both: a date test round-trips the current time, so whether it kills a mutant depends on the clock.
 - **No resolved packages.** Yams has no dependencies, so `PINS_PACKAGES=no` and no `Package.resolved` is kept.
 

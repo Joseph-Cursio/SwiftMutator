@@ -2,7 +2,8 @@
 import TestingExtensions
 import XCTest
 
-/// Which xcodebuild runs' mutants stop at their first failed test: those on a simulator.
+/// Which xcodebuild runs' mutants stop at their first failed test: those on a simulator, and those on a Mac whose tests
+/// no app hosts (`PerformMutationTestingXcodeWorkersTests+StoppingOnAMac`).
 extension PerformMutationTestingXcodeWorkersTests {
     // Each worker tests on a simulator of its own, so with the key unset every mutant's run stops, as SwiftPM's do.
     func test_mutantsOnTheWorkersSimulators_stopAtTheirFirstFailedTest() async throws {
@@ -14,40 +15,6 @@ extension PerformMutationTestingXcodeWorkersTests {
         XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [true, true, true, true])
         XCTAssertTrue(ioDelegate.configurations.allSatisfy { $0.xcodeWorker?.destination != nil })
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.stopsAtFirstFailure), [true])
-        XCTAssertEqual(notices(), [])
-    }
-
-    // Nothing measured that stopping xcodebuild ends a Mac's test process: an explicit `true` says why it's off.
-    func test_onAMacDestination_mutantsRunToTheirEnd_andAnExplicitTrueSaysWhy() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/xcodebuild",
-            arguments: ["-destination", "platform=macOS", "test"],
-            mutationTestWorkers: 2,
-            stopAtFirstFailure: .enabled
-        )
-        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
-        let notices = sentStopNotices()
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false, false, false, false])
-        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.stopsAtFirstFailure), [false])
-        let reason = try XCTUnwrap(state.muterConfiguration.stopAtFirstFailureUnsupportedReason)
-        XCTAssertTrue(reason.contains("names a Mac"), reason)
-        XCTAssertEqual(notices(), [reason])
-    }
-
-    func test_onAMacDestination_withTheKeyUnset_nothingIsSaid() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/xcodebuild",
-            arguments: ["-destination", "platform=macOS", "test"]
-        )
-        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
-        let notices = sentStopNotices()
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false, false, false, false])
         XCTAssertEqual(notices(), [])
     }
 

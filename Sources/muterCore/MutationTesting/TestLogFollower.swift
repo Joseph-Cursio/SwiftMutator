@@ -52,9 +52,10 @@ struct TestLogFollower {
     /// xcodebuild's restart line (`XcodebuildRestartLine`), as `TestSuiteOutcome` reads them at the time limit. Not
     /// for SwiftPM, whose test process can print the runtime's message and go on, and whose signal line (`CrashLine`)
     /// follows it when the process dies of it. Parallel testing's `Test case '…' failed on '…'` lines never stop a
-    /// run: they read the same for a crash and a failed test. A worker on a simulator of its own tests one test at a
-    /// time, and a lone worker on the test command's destination that tests in parallel doesn't stop at all
-    /// (`MuterConfiguration.stopAtFirstFailureUnsupportedReason`), as nothing but a crash would stop its runs.
+    /// run: they read the same for a crash and a failed test. A worker on a simulator of its own, and each of several
+    /// workers on a Mac, tests one test at a time, and a lone worker on the test command's destination that tests in
+    /// parallel doesn't stop at all (`MuterConfiguration.stopAtFirstFailureUnsupportedReason`), as nothing but a crash
+    /// would stop its runs. The same lines show a crash on a simulator and on a Mac.
     var readsXcodebuildCrashes = false
     /// How long it waits for more output once it has read everything written so far.
     var pollInterval: TimeInterval = 0.1

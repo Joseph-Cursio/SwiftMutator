@@ -29,7 +29,7 @@ struct TestingArguments: ParsableArguments, KeyFlagArguments {
         inversion: .prefixedNo,
         help: ArgumentHelp(
             "Stop a mutant's test run at its first failed test, or don't, in place of stopAtFirstFailure. SwiftPM, "
-                + "and xcodebuild on a simulator."
+                + "and xcodebuild on a simulator or on a Mac whose tests no app hosts."
         )
     )
     var stopAtFirstFailure: Bool?

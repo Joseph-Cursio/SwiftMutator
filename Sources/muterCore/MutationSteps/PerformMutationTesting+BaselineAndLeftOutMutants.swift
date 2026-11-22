@@ -19,11 +19,15 @@ extension PerformMutationTesting {
     /// doesn't lengthen the default time limit it sets for build systems other than SwiftPM (#181).
     /// xcodebuild's build came first, in `BuildForTesting`: a rewrite here would leave the tests it copied out of date.
     /// A run stopped at `buildTimeout` stops mutation testing: its log, cut short, says nothing about which mutants
-    /// don't compile.
-    func baselineLeavingOutMutants(state: AnyMutationTestState) async throws -> BaselineRun {
+    /// don't compile. Each run uses `configuration`, `state`'s with the facts that decide whether mutants' runs stop at
+    /// their first failed test (`withStopFacts(_:)`, `MuterConfiguration.withMacWorkerFact(given:)`).
+    func baselineLeavingOutMutants(
+        state: AnyMutationTestState,
+        configuration: MuterConfiguration
+    ) async throws -> BaselineRun {
         var recovery = state.muterConfiguration.buildSystem == .xcodebuild ? nil : CompileRecovery(of: state)
         var started = instant()
-        var (outcome, testLog) = try await baseline(state: state)
+        var (outcome, testLog) = try await baseline(state: state, configuration: configuration)
         while outcome != .passed, var trying = recovery {
             let buildLog = MutationTestLog.failedBuildFileName(trying.failedBuilds + 1)
             guard let count = try await trying.takeOutMutants(
@@ -38,7 +42,7 @@ extension PerformMutationTesting {
                 events.send(.buildingAgainWithSwitchesInAClosure(count: trying.switchedInAClosure))
             }
             started = instant()
-            (outcome, testLog) = try await baseline(state: state)
+            (outcome, testLog) = try await baseline(state: state, configuration: configuration)
         }
         if outcome != .passed, recovery?.stopsAtTheMostBuilds == true {
             events.send(.stoppedTakingOutMutants(afterBuilds: CompileRecovery.maximumBuilds))
@@ -56,11 +60,14 @@ extension PerformMutationTesting {
     /// launch says nothing about the tests either, so it runs once more, as a mutant's run does
     /// (`SimulatorTrouble.launch`), and the first run's log is kept and sent, whatever the second comes to. The caller
     /// times both runs: the first paid for the build. A stop throws, and leaves the output where it ran. So does a run
-    /// stopped at `buildTimeout`, once its log is kept: it stops mutation testing.
-    private func baseline(state: AnyMutationTestState) async throws -> (outcome: TestSuiteOutcome, testLog: String) {
+    /// stopped at `buildTimeout`, once its log is kept: it stops mutation testing. It runs with `configuration`.
+    private func baseline(
+        state: AnyMutationTestState,
+        configuration: MuterConfiguration
+    ) async throws -> (outcome: TestSuiteOutcome, testLog: String) {
         let output = testOutput(named: "baseline run", state: state)
-        let (baseline, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: state.muterConfiguration) {
-            await ioDelegate.benchmarkTests(using: state.muterConfiguration, savingResultsIntoFileNamed: output)
+        let (baseline, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: configuration) {
+            await ioDelegate.benchmarkTests(using: configuration, savingResultsIntoFileNamed: output)
         }
         // Stopping the run kills the baseline run, which then fails, but that says nothing about the project's tests.
         try Task.checkCancellation()

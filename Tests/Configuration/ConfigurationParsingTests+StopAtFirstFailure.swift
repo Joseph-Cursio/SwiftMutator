@@ -1,7 +1,8 @@
 @testable import muterCore
 import XCTest
 
-/// Which xcodebuild runs can stop at their first failed test: only those on a simulator.
+/// Which xcodebuild runs can stop at their first failed test: those on a simulator, and those on a Mac whose tests no
+/// app hosts (`ConfigurationParsingTests+StoppingOnAMac`).
 extension ConfigurationParsingTests {
     func test_stopsAtFirstFailure_underXcodebuild_onEachKindOfSimulatorDestination() {
         let destinations = [
@@ -20,22 +21,21 @@ extension ConfigurationParsingTests {
         }
     }
 
-    // Measured only on a simulator: killing xcodebuild ends the simulator's test process within 0.2 s.
-    func test_stopsAtFirstFailure_underXcodebuild_isOffOnAMacADeviceOrAGenericDestination() {
+    // Nothing measured that killing xcodebuild ends a device's tests; a `generic/` destination names no one device.
+    func test_stopsAtFirstFailure_underXcodebuild_isOffOnADeviceOrAGenericDestination() {
         let cases: [(destination: String, reasonNames: String)] = [
-            ("platform=macOS", "names a Mac"),
-            ("platform=macOS,arch=arm64", "names a Mac"),
-            ("platform=macOS,variant=Mac Catalyst", "names a Mac"),
             ("platform=iOS,id=00008110-000A1B2C3D4E5F6A", "doesn't name"),
             ("platform=iOS,name=Joe's iPhone", "doesn't name"),
             ("platform=visionOS,name=Apple Vision Pro", "doesn't name"),
             ("generic/platform=iOS Simulator", "any device of a platform"),
             ("generic/platform=iOS", "any device of a platform"),
+            ("generic/platform=macOS", "any device of a platform"),
             ("arch=arm64", "doesn't name"),
         ]
         for (destination, reasonNames) in cases {
             for key in [ConfigurationSwitch.unset, .enabled] {
                 let configuration = xcodebuild(testingOn: destination, stopAtFirstFailure: key)
+                    .withMacWorkerFact(given: .unhostedFixture)
 
                 XCTAssertFalse(configuration.stopsAtFirstFailure, destination)
                 let reason = configuration.stopAtFirstFailureUnsupportedReason ?? ""
@@ -58,7 +58,8 @@ extension ConfigurationParsingTests {
         }
     }
 
-    // Only the first `-destination` counts: a mutant's run tests on it alone.
+    // Only the first `-destination` counts: a mutant's run tests on it alone. The Mac's tests aren't known to run
+    // unhosted here, so a run on it doesn't stop.
     func test_stopsAtFirstFailure_underXcodebuild_followsTheFirstDestination() {
         let simulatorFirst = MuterConfiguration(
             executable: "/usr/bin/xcodebuild",

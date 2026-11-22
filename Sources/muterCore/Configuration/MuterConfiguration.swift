@@ -188,9 +188,9 @@ struct MuterConfiguration: Equatable, Codable {
     var destinationRunsInParallel = false
     /// Whether every test target a mutant's xcodebuild run tests runs in Xcode's `xctest` agent, none of them hosted by
     /// an app or a UI test target (`XCTestRun.hostedTestTargets`), and it tests at least one, so that a Mac run can
-    /// test several mutants at once (`testsOnMacWorkers`). Not a configuration key: read from the `.xctestrun` once the
-    /// build for testing has written it (`withMacWorkerFact(given:)`). A `var` only so that can copy `self` and change
-    /// it.
+    /// test several mutants at once (`testsOnMacWorkers`), and stop each at its first failed test
+    /// (`stopAtFirstFailureUnsupportedReason`). Not a configuration key: read from the `.xctestrun` once the build for
+    /// testing has written it (`withMacWorkerFact(given:)`). A `var` only so that can copy `self` and change it.
     var testsRunUnhosted = false
     /// What a run's test command adds to select some of the tests: `--filter` or `-only-testing:` for each of
     /// `propertyTestFilter`'s entries (`withPropertyTestFilter`). Not a configuration key; a `var` only so that can
