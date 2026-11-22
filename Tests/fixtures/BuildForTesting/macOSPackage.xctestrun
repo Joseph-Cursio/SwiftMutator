@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ContainerInfo</key>
+	<dict>
+		<key>ContainerName</key>
+		<string>Sum</string>
+		<key>SchemeName</key>
+		<string>Sum-Package</string>
+	</dict>
+	<key>TestConfigurations</key>
+	<array>
+		<dict>
+			<key>IsEnabled</key>
+			<true/>
+			<key>Name</key>
+			<string>Test Scheme Action</string>
+			<key>TestTargets</key>
+			<array>
+				<dict>
+					<key>BlueprintName</key>
+					<string>SumTests</string>
+					<key>BlueprintProviderName</key>
+					<string>Sum</string>
+					<key>CommandLineArguments</key>
+					<array/>
+					<key>DependentProductPaths</key>
+					<array>
+						<string>__TESTROOT__/Debug/SumTests.xctest</string>
+					</array>
+					<key>EnvironmentVariables</key>
+					<dict>
+						<key>OS_ACTIVITY_DT_MODE</key>
+						<string>YES</string>
+					</dict>
+					<key>ProductModuleName</key>
+					<string>SumTests</string>
+					<key>TestBundlePath</key>
+					<string>__TESTROOT__/Debug/SumTests.xctest</string>
+					<key>TestHostPath</key>
+					<string>__PLATFORMS__/MacOSX.platform/Developer/Library/Xcode/Agents/xctest</string>
+					<key>TestingEnvironmentVariables</key>
+					<dict>
+						<key>DYLD_FRAMEWORK_PATH</key>
+						<string>__TESTROOT__/Debug:__TESTROOT__/Debug/PackageFrameworks:__SHAREDFRAMEWORKS__:__PLATFORMS__/MacOSX.platform/Developer/Library/Frameworks</string>
+					</dict>
+				</dict>
+			</array>
+		</dict>
+	</array>
+	<key>TestPlan</key>
+	<dict>
+		<key>IsDefault</key>
+		<true/>
+		<key>Name</key>
+		<string>Sum-Package</string>
+	</dict>
+	<key>__xctestrun_metadata__</key>
+	<dict>
+		<key>FormatVersion</key>
+		<integer>2</integer>
+	</dict>
+</dict>
+</plist>

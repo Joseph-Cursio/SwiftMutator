@@ -135,6 +135,7 @@ final class LoggerQuietTests: MuterTestCase {
         sut.projectCoverageDiscoveryStarted()
         sut.mutationTestingStarted()
         sut.workersShareUserDefaults()
+        sut.macWorkersShareUserDefaults()
         sut.resultsFileCreated(atPath: "/logs/results.jsonl")
         sut.stopAtFirstFailureTurnedOff(reason: "the tests run in parallel")
         sut.projectCoverageDiscoveryFinished(failureReason: "no profile data")

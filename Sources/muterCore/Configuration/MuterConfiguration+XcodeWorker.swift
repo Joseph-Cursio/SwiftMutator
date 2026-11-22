@@ -16,19 +16,25 @@ extension MuterConfiguration {
         /// collecting diagnostics no one reads. Only when the xcodebuild in use lists the option in its `-help`: one
         /// that doesn't know it would fail every run.
         let testDiagnosticsOff: Bool
+        /// What the worker's runs add to their tests' environment, through the `EnvironmentVariables` of its
+        /// `.xctestrun` (`XCTestRun.adding(environment:)`): for a worker on this Mac, a temporary folder of its own
+        /// (`WorkerTemporaryFolder`), as its tests share the Mac's; none for a simulator's, which has its own.
+        let environment: [String: String]
 
         init(
             testRunFile: String,
             derivedData: String,
             testDiagnosticsOff: Bool,
             destination: String? = nil,
-            parallelTestingOff: Bool = false
+            parallelTestingOff: Bool = false,
+            environment: [String: String] = [:]
         ) {
             self.testRunFile = testRunFile
             self.derivedData = derivedData
             self.destination = destination
             self.parallelTestingOff = parallelTestingOff
             self.testDiagnosticsOff = testDiagnosticsOff
+            self.environment = environment
         }
 
         /// Worker `worker`'s derived data folder, beside the mutated project, so neither the copy's fingerprint nor the

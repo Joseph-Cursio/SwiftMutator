@@ -95,6 +95,19 @@ extension MutationTestObserverTests {
         )
     }
 
+    func test_macWorkersShareUserDefaults_isPrinted() throws {
+        try sut.start()
+
+        runEvents.send(.macWorkersShareUserDefaults)
+
+        XCTAssertEqual(
+            printer.linesPassed.last,
+            "ℹ️ Workers on this Mac share `UserDefaults.standard` and your home folder, as Xcode's `xctest` runs "
+                + "every worker's tests: tests that write to them can fail each other and kill mutants they don't "
+                + "check. See \"Tests that share state across workers\" in the README."
+        )
+    }
+
     func test_workersShareUserDefaults_isPrinted() throws {
         try sut.start()
 

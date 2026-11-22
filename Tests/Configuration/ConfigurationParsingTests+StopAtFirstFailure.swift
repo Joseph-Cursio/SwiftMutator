@@ -128,7 +128,7 @@ extension ConfigurationParsingTests {
         XCTAssertTrue(reason.contains("-skip-testing"), reason)
     }
 
-    func test_uiTestTargetsTested_leavesOutWhatTheTestArgumentsSkipOrDontSelect() {
+    func test_targetsTested_leavesOutWhatTheTestArgumentsSkipOrDontSelect() {
         let targets = ["AppUITests", "WidgetUITests"]
         let cases: [(arguments: [String], expected: [String])] = [
             (["test"], targets),
@@ -146,7 +146,7 @@ extension ConfigurationParsingTests {
         for (arguments, expected) in cases {
             let configuration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: arguments)
 
-            XCTAssertEqual(configuration.uiTestTargetsTested(among: targets), expected, "\(arguments)")
+            XCTAssertEqual(configuration.targetsTested(among: targets), expected, "\(arguments)")
         }
     }
 

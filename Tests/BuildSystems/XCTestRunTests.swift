@@ -85,6 +85,30 @@ final class XCTestRunTests: MuterTestCase {
         )
     }
 
+    // What an xcodebuild worker adds to its tests' environment goes in every test target's, in either format, over the
+    // target's own variable of the same name; nothing added leaves the `.xctestrun` as it was.
+    func test_addingEnvironment_setsItInEveryTestTarget_overTheTargetsOwn() throws {
+        let own = ["TMPDIR": "/own/", "OWN_VARIABLE": "1"] as [String: AnyHashable]
+        let legacy = muterCore.XCTestRun(["Tests": ["EnvironmentVariables": own] as [String: AnyHashable]])
+        let testPlan = muterCore.XCTestRun.withTestTargets(["Tests": ["EnvironmentVariables": own]])
+        let added = ["TMPDIR": "/worker/", "DIRHELPER_USER_DIR_SUFFIX": "sm-1"]
+        let expected: [String: AnyHashable] = [
+            "TMPDIR": "/worker/", "DIRHELPER_USER_DIR_SUFFIX": "sm-1", "OWN_VARIABLE": "1",
+            isMuterRunningKey: isMuterRunningValue,
+        ]
+
+        let legacyTarget = legacy.adding(environment: added).updateEnvironmentVariable(setting: nil)["Tests"]
+        let testPlanTargets = testPlan.adding(environment: added).updateEnvironmentVariable(setting: nil)
+        let configuration = (testPlanTargets["TestConfigurations"] as? [AnyHashable])?.first
+        let testPlanTarget = ((configuration as? [String: AnyHashable])?["TestTargets"] as? [AnyHashable])?.first
+
+        for target in [legacyTarget, testPlanTarget] {
+            let environment = (target as? [String: AnyHashable])?["EnvironmentVariables"]
+            XCTAssertEqual(environment as? [String: AnyHashable], expected)
+        }
+        XCTAssertEqual(legacy.adding(environment: [:]), legacy)
+    }
+
     // Parallel testing on for any test target makes a run from it clone its simulator, in either format.
     func test_parallelizes() throws {
         XCTAssertTrue(try muterCore.XCTestRun(loadPlist(for: "projectWithTestPlan")).parallelizes)
@@ -111,6 +135,44 @@ final class XCTestRunTests: MuterTestCase {
         XCTAssertEqual(withUITests.uiTestTargets, ["iOSProjectUITests"])
         XCTAssertEqual(try muterCore.XCTestRun(loadPlist(for: "project")).uiTestTargets, [])
         XCTAssertEqual(muterCore.XCTestRun().uiTestTargets, [])
+    }
+
+    // A Swift package's test target runs in Xcode's `xctest` agent, as does a Mac app's target that the app doesn't
+    // host; the app's hosted target and its UI test target don't.
+    func test_hostedTestTargets_areThoseThatDontRunInXcodesXCTestAgent() throws {
+        let package = try muterCore.XCTestRun(loadPlist(for: "macOSPackage"))
+        XCTAssertEqual(package.testTargetNames, ["SumTests"])
+        XCTAssertEqual(package.hostedTestTargets, [])
+
+        let app = try muterCore.XCTestRun(loadPlist(for: "macOSApp"))
+        XCTAssertEqual(app.testTargetNames, ["AppTests", "CoreTests", "AppUITests"])
+        XCTAssertEqual(app.hostedTestTargets, ["AppTests", "AppUITests"])
+
+        let iOSApp = try muterCore.XCTestRun(loadPlist(for: "project"))
+        XCTAssertEqual(iOSApp.testTargetNames, ["iOSProjectTests"])
+        XCTAssertEqual(iOSApp.hostedTestTargets, ["iOSProjectTests"])
+    }
+
+    // Read from a real `.xctestrun`: a package's tests can test on workers on a Mac; an app's only when the test
+    // arguments leave out its hosted and UI test targets.
+    func test_withMacWorkerFact_readsTheProjectsTestRun() throws {
+        let package = try muterCore.XCTestRun(loadPlist(for: "macOSPackage"))
+        let app = try muterCore.XCTestRun(loadPlist(for: "macOSApp"))
+        let onAMac = { (arguments: [String]) in
+            MuterConfiguration(
+                executable: "/usr/bin/xcodebuild",
+                arguments: ["-scheme", "App", "-destination", "platform=macOS"] + arguments + ["test"]
+            )
+        }
+
+        XCTAssertTrue(onAMac([]).withMacWorkerFact(given: package).testsOnMacWorkers)
+        XCTAssertFalse(onAMac([]).withMacWorkerFact(given: app).testsOnMacWorkers)
+        XCTAssertFalse(onAMac(["-skip-testing:AppTests"]).withMacWorkerFact(given: app).testsOnMacWorkers)
+        XCTAssertTrue(
+            onAMac(["-skip-testing:AppTests", "-skip-testing", "AppUITests"]).withMacWorkerFact(given: app)
+                .testsOnMacWorkers
+        )
+        XCTAssertTrue(onAMac(["-only-testing:CoreTests/SumTests"]).withMacWorkerFact(given: app).testsOnMacWorkers)
     }
 
     private func loadPlist(for fileName: String) throws -> [String: AnyHashable] {

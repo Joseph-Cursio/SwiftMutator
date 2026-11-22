@@ -31,12 +31,13 @@ struct MuterConfiguration: Equatable, Codable {
     /// How many mutants to test at once (`mutationTestWorkers:`). A SwiftPM worker runs the test command in its own
     /// clone of the mutated project, because `swift test` locks the package's build directory. Each clone is built
     /// once before testing, so the paths compiled into its tests point into it. An xcodebuild worker tests on a
-    /// simulator of its own, from the mutated project's one build (see `XcodeWorker`). Other projects, and xcodebuild
-    /// projects that test elsewhere, test one at a time (`parallelWorkersUnsupportedReason`); so does 1, though one
-    /// xcodebuild worker may still test on a simulator of its own (`oneWorkerSimulator`). nil leaves it to
-    /// `workerCount(testing:)`: several on a SwiftPM project, and on an xcodebuild project that tests on a simulator,
-    /// as many as the machine's processors and memory and the mutants allow, at most 2; otherwise one. A `var` only so
-    /// `overriding` can copy `self` and change just this field.
+    /// simulator of its own, from the mutated project's one build (see `XcodeWorker`), or on this Mac when the tests
+    /// run in Xcode's `xctest` agent (`testsOnMacWorkers`). Other projects, and xcodebuild projects that test
+    /// elsewhere, test one at a time (`parallelWorkersUnsupportedReason`); so does 1, though one xcodebuild worker may
+    /// still test on a simulator of its own (`oneWorkerSimulator`). nil leaves it to `workerCount(testing:)`: several
+    /// on a SwiftPM project, and on an xcodebuild project whose workers test on this Mac; on one that tests on a
+    /// simulator, as many as the machine's processors and memory and the mutants allow, at most 2; otherwise one. A
+    /// `var` only so `overriding` can copy `self` and change just this field.
     var mutationTestWorkers: Int?
     /// Whether a SwiftPM run's workers may share the mutated project's build rather than each have a clone
     /// (`workersShareBuild:`): `unset` and `enabled` when a direct run of the tests with no mutant on wrote nothing in
@@ -60,10 +61,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// Whether one xcodebuild worker tests on a simulator SwiftMutator makes, rather than on the test command's
     /// destination (`oneWorkerSimulator:`): `unset` decides from the project and the baseline
     /// (`SimulatorWorkerSetup.oneWorkerPlan(for:state:)`), `enabled` whenever the destination is a simulator and there
-    /// are 2 or more mutants to test, `disabled` never, which also keeps the default worker count at 1
-    /// (`defaultWorkerCount`). Several workers test on simulators of their own whatever it says, and `enabled` keeps a
-    /// default count's without checking them against the baseline (`SimulatorWorkerSetup.checksTheDefaultSimulators`).
-    /// A `var` only so `overriding` can copy `self` and change just this field.
+    /// are 2 or more mutants to test, `disabled` never, which also keeps the default worker count at 1 on a simulator,
+    /// though not on a Mac whose workers test there (`defaultWorkerCount`). Several workers test on simulators of their
+    /// own whatever it says, and `enabled` keeps a default count's without checking them against the baseline
+    /// (`SimulatorWorkerSetup.checksTheDefaultSimulators`). A `var` only so `overriding` can copy `self` and change
+    /// just this field.
     var oneWorkerSimulator: ConfigurationSwitch
     /// When a test is suspect (`suspectTestFilePercent:`, from 1 to 100, and `suspectTestMinimumFiles:`, at least 1):
     /// nil leaves each to `SuspectTestThresholds.standard`. They change no result already recorded, only what the
@@ -184,6 +186,12 @@ struct MuterConfiguration: Equatable, Codable {
     /// failed test. Not a configuration key: read as mutation testing starts
     /// (`PerformMutationTesting.withStopFacts(_:)`). A `var` only so `withStopFacts` can copy `self` and change it.
     var destinationRunsInParallel = false
+    /// Whether every test target a mutant's xcodebuild run tests runs in Xcode's `xctest` agent, none of them hosted by
+    /// an app or a UI test target (`XCTestRun.hostedTestTargets`), and it tests at least one, so that a Mac run can
+    /// test several mutants at once (`testsOnMacWorkers`). Not a configuration key: read from the `.xctestrun` once the
+    /// build for testing has written it (`withMacWorkerFact(given:)`). A `var` only so that can copy `self` and change
+    /// it.
+    var testsRunUnhosted = false
     /// What a run's test command adds to select some of the tests: `--filter` or `-only-testing:` for each of
     /// `propertyTestFilter`'s entries (`withPropertyTestFilter`). Not a configuration key; a `var` only so that can
     /// copy `self` and change just this field.

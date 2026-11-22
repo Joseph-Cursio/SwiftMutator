@@ -105,9 +105,9 @@ enum ConfigurationFileText {
         ),
         Entry(
             key: .mutationTestWorkers,
-            comment: "How many mutants to test at once, at least 1. Default: for SwiftPM, half the processors, at "
-                + "most 4; for xcodebuild on a simulator, 2 on a Mac with 4 or more processors and 32 GB or more, "
-                + "and 50 or more mutants; otherwise 1.",
+            comment: "How many mutants to test at once, at least 1. Default: for SwiftPM, and for xcodebuild on a "
+                + "Mac whose tests no app hosts, half the processors, at most 4; for xcodebuild on a simulator, 2 on "
+                + "a Mac with 4 or more processors and 32 GB or more, and 50 or more mutants; otherwise 1.",
             example: ["mutationTestWorkers: 2"]
         ),
         Entry(
@@ -120,7 +120,7 @@ enum ConfigurationFileText {
             key: .oneWorkerSimulator,
             comment: "Whether one xcodebuild worker tests on a simulator SwiftMutator makes: true whenever the "
                 + "destination is a simulator, false never, which also keeps the default count of xcodebuild "
-                + "workers at 1. Default: when the project and its baseline show it is faster.",
+                + "workers on a simulator at 1. Default: when the project and its baseline show it is faster.",
             example: ["oneWorkerSimulator: true"]
         ),
         Entry(

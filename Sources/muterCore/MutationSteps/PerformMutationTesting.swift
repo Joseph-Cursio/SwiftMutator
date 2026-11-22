@@ -154,9 +154,9 @@ struct PerformMutationTesting: MutationStep {
     /// Removes what the run left beside and in the mutated project, last. The mutated project is kept, for a look after
     /// the run, but not the active-mutant file beside it, nor the helper link and the tests' `UserDefaults` of direct
     /// runs, nor its temporary folder, nor the derived data of xcodebuild's mutant runs, which holds one run's at most,
-    /// nor the `.xctestrun` files of xcodebuild workers beyond the first. They go first: they take no time. Then the
-    /// test-output folder, if empty, and the worker clones. Their simulators go once the work has ended
-    /// (`SimulatorWorkerSetup`).
+    /// nor the `.xctestrun` files of xcodebuild workers beyond the first, nor the temporary folders of xcodebuild
+    /// workers on a Mac. They go first: they take no time. Then the test-output folder, if empty, and the worker
+    /// clones. Their simulators go once the work has ended (`SimulatorWorkerSetup`).
     private func removeWhatTheRunLeft(in state: AnyMutationTestState, session: TestingSession) {
         try? fileManager.removeItem(
             atPath: MutatedProjectNames.activationFolder(of: state.mutatedProjectDirectoryURL).path
@@ -179,6 +179,9 @@ struct PerformMutationTesting: MutationStep {
         for worker in session.xcodeWorkers.dropFirst() {
             try? fileManager.removeItem(atPath: state.mutatedProjectDirectoryURL.path + "/" + worker.testRunFile)
             try? fileManager.removeItem(atPath: worker.derivedData)
+        }
+        for worker in session.xcodeWorkers where !worker.environment.isEmpty {
+            WorkerTemporaryFolder.remove(forWorkerIn: URL(fileURLWithPath: worker.derivedData))
         }
         removeTestOutputFolderIfEmpty(state)
         if !session.clones.isEmpty {

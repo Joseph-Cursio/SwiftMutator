@@ -168,9 +168,12 @@ that isn't set:
   ([`SimulatorWorkerSetup.swift`](../Sources/muterCore/MutationSteps/SimulatorWorkerSetup.swift),
   [`BuildSystems/Xcode/WorkerSimulators.swift`](../Sources/muterCore/BuildSystems/Xcode/WorkerSimulators.swift)).
   This needs a test command whose first `-destination` is a simulator. A run that can't give each
-  worker a simulator tests one mutant at a time.
-- Any other project, such as an xcodebuild project that tests on a Mac or an unknown build system,
-  tests one mutant at a time. `parallelWorkersUnsupportedReason` in
+  worker a simulator tests one mutant at a time. On a Mac whose tests all run in Xcode's `xctest`
+  agent, which no app hosts, every worker tests the one build on the Mac, with no simulator
+  ([`SimulatorWorkerSetup+MacWorkers.swift`](../Sources/muterCore/MutationSteps/SimulatorWorkerSetup+MacWorkers.swift),
+  `MuterConfiguration.testsOnMacWorkers`).
+- Any other project, such as an xcodebuild project that tests a Mac app's hosted or UI tests, or an
+  unknown build system, tests one mutant at a time. `parallelWorkersUnsupportedReason` in
   [`Configuration/MuterConfiguration.swift`](../Sources/muterCore/Configuration/MuterConfiguration.swift)
   gives the reason the run prints.
 

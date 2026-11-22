@@ -44,7 +44,8 @@ struct ResultsHeader: Codable, Equatable {
     let timeoutIsDefault: Bool
     let workers: Int
     /// Only in an xcodebuild session that tested mutants: `true` when its workers tested on simulators of their own,
-    /// `false` when its one worker tested on the test command's destination (`WorkerDestination`).
+    /// `false` when its workers tested on the test command's destination: one, or any number on a Mac
+    /// (`WorkerDestination`).
     var workersOnOwnSimulators: WorkerDestination = .notRecorded
     let stopsAtFirstFailure: Bool
     let failedTestLinesAreReliable: Bool

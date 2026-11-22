@@ -14,6 +14,9 @@ struct WorkerChoice: Equatable {
     /// Whether each worker tests on a simulator of its own, as an xcodebuild project's do, rather than in a copy of
     /// the project.
     let onSimulators: Bool
+    /// Whether the workers test on this Mac, as an xcodebuild project's do when its tests run in Xcode's `xctest` agent
+    /// (`MuterConfiguration.testsOnMacWorkers`), neither on simulators nor in copies of the project.
+    let onThisMac: Bool
     /// Whether the run's workers test on simulators SwiftMutator made, a lone xcodebuild worker's included
     /// (`SimulatorWorkerSetup.Workers.xcodeWorkers`).
     let ownSimulator: Bool
@@ -48,7 +51,8 @@ struct WorkerChoice: Equatable {
         fellBack = unsupportedReason != nil
         self.unsupportedReason = unsupportedReason ?? configuration.parallelWorkersUnsupportedReason
         self.mutantsToTest = mutantsToTest
-        onSimulators = configuration.buildSystem == .xcodebuild
+        onThisMac = configuration.testsOnMacWorkers
+        onSimulators = configuration.buildSystem == .xcodebuild && !onThisMac
         self.ownSimulator = ownSimulator
     }
 
@@ -58,6 +62,7 @@ struct WorkerChoice: Equatable {
         unsupportedReason: String?,
         mutantsToTest: Int,
         onSimulators: Bool = false,
+        onThisMac: Bool = false,
         ownSimulator: Bool = false,
         fellBack: Bool = false,
         isDefaultCount: Bool = false,
@@ -68,6 +73,7 @@ struct WorkerChoice: Equatable {
         self.unsupportedReason = unsupportedReason
         self.mutantsToTest = mutantsToTest
         self.onSimulators = onSimulators
+        self.onThisMac = onThisMac
         self.ownSimulator = ownSimulator
         self.fellBack = fellBack
         self.isDefaultCount = isDefaultCount
@@ -76,7 +82,8 @@ struct WorkerChoice: Equatable {
 
     /// What the run says of it. One worker that was all it was asked for is said only on a simulator of its own, or
     /// when it was to have one and fell back to the test command's destination, saying why; never for a test command
-    /// that tests only where it says, such as on a Mac. Several by default say how to choose another count
+    /// that tests only where it says, such as a Mac app's. Several say where they test: each in a copy of the project
+    /// or on a simulator of its own, or all on this Mac. Several by default say how to choose another count
     /// (`defaultCountSentence(_:)`).
     var sentence: String? {
         let testing = used == 1 ? "Testing one mutant at a time" : "Testing \(used) mutants at a time"
@@ -102,8 +109,7 @@ struct WorkerChoice: Equatable {
                 }
                 return nil
             }
-            let own = onSimulators ? "on a simulator" : "in a copy of the project"
-            return used > 1 ? "👷 \(testing), each \(own) of its own." : nil
+            return used > 1 ? "👷 \(testing)\(whereEachTests)." : nil
         }
         return "👷 \(testing), though \(asked) workers were asked for: \(whyFewer)."
     }
@@ -112,13 +118,13 @@ struct WorkerChoice: Equatable {
     /// each tests, and how to choose another count. One, as for few mutants, says nothing, but on a simulator of its
     /// own, as one that was asked for does. One that fell back says why: a SwiftPM run's follows the line that said
     /// its clones; an xcodebuild run's is its only line, and says where it tests instead of on the simulators it was
-    /// to have, which no line said. An xcodebuild run of too few mutants for several is a lone worker's (`asked`),
-    /// whose fallback says it as one that was asked for does, on any machine.
+    /// to have, which no line said, or, from workers on this Mac, only that it tests one at a time instead. An
+    /// xcodebuild run of too few mutants for several is a lone worker's (`asked`), whose fallback says it as one that
+    /// was asked for does, on any machine.
     private func defaultCountSentence(_ testing: String) -> String? {
         if used > 1 {
-            let own = onSimulators ? "on a simulator" : "in a copy of the project"
-            return "👷 \(testing), each \(own) of its own, by default: `--workers` or `mutationTestWorkers` sets "
-                + "another count."
+            return "👷 \(testing)\(whereEachTests), by default: `--workers` or `mutationTestWorkers` sets another "
+                + "count."
         }
         if onSimulators, ownSimulator {
             return "👷 \(testing), on a simulator of its own."
@@ -129,6 +135,15 @@ struct WorkerChoice: Equatable {
         return onSimulators
             ? "👷 \(testing) on the test command's destination instead: \(why)."
             : "👷 \(testing) instead: \(why)."
+    }
+
+    /// Where several workers test, after "Testing N mutants at a time": on this Mac, all of them, or each on a
+    /// simulator, or in a copy of the project, of its own.
+    private var whereEachTests: String {
+        if onThisMac {
+            return " on this Mac"
+        }
+        return onSimulators ? ", each on a simulator of its own" : ", each in a copy of the project of its own"
     }
 
     /// Why fewer workers than asked for: a run uses as many, but for more than it has mutants to test.

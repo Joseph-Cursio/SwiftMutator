@@ -82,6 +82,9 @@ enum RunEvent {
     /// More than one worker tests mutants through `swift test`, or runs XCTest tests or Linux tests directly, so their
     /// tests share `UserDefaults.standard` (#92, `DirectTestRun.isolatesUserDefaults`).
     case workersShareUserDefaults
+    /// More than one xcodebuild worker tests mutants on this Mac, so their tests, run by Xcode's `xctest` agent, share
+    /// its `UserDefaults` domain and the user's home folder (`MuterConfiguration.testsOnMacWorkers`).
+    case macWorkersShareUserDefaults
     /// A direct run of the tests, with no mutant on, changed `path` in the project, so workers keep a clone each.
     case testBundlesWroteInTheProject(path: String)
     /// A direct run of the tests, with no mutant on, wrote nothing in the project, but property and example reruns of

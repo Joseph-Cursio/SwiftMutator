@@ -33,7 +33,7 @@ struct TimedTestRun {
                     schemata: .null,
                     for: state.projectXCTestRun,
                     at: state.mutatedProjectDirectoryURL,
-                    named: worker.testRunFile
+                    worker: worker
                 )
             } catch {
                 return nil

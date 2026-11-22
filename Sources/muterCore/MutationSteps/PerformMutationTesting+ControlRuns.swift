@@ -59,8 +59,9 @@ extension PerformMutationTesting {
 
     /// Runs control run `number` on worker `worker.number`, with its configuration, in `location.directory`, its
     /// folder, or the current directory if nil, writing its output to `location.fileName` while it runs. An xcodebuild
-    /// worker first writes `testRun` with no mutant on to its own `.xctestrun`, in its folder: one that couldn't be
-    /// written would still switch on the mutant before, so that aborts mutation testing.
+    /// worker first writes `testRun` with no mutant on, and with what the worker adds to its tests' environment, to its
+    /// own `.xctestrun`, in its folder: one that couldn't be written would still switch on the mutant before, so that
+    /// aborts mutation testing.
     static func runControl(
         _ number: Int,
         on worker: (number: Int, PoolWorker),
@@ -75,7 +76,7 @@ extension PerformMutationTesting {
             do {
                 try await ioDelegate.switchOn(
                     schemata: .null,
-                    for: testRun,
+                    for: testRun.adding(environment: configuration.xcodeWorker?.environment ?? [:]),
                     at: directory,
                     named: configuration.xcodeWorker?.testRunFile ?? MutationTestingDelegate.muterTestRunFileName
                 )
