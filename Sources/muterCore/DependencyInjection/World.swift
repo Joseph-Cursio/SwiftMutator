@@ -139,8 +139,11 @@ struct World: Sendable {
     var sleep: Sleep = { try await Task.sleep(nanoseconds: $0) }
     /// A project's files, to see whether a run of its tests wrote any.
     var projectFiles: @Sendable (URL) -> ProjectFiles? = { ProjectFiles.read(in: $0) }
-    /// How many processors can run at once, which a SwiftPM run's default worker count goes by.
+    /// How many processors can run at once, which the default worker count goes by.
     var processorCount = ProcessInfo.processInfo.activeProcessorCount
+    /// The machine's memory, in bytes, which an xcodebuild run's default worker count goes by, as each worker's
+    /// simulator holds some (`MuterConfiguration.memoryForEachDefaultSimulatorWorker`).
+    var physicalMemory = ProcessInfo.processInfo.physicalMemory
 
     /// Rainbow's test of where it can colour: standard output is a tty, and TERM is set and isn't "dumb". So the
     /// progress bar redraws itself wherever colour could show. NO_COLOR turns off the colour, not the bar.

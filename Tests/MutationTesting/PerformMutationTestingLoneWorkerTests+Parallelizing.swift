@@ -149,6 +149,24 @@ extension PerformMutationTestingLoneWorkerTests {
         assertTestedOnTheDestination()
     }
 
+    // One worker that `--workers 1` asked for is checked as an unasked one is, though no default count is checked.
+    func test_oneAskedWorker_aBaselineSpreadOverClones_deletesTheSimulator() async throws {
+        state.muterConfiguration = state.muterConfiguration.overriding(workers: 1, timeout: nil)
+        ioDelegate.baselineTestLog = spreadBaseline
+        let choices = sentChoices()
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(workerSimulators.calls.last, "removeAll")
+        XCTAssertEqual(checkRuns, [])
+        XCTAssertEqual(choices().map(\.sentence), [
+            "👷 Testing one mutant at a time on the test command's destination: the baseline's parallel testing spread "
+                + "12.0 s of tests over 2 clones, which one at a time on one simulator could make slower; "
+                + "`oneWorkerSimulator: true` tests on one anyway.",
+        ])
+        assertTestedOnTheDestination()
+    }
+
     func test_oneWorker_aShortSuiteSpreadOverClones_keepsTheSimulator() async throws {
         ioDelegate.baselineTestLog = """
         Test case 'SumTests.sum()' passed on 'Clone 1 of iPhone 17 Pro - App (123)' (1.000 seconds)

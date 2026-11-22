@@ -67,7 +67,10 @@ final class TestDoubles {
             // Never a real folder, and nothing to compare, so workers have clones unless a test says otherwise.
             projectFiles: { _ in nil },
             // Never the Mac's own, so a SwiftPM run tests one mutant at a time unless a test says otherwise.
-            processorCount: 1
+            processorCount: 1,
+            // Never the Mac's own, and less than two simulators' worth, so an xcodebuild run tests one mutant at a
+            // time unless a test says otherwise, whatever its processors.
+            physicalMemory: 8 << 30
         )
     }
 }

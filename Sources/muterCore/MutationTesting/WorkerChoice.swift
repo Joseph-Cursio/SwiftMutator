@@ -2,7 +2,8 @@
 /// `mutationTestWorkers`), and why it uses fewer.
 struct WorkerChoice: Equatable {
     /// `--workers`, or else `mutationTestWorkers`; the default count when neither is given
-    /// (`MuterConfiguration.defaultWorkerCount`).
+    /// (`MuterConfiguration.defaultWorkerCount`), but for xcodebuild only as many as its mutants pay a simulator for
+    /// (`MuterConfiguration.workerCount(testing:)`), so a run of few mutants is a lone worker's, wherever it runs.
     let asked: Int
     let used: Int
     /// Why the run tests one mutant at a time whatever it was asked for: its test command can't test more than one
@@ -21,7 +22,9 @@ struct WorkerChoice: Equatable {
     let fellBack: Bool
     /// Whether the count is SwiftMutator's own choice of more than one, as neither `--workers` nor
     /// `mutationTestWorkers` gave one. Fewer than that for a run of few mutants is then no surprise, and a clone that
-    /// doesn't pass its baseline only makes the run test one mutant at a time.
+    /// doesn't pass its baseline, or a simulator that can't be made, booted or checked, or that the baseline shows
+    /// wouldn't be faster, only makes the run test one mutant at a time. An xcodebuild run's count is the one its
+    /// mutants pay for (`asked`), so one throttled to a lone worker isn't a default count of several.
     let isDefaultCount: Bool
     /// Whether the workers test from the mutated project's one build, rather than each in a clone.
     let sharesBuild: Bool
@@ -35,8 +38,11 @@ struct WorkerChoice: Equatable {
         ownSimulator: Bool = false,
         sharesBuild: Bool = false
     ) {
-        asked = configuration.mutationTestWorkers ?? configuration.defaultWorkerCount
-        isDefaultCount = configuration.mutationTestWorkers == nil && configuration.defaultWorkerCount > 1
+        let defaultCount = configuration.buildSystem == .xcodebuild
+            ? max(1, configuration.workerCount(testing: mutantsToTest))
+            : configuration.defaultWorkerCount
+        asked = configuration.mutationTestWorkers ?? defaultCount
+        isDefaultCount = configuration.mutationTestWorkers == nil && defaultCount > 1
         self.sharesBuild = sharesBuild
         self.used = used
         fellBack = unsupportedReason != nil
@@ -70,8 +76,8 @@ struct WorkerChoice: Equatable {
 
     /// What the run says of it. One worker that was all it was asked for is said only on a simulator of its own, or
     /// when it was to have one and fell back to the test command's destination, saying why; never for a test command
-    /// that tests only where it says, such as on a Mac. Several by default say how to choose another count; a default
-    /// run that fell back follows the line that said them.
+    /// that tests only where it says, such as on a Mac. Several by default say how to choose another count
+    /// (`defaultCountSentence(_:)`).
     var sentence: String? {
         let testing = used == 1 ? "Testing one mutant at a time" : "Testing \(used) mutants at a time"
         if sharesBuild, used > 1 {
@@ -84,11 +90,7 @@ struct WorkerChoice: Equatable {
                 : "👷 \(testing), \(reason)."
         }
         if isDefaultCount {
-            if used > 1 {
-                return "👷 \(testing), each in a copy of the project of its own, by default: `--workers` or "
-                    + "`mutationTestWorkers` sets another count."
-            }
-            return fellBack ? unsupportedReason.map { "👷 \(testing) instead: \($0)." } : nil
+            return defaultCountSentence(testing)
         }
         guard used < asked else {
             if used == 1 {
@@ -104,6 +106,29 @@ struct WorkerChoice: Equatable {
             return used > 1 ? "👷 \(testing), each \(own) of its own." : nil
         }
         return "👷 \(testing), though \(asked) workers were asked for: \(whyFewer)."
+    }
+
+    /// What a run with the default count says, `testing` being how many mutants it tests at once. Several say where
+    /// each tests, and how to choose another count. One, as for few mutants, says nothing, but on a simulator of its
+    /// own, as one that was asked for does. One that fell back says why: a SwiftPM run's follows the line that said
+    /// its clones; an xcodebuild run's is its only line, and says where it tests instead of on the simulators it was
+    /// to have, which no line said. An xcodebuild run of too few mutants for several is a lone worker's (`asked`),
+    /// whose fallback says it as one that was asked for does, on any machine.
+    private func defaultCountSentence(_ testing: String) -> String? {
+        if used > 1 {
+            let own = onSimulators ? "on a simulator" : "in a copy of the project"
+            return "👷 \(testing), each \(own) of its own, by default: `--workers` or `mutationTestWorkers` sets "
+                + "another count."
+        }
+        if onSimulators, ownSimulator {
+            return "👷 \(testing), on a simulator of its own."
+        }
+        guard fellBack, let why = unsupportedReason else {
+            return nil
+        }
+        return onSimulators
+            ? "👷 \(testing) on the test command's destination instead: \(why)."
+            : "👷 \(testing) instead: \(why)."
     }
 
     /// Why fewer workers than asked for: a run uses as many, but for more than it has mutants to test.

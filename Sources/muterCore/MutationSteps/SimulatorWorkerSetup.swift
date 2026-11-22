@@ -4,7 +4,8 @@ import Foundation
 /// included: made like the destination's before the baseline, booted while the baseline runs, and checked once it has
 /// passed by a run with no mutant on on each. A lone worker gets one too when that should be faster
 /// (`oneWorkerPlan(for:state:)`), and the run can then delete it before its check, once the baseline shows it
-/// wouldn't be (`reasonToDropTheOneWorkerSimulator(_:)`). A run whose simulators can't be made, booted or checked
+/// wouldn't be (`reasonToDropTheOneWorkerSimulator(_:)`), as it can the simulators of a default count of workers
+/// (`reasonToDropTheDefaultSimulators(_:workers:)`). A run whose simulators can't be made, booted or checked
 /// deletes them, and tests one mutant at a time on its own destination, as with one worker, saying why. Every simulator
 /// made is deleted once the work has ended, however it ended (`InterruptionRecord.afterWorkEnds`), or else by the next
 /// run's sweep.
@@ -27,7 +28,8 @@ struct SimulatorWorkerSetup {
     /// A run on the test command's destination under parallel testing pays a clone and a boot of about 15 s (22 s
     /// against 7 s measured) on top of its tests' seconds spread over the clones, S / K. A suite whose tests add up to
     /// no more than this many seconds is then faster one test at a time, on a simulator of its own, on any number of
-    /// clones.
+    /// clones; on N such simulators, each testing a mutant in S / N of the run's time, any suite with S / N no more
+    /// than this many seconds plus S / K is (`simulatorsAreFaster(given:workers:)`).
     static let serialTestSecondsAlwaysFaster: TimeInterval = 10
 
     /// The simulators made for a run's workers, in worker order, or why it has none though it was to have some.
@@ -37,8 +39,8 @@ struct SimulatorWorkerSetup {
         /// (`PreparedWorkerSimulators.baseNotShutDown`), which a failed check run's reason then names.
         var baseNotShutDown: SimctlDevice?
         var unavailable: String?
-        /// Whether the baseline decides whether to keep a lone worker's simulator, before its check run
-        /// (`checkedAgainstTheBaseline(_:log:)`).
+        /// Whether the baseline decides whether to keep a lone worker's simulator, or a default count's simulators,
+        /// before their check runs (`checkedAgainstTheBaseline(_:log:destination:)`).
         var checkedAgainstBaseline = false
     }
 
@@ -77,22 +79,26 @@ struct SimulatorWorkerSetup {
         var lookalike: String?
     }
 
-    /// `simulators`, unless the run is to check its lone worker's against `baselineLog`, the passing baseline's, and
-    /// that shows they wouldn't be faster (`reasonToDropTheOneWorkerSimulator(_:)`) on `destination`, the test
-    /// command's first: it is then deleted, before its check run, and the run tests on that destination, saying why.
-    /// A stop while it is deleted throws a CancellationError.
+    /// `simulators`, unless the run is to check its lone worker's, or its default count's, against `baselineLog`, the
+    /// passing baseline's, and that shows they wouldn't be faster than one worker on `destination`, the test command's
+    /// first (`reasonToDropTheOneWorkerSimulator(_:)`, `reasonToDropTheDefaultSimulators(_:workers:)`): they are then
+    /// deleted, before their check runs, and the run tests one mutant at a time on that destination, saying why. A
+    /// stop while they are deleted throws a CancellationError.
     func checkedAgainstTheBaseline(
         _ simulators: Simulators,
         log baselineLog: String,
         destination: String?
     ) async throws -> Simulators {
         let device = destination.flatMap { SimulatorDestination(destination: $0)?.name }
-        guard simulators.checkedAgainstBaseline,
-              !simulators.made.isEmpty,
-              let why = Self.reasonToDropTheOneWorkerSimulator(
-                  ParallelTestingSpread.of(baselineLog: baselineLog, onDeviceNamed: device)
-              )
-        else {
+        let workers = simulators.made.count
+        guard simulators.checkedAgainstBaseline, workers > 0 else {
+            return simulators
+        }
+        let spread = ParallelTestingSpread.of(baselineLog: baselineLog, onDeviceNamed: device)
+        let reason = workers == 1
+            ? Self.reasonToDropTheOneWorkerSimulator(spread)
+            : Self.reasonToDropTheDefaultSimulators(spread, workers: workers)
+        guard let why = reason else {
             return simulators
         }
         await workerSimulators.removeAll()
@@ -103,13 +109,14 @@ struct SimulatorWorkerSetup {
     /// Why a lone worker's simulator wouldn't be faster than the test command's destination, given `spread`, the
     /// baseline's, or nil when it would be. It would when the baseline tested on one clone, as a mutant's run on the
     /// destination would, paying the clone and boot that a simulator of its own doesn't, or when its tests take no
-    /// more than `serialTestSecondsAlwaysFaster`. A baseline that printed no line for a test on a clone shows neither.
+    /// more than `serialTestSecondsAlwaysFaster` (`simulatorsAreFaster(given:workers:)`). A baseline that printed no
+    /// line for a test on a clone shows neither.
     static func reasonToDropTheOneWorkerSimulator(_ spread: ParallelTestingSpread?) -> String? {
         guard let spread else {
             return "the baseline printed no parallel testing line to tell how many clones its tests ran on; "
                 + "`oneWorkerSimulator: true` tests on a simulator of its own anyway"
         }
-        guard spread.clones > 1, spread.testSeconds > serialTestSecondsAlwaysFaster else {
+        guard !simulatorsAreFaster(given: spread, workers: 1) else {
             return nil
         }
         let seconds = String(format: "%.1f", spread.testSeconds)
@@ -153,13 +160,18 @@ struct SimulatorWorkerSetup {
 
     /// Makes a simulator like the one the run's first `-destination` names for each worker that is to test the
     /// `mutantsToTest` at once, when the run is an xcodebuild run that is to have more than one, and that destination
-    /// is a simulator, or for its lone worker, as `oneWorkerPlan(for:state:)` says; none otherwise. A lone worker's
-    /// destination that names no one simulator is said only if `oneWorkerSimulator` asked for one. Throws only a
+    /// is a simulator, or for its lone worker, as `oneWorkerPlan(for:state:)` says; none otherwise. With no
+    /// `mutationTestWorkers`, only as many as the mutants pay back (`MuterConfiguration.workerCount(testing:)`), and
+    /// one leaves the lone worker's plan to decide. `mutantsToTest` still counts the mutants that won't compile, which
+    /// only the baseline finds, so a default count can make a simulator that fewer mutants would not have paid back.
+    /// The simulators of a default count are checked against the baseline as a lone worker's are
+    /// (`checksTheDefaultSimulators(_:given:)`). A destination that names no one simulator is said, for a lone worker
+    /// or a default count, only if `oneWorkerSimulator: true` asked for a simulator; unset, neither did. Throws only a
     /// CancellationError.
     func make(for mutantsToTest: Int, state: AnyMutationTestState) async throws -> Simulators {
         let configuration = state.muterConfiguration
-        let count = min(configuration.workerCount, mutantsToTest)
-        var checkedAgainstBaseline = false
+        let count = configuration.workerCount(testing: mutantsToTest)
+        var checkedAgainstBaseline = Self.checksTheDefaultSimulators(configuration, given: state.projectXCTestRun)
         if count <= 1 {
             switch Self.oneWorkerPlan(for: mutantsToTest, state: state) {
             case .noSimulator:
@@ -191,7 +203,10 @@ struct SimulatorWorkerSetup {
                 checkedAgainstBaseline: checkedAgainstBaseline
             )
         } catch let unavailable as WorkerSimulatorsUnavailable {
-            if count == 1, unavailable.destinationUnresolved, configuration.oneWorkerSimulator == .unset {
+            // Asked for by neither, so the run tests on the destination as it would have without a word.
+            if count == 1 || configuration.mutationTestWorkers == nil,
+               unavailable.destinationUnresolved,
+               configuration.oneWorkerSimulator == .unset {
                 return Simulators()
             }
             return Simulators(unavailable: unavailable.reason)
@@ -237,7 +252,9 @@ struct SimulatorWorkerSetup {
         // A stop while the simulators that failed to boot were deleted, which `boot` doesn't see.
         try Task.checkCancellation()
         guard !simulators.made.isEmpty else {
-            let count = simulators.unavailable == nil ? planned : 1
+            let count = Self.workersWithoutSimulators(
+                planned: planned, unavailable: simulators.unavailable, buildSystem: configuration.buildSystem
+            )
             return Workers(
                 count: count, unavailable: simulators.unavailable, configuration: configuration, xcodeWorkers: []
             )

@@ -43,7 +43,10 @@ extension PerformMutationTesting {
     /// test command, if there was one, else from the baseline's `baselineSeconds`, build included, or from a lone
     /// xcodebuild worker's run with no mutant on, on its simulator, when that took longer
     /// (`SimulatorWorkerSetup.Workers.checkRunSeconds`). The baseline may have spread its tests over parallel
-    /// testing's clones, but that worker tests one test at a time, as its run with no mutant on did.
+    /// testing's clones, but that worker tests one test at a time, as its run with no mutant on did. Several workers,
+    /// whether asked for or a default count, go by the baseline alone: a session on several runs each of its timeouts
+    /// again once every other mutant is tested, at lower load, so a mutant that ran past its limit only under the load
+    /// of the others gets its own outcome then.
     static func defaultTimeout(
         testRunSeconds: TimeInterval?,
         baselineSeconds: TimeInterval,
