@@ -33,10 +33,11 @@ extension MuterConfiguration {
     static let mutantsForEachDefaultSimulatorWorker = 50
 
     /// The most mutants to test at once, however many there are to test: `mutationTestWorkers`, at least 1, or else
-    /// `defaultWorkerCount`, for a SwiftPM project and for an xcodebuild project whose first `-destination` is a
-    /// simulator; always 1 for the others, for the reason `parallelWorkersUnsupportedReason` gives. An xcodebuild run
-    /// that can't give each worker a simulator still tests one mutant at a time (see `SimulatorWorkerSetup`), and one
-    /// xcodebuild worker may test on a simulator of its own (`oneWorkerSimulator`).
+    /// `defaultWorkerCount`, for a SwiftPM project, for an xcodebuild project whose first `-destination` is a
+    /// simulator, and for one whose workers test on this Mac (`testsOnMacWorkers`); always 1 for the others, for the
+    /// reason `parallelWorkersUnsupportedReason` gives. An xcodebuild run that can't give each worker a simulator
+    /// still tests one mutant at a time (see `SimulatorWorkerSetup`), and one xcodebuild worker may test on a simulator
+    /// of its own (`oneWorkerSimulator`).
     var workerCount: Int {
         guard parallelWorkersUnsupportedReason == nil else { return 1 }
         return max(1, mutationTestWorkers ?? defaultWorkerCount)
@@ -47,13 +48,18 @@ extension MuterConfiguration {
     /// project whose first `-destination` is a simulator, half the processors too, and no more than
     /// `memoryForEachDefaultSimulatorWorker` allows of the machine's memory, as each worker's simulator holds some, and
     /// at most `mostDefaultSimulatorWorkers`; 1 with `oneWorkerSimulator: false`, which asks for no simulator
-    /// SwiftMutator makes. Otherwise 1.
+    /// SwiftMutator makes. On an xcodebuild project whose workers test on this Mac (`testsOnMacWorkers`), as on a
+    /// SwiftPM project: they need no simulator, nor a clone, only an `.xctestrun` and derived data of their own.
+    /// Otherwise 1.
     var defaultWorkerCount: Int {
         switch buildSystem {
         case .swift:
             return max(1, min(Self.mostDefaultWorkers, dependency(\.processorCount) / 2))
 
         case .xcodebuild:
+            if testsOnMacWorkers {
+                return max(1, min(Self.mostDefaultWorkers, dependency(\.processorCount) / 2))
+            }
             guard parallelWorkersUnsupportedReason == nil, oneWorkerSimulator != .disabled else { return 1 }
             let byMemory = Int(clamping: dependency(\.physicalMemory) / Self.memoryForEachDefaultSimulatorWorker)
             return max(1, min(Self.mostDefaultSimulatorWorkers, dependency(\.processorCount) / 2, byMemory))
@@ -66,9 +72,10 @@ extension MuterConfiguration {
     /// The number of mutants to test at once when `mutants` are to test, never more than they are: `workerCount`, or,
     /// when `mutationTestWorkers` doesn't say, only as many as pay back what each worker past the first costs: a clone
     /// for SwiftPM (`mutantsForEachDefaultWorker`), a simulator for xcodebuild
-    /// (`mutantsForEachDefaultSimulatorWorker`). Workers `sharingBuild` have no such cost to pay back.
+    /// (`mutantsForEachDefaultSimulatorWorker`). Workers `sharingBuild`, and workers on this Mac
+    /// (`testsOnMacWorkers`), have no such cost to pay back.
     func workerCount(testing mutants: Int, sharingBuild: Bool = false) -> Int {
-        guard mutationTestWorkers == nil, !sharingBuild else { return min(workerCount, mutants) }
+        guard mutationTestWorkers == nil, !sharingBuild, !testsOnMacWorkers else { return min(workerCount, mutants) }
         let mutantsForEachWorker = buildSystem == .xcodebuild
             ? Self.mutantsForEachDefaultSimulatorWorker
             : Self.mutantsForEachDefaultWorker
@@ -76,9 +83,20 @@ extension MuterConfiguration {
     }
 
     /// Why this test command can't test more than one mutant at once, completing a sentence such as "Testing one
-    /// mutant at a time: …", or nil when it can. xcodebuild can only on a simulator, as each worker gets one of its
-    /// own; a destination that names one by its `id=` alone is looked up when the run starts.
+    /// mutant at a time: …", or nil when it can. xcodebuild can on a simulator, as each worker gets one of its own, and
+    /// on this Mac when its tests run in Xcode's `xctest` agent (`testsOnMacWorkers`); otherwise not, for the reason
+    /// `simulatorWorkersUnsupportedReason` gives.
     var parallelWorkersUnsupportedReason: String? {
+        testsOnMacWorkers ? nil : simulatorWorkersUnsupportedReason
+    }
+
+    /// Why this test command's workers can't each test on a simulator of their own, completing a sentence such as
+    /// "Testing one mutant at a time: …", or nil when they can, or for SwiftPM, whose workers need none. xcodebuild's
+    /// can only when the first `-destination` is a simulator; one that names one by its `id=` alone is looked up when
+    /// the run starts. A Mac's reason holds for a Mac app's tests, UI tests and Mac Catalyst; a Mac whose tests run in
+    /// Xcode's `xctest` agent tests on workers of its own all the same (`parallelWorkersUnsupportedReason`), but makes
+    /// no simulator for them (`SimulatorWorkerSetup`).
+    var simulatorWorkersUnsupportedReason: String? {
         switch buildSystem {
         case .swift:
             return nil

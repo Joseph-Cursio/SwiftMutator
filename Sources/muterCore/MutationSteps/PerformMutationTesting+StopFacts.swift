@@ -21,7 +21,7 @@ extension PerformMutationTesting {
         }
         return configuration.withStopFacts(
             firstDestinationIsASimulator: listed,
-            uiTestTargets: configuration.uiTestTargetsTested(among: state.projectXCTestRun.uiTestTargets),
+            uiTestTargets: configuration.targetsTested(among: state.projectXCTestRun.uiTestTargets),
             destinationRunsInParallel: configuration.destinationRunsInParallel(given: state.projectXCTestRun)
         )
     }
@@ -38,7 +38,7 @@ extension PerformMutationTesting {
         events.send(.stopAtFirstFailureTurnedOff(reason: reason))
     }
 
-    /// Says that stopping at the first failed test is off when `workers`' check runs, one on each worker's simulator,
+    /// Says that stopping at the first failed test is off when `workers`' check runs, one on each worker,
     /// printed a line that looks like a failed test or a crash, though the mutants' runs on those workers would have
     /// stopped with `configuration`, the one before the check runs. As a passing baseline's such line does
     /// (`mutantConfiguration`), before the baseline's log starts the progress bar or lines.

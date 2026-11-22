@@ -1,6 +1,7 @@
 import Foundation
 
-/// The xcodebuild workers' runs with no mutant on, one on each simulator, which decide whether they test mutants.
+/// The xcodebuild workers' runs with no mutant on, one on each worker's simulator, or on each worker on a Mac, which
+/// decide whether they test mutants.
 extension SimulatorWorkerSetup {
     /// The name of the log of xcodebuild worker `worker`'s run with no mutant on.
     static func checkRunLogName(ofWorker worker: Int) -> String {
@@ -30,6 +31,54 @@ extension SimulatorWorkerSetup {
         }
     }
 
+    /// The workers that test mutants once `xcodeWorkers`, each on a simulator of `simulators` or on this Mac, have run
+    /// the tests with no mutant on (`checkRuns(on:configuration:state:testOutput:)`): all of them, with how long the
+    /// slowest run took, and the first line a run printed that looks like a failed test or a crash, which makes such
+    /// lines unreliable, as the baseline's does; or one worker on the test command's destination, once a run failed
+    /// (`fallingBack(after:keptLog:simulators:configuration:)`). Every run's log is kept. The workers are kept in
+    /// `context`'s session before their runs start, so their files are removed however mutation testing ends. A stop
+    /// meanwhile throws a CancellationError.
+    func checked(
+        _ xcodeWorkers: [MuterConfiguration.XcodeWorker],
+        simulators: Simulators,
+        in context: PerformMutationTesting.RunContext,
+        testOutput: (String) -> String
+    ) async throws -> Workers {
+        let (configuration, state) = (context.configuration, context.state)
+        context.session.xcodeWorkers = xcodeWorkers
+        let runs = await checkRuns(
+            on: xcodeWorkers, configuration: configuration, state: state, testOutput: testOutput
+        )
+        // Stopping the run kills these runs too, which then fail, but that says nothing about the workers.
+        try Task.checkCancellation()
+        let logs = keepLogs(of: runs, state: state)
+
+        // The lowest-numbered failure, so the same worker is named whichever run finished first.
+        if let failed = runs.first(where: { $0.outcome != .passed || $0.timedOut }) {
+            return try await fallingBack(
+                after: failed,
+                keptLog: logs[failed.worker] != nil,
+                simulators: simulators,
+                configuration: configuration
+            )
+        }
+        // The runs that printed a line shaped like a failed test or a crash, each with the first such line.
+        let printingLookalikes = runs.compactMap { run in
+            (FailedTestLine.first(inLog: run.testLog) ?? CrashLine.first(inLog: run.testLog)
+                ?? TrapLine.first(inLog: run.testLog) ?? XcodebuildRestartLine.first(inLog: run.testLog))
+                .map { (line: $0, log: run.testLog) }
+        }
+        return Workers(
+            count: xcodeWorkers.count,
+            unavailable: nil,
+            configuration: printingLookalikes.isEmpty
+                ? configuration : configuration.withUnreliableFailedTestLines(printedIn: printingLookalikes.map(\.log)),
+            xcodeWorkers: xcodeWorkers,
+            checkRunSeconds: runs.map(\.seconds).max(),
+            lookalike: printingLookalikes.first?.line
+        )
+    }
+
     /// Runs the tests with no mutant on, on every one of `xcodeWorkers` at once, each from its own `.xctestrun`, and
     /// returns the runs in worker order. A worker whose `.xctestrun` can't be written fails its run. A run the
     /// simulator failed to launch runs once more on its worker, unless the run is stopped, and the second is returned.
@@ -49,7 +98,7 @@ extension SimulatorWorkerSetup {
                 group.addTask { [delegate, clock] in
                     do {
                         try await delegate.switchOn(
-                            schemata: .null, for: testRun, at: mutatedProject, named: xcodeWorker.testRunFile
+                            schemata: .null, for: testRun, at: mutatedProject, worker: xcodeWorker
                         )
                     } catch {
                         let why = error.localizedDescription
@@ -91,22 +140,24 @@ extension SimulatorWorkerSetup {
     /// One worker, on the test command's destination, once `failed`, a worker's run with no mutant on, didn't pass,
     /// with why, which names its log if it `keptLog`, and, if the `simulators` were made anew as their
     /// `baseNotShutDown`, the destination's simulator, wasn't shut down, how the next run can clone it
-    /// (`cloningHint(for:simulators:)`). The simulators are deleted first; a stop meanwhile throws.
+    /// (`cloningHint(for:simulators:)`). The simulators are deleted first; a stop meanwhile throws. With none made, the
+    /// workers tested on this Mac, and the reason says so (`macFallingBack(after:keptLog:configuration:)`).
     func fallingBack(
         after failed: CheckRun,
         keptLog: Bool,
         simulators: Simulators,
         configuration: MuterConfiguration
     ) async throws -> Workers {
+        guard !simulators.made.isEmpty else {
+            return Self.macFallingBack(after: failed, keptLog: keptLog, configuration: configuration)
+        }
         await workerSimulators.removeAll()
         // A stop while they were deleted.
         try Task.checkCancellation()
         let trouble = SimulatorTrouble.first(inLog: failed.testLog)
         let why = trouble.map { ": \($0.line)" } ?? ""
         let log = keptLog ? " (its log is \(Self.checkRunLogName(ofWorker: failed.worker)))" : ""
-        let ended = failed.timedOut
-            ? "didn't end within \(String(format: "%g", configuration.buildTimeout ?? 0)) s (buildTimeout)"
-            : "didn't pass\(why)"
+        let ended = Self.howItEnded(failed, why: why, buildTimeout: configuration.buildTimeout)
         // The simulator, not what it lacked, failed a run whose log shows it gone or twice failing to launch, or one
         // that never started, as its `.xctestrun` couldn't be written.
         let hint = simulators.baseNotShutDown.flatMap { base in

@@ -3,6 +3,10 @@ import Foundation
 /// A process and its descendants. Under xcodebuild, a simulator runs the tests in a process it starts itself, the
 /// test host or `xctest`, which isn't a descendant of xcodebuild. Killing xcodebuild is enough: the simulator then ends
 /// that process within 0.2 seconds, hosted or not, even with its main thread blocked (Xcode 27.1, iOS 26.5 and 27.0).
+/// On a Mac, a test bundle that no app hosts runs in Xcode's `xctest` agent, which xcodebuild starts as its own child:
+/// stopping and killing the tree left no test process 0.2 seconds later, with a test spinning forever, in each of 3
+/// runs of `xcodebuild test` and 2 of `test-without-building` from an `.xctestrun` (Xcode 27.2,
+/// `MuterConfiguration.testsOnMacWorkers`). Nothing measured a Mac app's tests, UI tests or Mac Catalyst.
 enum ProcessTree {
     /// How many times a stop lists a tree, at most: `terminate`'s, `terminateDescendants`', and a suspension's.
     static let maximumListings = 10

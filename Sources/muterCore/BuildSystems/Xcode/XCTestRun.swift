@@ -19,8 +19,32 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
     /// `BlueprintName`, else its `ProductModuleName`. A mutant's xcodebuild run that tests one doesn't stop at its
     /// first failed test (`MuterConfiguration.uiTestTargets`).
     var uiTestTargets: [String] {
+        names(of: testTargets.filter { $0["IsUITestBundle"] as? Bool == true })
+    }
+
+    /// Every test target, each once, named as `uiTestTargets` names them.
+    var testTargetNames: [String] {
+        names(of: testTargets)
+    }
+
+    /// Its test targets that don't run in Xcode's `xctest` agent, each once, named as `uiTestTargets` names them: those
+    /// hosted by an app (`IsAppHostedTestBundle`), UI test targets (`IsUITestBundle`), and any whose `TestHostPath`
+    /// isn't the agent, `__PLATFORMS__/<platform>.platform/Developer/Library/Xcode/Agents/xctest`, or that has none.
+    /// A Mac run whose tests are none of these can test several mutants at once
+    /// (`MuterConfiguration.testsRunUnhosted`).
+    var hostedTestTargets: [String] {
+        names(of: testTargets.filter { target in
+            target["IsUITestBundle"] as? Bool == true
+                || target["IsAppHostedTestBundle"] as? Bool == true
+                || (target["TestHostPath"] as? String)?.hasSuffix("/Library/Xcode/Agents/xctest") != true
+        })
+    }
+
+    /// The names of `targets`, each once, in their order: each one's `BlueprintName`, else its `ProductModuleName`,
+    /// the name `-only-testing` and `-skip-testing` take.
+    private func names(of targets: [[String: AnyHashable]]) -> [String] {
         var names: [String] = []
-        for target in testTargets where target["IsUITestBundle"] as? Bool == true {
+        for target in targets {
             let name = (target["BlueprintName"] ?? target["ProductModuleName"]) as? String ?? "a target with no name"
             if !names.contains(name) {
                 names.append(name)
@@ -30,10 +54,11 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
     }
 
     /// Every test target's entry, as `updateEnvironmentVariable` finds them: in each of `TestConfigurations`'
-    /// `TestTargets`, or in the legacy format, every dictionary at the top level.
+    /// `TestTargets`, or in the legacy format, every dictionary at the top level but `__xctestrun_metadata__`.
     private var testTargets: [[String: AnyHashable]] {
         guard let testConfigurations = plist["TestConfigurations"] as? [AnyHashable] else {
-            return plist.values.compactMap { $0 as? [String: AnyHashable] }
+            return plist.filter { $0.key != "__xctestrun_metadata__" }.values
+                .compactMap { $0 as? [String: AnyHashable] }
         }
         return testConfigurations.flatMap { testConfiguration in
             let configuration = testConfiguration as? [String: AnyHashable]
@@ -49,6 +74,24 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
         setting key: String?,
         activationMarker: String? = nil
     ) -> [String: AnyHashable] {
+        var variables = [isMuterRunningKey: isMuterRunningValue]
+        if let key {
+            variables[key] = isMuterRunningValue
+        }
+        if let activationMarker {
+            variables[activationMarkerKey] = activationMarker
+        }
+        return setting(variables)
+    }
+
+    /// This `.xctestrun` with `variables` set in every test target's `EnvironmentVariables`, over any of the same name:
+    /// what an xcodebuild worker's runs add to their tests' environment (`MuterConfiguration.XcodeWorker.environment`).
+    func adding(environment variables: [String: String]) -> Self {
+        variables.isEmpty ? self : Self(setting(variables))
+    }
+
+    /// The plist with `variables` set in every test target's `EnvironmentVariables`.
+    private func setting(_ variables: [String: String]) -> [String: AnyHashable] {
         var copy = plist
         let testConfigurationsKey = "TestConfigurations"
         let testTargetsKey = "TestTargets"
@@ -60,11 +103,8 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
                    let replacementTargets = newTestConfiguration[testTargetsKey] as? [AnyHashable] {
                     let newTestTargets = replacementTargets.map { testTarget in
                         if let newTestTarget = testTarget as? [String: AnyHashable] {
-                            return updateEnvironmentVariables(
-                                forConfiguration: newTestTarget,
-                                key: key,
-                                activationMarker: activationMarker
-                            ) as AnyHashable
+                            return updateEnvironmentVariables(forConfiguration: newTestTarget, setting: variables)
+                                as AnyHashable
                         }
                         return testTarget
                     }
@@ -83,8 +123,7 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
                 if let testConfiguration = plistValue as? [String: AnyHashable] {
                     copy[plistEntry] = updateEnvironmentVariables(
                         forConfiguration: testConfiguration,
-                        key: key,
-                        activationMarker: activationMarker
+                        setting: variables
                     )
                 }
             }
@@ -95,8 +134,7 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
 
     private func updateEnvironmentVariables(
         forConfiguration configuration: [String: AnyHashable],
-        key: String?,
-        activationMarker: String?
+        setting variables: [String: String]
     ) -> [String: AnyHashable] {
         let environmentVariablesKey = "EnvironmentVariables"
         var configuration = configuration
@@ -108,13 +146,9 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
         // process) the mutant then never activated in the test host — every mutant became a false
         // "survived", i.e. a phantom 0% score.
         var allEnvironmentVariables = configuration[environmentVariablesKey] as? [String: AnyHashable] ?? [:]
-        if let key {
-            allEnvironmentVariables[key] = isMuterRunningValue
+        for (name, value) in variables {
+            allEnvironmentVariables[name] = value
         }
-        if let activationMarker {
-            allEnvironmentVariables[activationMarkerKey] = activationMarker
-        }
-        allEnvironmentVariables[isMuterRunningKey] = isMuterRunningValue
 
         configuration[environmentVariablesKey] = allEnvironmentVariables
 

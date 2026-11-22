@@ -23,8 +23,9 @@ extension PerformMutationTesting {
         // which can take minutes. Not a configuration error: the same configuration may be used with
         // another test command. The workers, not known yet, change it only for a lone xcodebuild worker on the test
         // command's destination that tests in parallel, which is said once it is known: an xcodebuild run's workers
-        // get simulators of their own only when its first destination is a simulator, whose runs can stop too.
-        let configured = await withStopFacts(state)
+        // get simulators of their own only when its first destination is a simulator, whose runs can stop too, and
+        // workers on a Mac test on that destination, whose runs can't.
+        let configured = await withStopFacts(state).withMacWorkerFact(given: state.projectXCTestRun)
         if configured.stopAtFirstFailure == .enabled, let reason = configured.stopAtFirstFailureUnsupportedReason {
             events.send(.stopAtFirstFailureTurnedOff(reason: reason))
         }
@@ -216,6 +217,11 @@ extension PerformMutationTesting {
                 events.send(.workersShareUserDefaults)
             }
         }
+        // As SwiftPM's XCTest tests do, tests that Xcode's `xctest` agent runs share its domain, on any number of
+        // workers on this Mac.
+        if pool.count > 1, !pool.xcodeWorkers.isEmpty, !pool.onOwnSimulators {
+            events.send(.macWorkersShareUserDefaults)
+        }
         configuration = Self.onFirstXcodeWorker(configuration, state, pool.xcodeWorkers.first)
         sayWhetherTheFirstWorkerTurnedStoppingOff(configuration, before: pool.configuration)
         // An xcodebuild run's is on the first worker, as its mutants run, after any check runs, which paid for each
@@ -280,7 +286,7 @@ extension PerformMutationTesting {
                 used: workers.count,
                 mutantsToTest: plan.toRun.count,
                 unsupportedReason: workers.unavailable,
-                ownSimulator: !workers.xcodeWorkers.isEmpty,
+                ownSimulator: workers.onOwnSimulators,
                 sharesBuild: sharesBuild
             )
             events.send(.workersChosen(choice))

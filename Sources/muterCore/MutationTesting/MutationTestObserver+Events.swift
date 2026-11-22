@@ -17,7 +17,7 @@ extension MutationTestObserver {
             handleDiscoveryEvent(event)
 
         case .mutantsDropped, .resumePlanned, .mutationTestingStarted, .mutantRunsStarted, .stillTesting,
-             .workersChosen, .stopAtFirstFailureTurnedOff, .testBundlesNotRunDirectly:
+             .workersChosen, .macWorkersShareUserDefaults, .stopAtFirstFailureTurnedOff, .testBundlesNotRunDirectly:
             handleTestingStartEvent(event)
 
         case .timedTestRunStopped, .stoppedRunRecorded, .workersShareUserDefaults, .testBundlesWroteInTheProject,
@@ -171,6 +171,9 @@ extension MutationTestObserver {
 
         case let .workersChosen(choice):
             choice.sentence.map(logger.progress)
+
+        case .macWorkersShareUserDefaults:
+            logger.macWorkersShareUserDefaults()
 
         case let .stopAtFirstFailureTurnedOff(reason):
             logger.stopAtFirstFailureTurnedOff(reason: reason)

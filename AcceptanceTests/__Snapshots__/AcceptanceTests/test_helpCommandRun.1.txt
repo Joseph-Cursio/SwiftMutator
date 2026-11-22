@@ -97,8 +97,9 @@ OPTIONS:
                           copy's Xcode projects, or turn it off there, in place
                           of keepSwiftLintPhases.
   --workers <count>       How many mutants to test at once, in place of
-                          mutationTestWorkers (SwiftPM, or xcodebuild on a
-                          simulator, which gets one simulator per worker).
+                          mutationTestWorkers (SwiftPM; xcodebuild on a
+                          simulator, which gets one simulator per worker, or on
+                          a Mac whose tests no app hosts).
   --timeout <seconds>     Seconds before a mutant's test run is stopped, in
                           place of mutationTestTimeout. At most a day, 86400.
   --stop-at-first-failure/--no-stop-at-first-failure

@@ -158,8 +158,7 @@ func configurationWithEveryFieldSet(
         platform: .macOSFixture,
         productsFolder: ".build/out/Products/Debug",
         bundles: ["CoreTests"],
-        testFiles: [:],
-        arguments: ["--skip-build"]
+        testFiles: [:], arguments: ["--skip-build"]
     ))
     .forXcodeWorker(MuterConfiguration.XcodeWorker(
         testRunFile: "muter-worker2.xctestrun",
@@ -169,6 +168,7 @@ func configurationWithEveryFieldSet(
         parallelTestingOff: true
     ))
     .withStopFacts(firstDestinationIsASimulator: true, uiTestTargets: ["AppUITests"], destinationRunsInParallel: true)
+    .withMacWorkerFact(given: XCTestRun.unhostedFixture)
     // So `testFilterArguments` is set too, as for a property rerun's runs.
     .withPropertyTestFilter() ?? MuterConfiguration()
     let goingToItsEnd = configuration.goingToEachRunsEnd().workedOutFromTheProject()

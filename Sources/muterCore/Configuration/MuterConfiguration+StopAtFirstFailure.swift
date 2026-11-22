@@ -91,10 +91,11 @@ extension MuterConfiguration {
         return nil
     }
 
-    /// Those of `targets`, an `.xctestrun`'s UI test targets, that a mutant's xcodebuild run tests: all but those a
-    /// `-skip-testing` in the test arguments leaves out whole, and with `-only-testing`, only those it names, whole or
-    /// in part. An `-only-testing @file` names tests from a file this doesn't read, so with one, every target counts.
-    func uiTestTargetsTested(among targets: [String]) -> [String] {
+    /// Those of `targets`, test targets of an `.xctestrun`, such as its UI test targets, that a mutant's xcodebuild run
+    /// tests: all but those a `-skip-testing` in the test arguments leaves out whole, and with `-only-testing`, only
+    /// those it names, whole or in part. An `-only-testing @file` names tests from a file this doesn't read, so with
+    /// one, every target counts.
+    func targetsTested(among targets: [String]) -> [String] {
         let skipped = Set(testIdentifiers(givenBy: "-skip-testing"))
         let onlyTesting = testIdentifiers(givenBy: "-only-testing")
         let readsAFile = onlyTesting.contains { $0.hasPrefix("@") }

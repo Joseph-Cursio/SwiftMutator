@@ -39,6 +39,7 @@ extension RunEvent {
         case timedTestRunStopped
         case stoppedRunRecorded
         case workersShareUserDefaults
+        case macWorkersShareUserDefaults
         case testBundlesWroteInTheProject
         case propertyRerunsKeepClones
         case buildingAgainWithoutMutants
@@ -122,6 +123,7 @@ extension RunEvent {
         case .timedTestRunStopped: .timedTestRunStopped
         case .stoppedRunRecorded: .stoppedRunRecorded
         case .workersShareUserDefaults: .workersShareUserDefaults
+        case .macWorkersShareUserDefaults: .macWorkersShareUserDefaults
         case .testBundlesWroteInTheProject: .testBundlesWroteInTheProject
         case .propertyRerunsKeepClones: .propertyRerunsKeepClones
         case .buildingAgainWithoutMutants: .buildingAgainWithoutMutants
@@ -174,8 +176,8 @@ extension RunEvent {
         switch self {
         case .muterLaunched, .updateCheckStarted, .projectCopyStarted, .projectCoverageDiscoveryStarted,
              .sourceFileDiscoveryStarted, .mutationsDiscoveryStarted, .mutationTestingStarted, .mutantRunsStarted,
-             .workersShareUserDefaults, .propertyRerunsKeepClones, .muterMutationTestPlanLoaded,
-             .testPlanSourcesUnchecked:
+             .workersShareUserDefaults, .macWorkersShareUserDefaults, .propertyRerunsKeepClones,
+             .muterMutationTestPlanLoaded, .testPlanSourcesUnchecked:
             nil
 
         case let .testBundlesWroteInTheProject(path): path

@@ -81,6 +81,22 @@ protocol MutationTestingIODelegate: Sendable {
 }
 
 extension MutationTestingIODelegate {
+    /// `switchOn(schemata:for:at:named:)` to `worker`'s `.xctestrun`, with what its runs add to their tests'
+    /// environment (`MuterConfiguration.XcodeWorker.environment`).
+    func switchOn(
+        schemata: MutationSchema,
+        for testRun: XCTestRun,
+        at path: URL,
+        worker: MuterConfiguration.XcodeWorker
+    ) async throws {
+        try await switchOn(
+            schemata: schemata,
+            for: testRun.adding(environment: worker.environment),
+            at: path,
+            named: worker.testRunFile
+        )
+    }
+
     /// `switchOn(schemata:for:at:named:)` to the first worker's `.xctestrun`, `muter.xctestrun`.
     func switchOn(
         schemata: MutationSchema,

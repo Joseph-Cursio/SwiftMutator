@@ -92,6 +92,14 @@ extension Logger {
         )
     }
 
+    func macWorkersShareUserDefaults() {
+        progress(
+            "ℹ️ Workers on this Mac share `UserDefaults.standard` and your home folder, as Xcode's `xctest` runs "
+                + "every worker's tests: tests that write to them can fail each other and kill mutants they don't "
+                + "check. See \"Tests that share state across workers\" in the README."
+        )
+    }
+
     func testBundlesWroteInTheProject(path: String) {
         let place = path.isEmpty ? "the top folder" : path
         progress(

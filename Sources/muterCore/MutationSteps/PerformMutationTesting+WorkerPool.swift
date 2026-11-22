@@ -233,9 +233,9 @@ extension PerformMutationTesting {
     }
 
     /// Switches `job`'s mutant on for a run with `configuration` in `directory`, by writing `testRun` with it on to
-    /// the `.xctestrun` that run tests from: its xcodebuild worker's, or `muter.xctestrun`. A file that couldn't be
-    /// written would still switch on the mutant before this one, whose verdict an xcodebuild run would record for this
-    /// one, so that aborts mutation testing.
+    /// the `.xctestrun` that run tests from: its xcodebuild worker's, with what the worker adds to its tests'
+    /// environment, or `muter.xctestrun`. A file that couldn't be written would still switch on the mutant before this
+    /// one, whose verdict an xcodebuild run would record for this one, so that aborts mutation testing.
     static func switchOn(
         _ job: MutantJob,
         from testRun: XCTestRun,
@@ -244,12 +244,11 @@ extension PerformMutationTesting {
         using ioDelegate: MutationTestingIODelegate
     ) async throws {
         do {
-            try await ioDelegate.switchOn(
-                schemata: job.schema,
-                for: testRun,
-                at: directory,
-                named: configuration.xcodeWorker?.testRunFile ?? MutationTestingDelegate.muterTestRunFileName
-            )
+            if let worker = configuration.xcodeWorker {
+                try await ioDelegate.switchOn(schemata: job.schema, for: testRun, at: directory, worker: worker)
+            } else {
+                try await ioDelegate.switchOn(schemata: job.schema, for: testRun, at: directory)
+            }
         } catch {
             throw MuterError.mutationTestingAborted(
                 reason: .mutantNotSwitchedOn(id: job.schema.id, description: error.localizedDescription)
