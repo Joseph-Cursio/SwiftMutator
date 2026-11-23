@@ -24,8 +24,9 @@ extension PerformMutationTesting {
         // another test command. The workers, not known yet, change it only for a lone xcodebuild worker on the test
         // command's destination that tests in parallel, which is said once it is known: an xcodebuild run's workers
         // get simulators of their own only when its first destination is a simulator, whose runs can stop too, and
-        // workers on a Mac test on that destination, whose runs can't.
-        let configured = await withStopFacts(state).withMacWorkerFact(given: state.projectXCTestRun)
+        // several workers on a Mac test there one test at a time, so their runs stop when the destination's would. The
+        // facts are in place for everything that reads whether runs stop, from the baseline on.
+        let configured = await withEveryStopFact(state)
         if configured.stopAtFirstFailure == .enabled, let reason = configured.stopAtFirstFailureUnsupportedReason {
             events.send(.stopAtFirstFailureTurnedOff(reason: reason))
         }
@@ -42,7 +43,7 @@ extension PerformMutationTesting {
         let booting = workerSimulators
         async let booted = SimulatorWorkerSetup.boot(simulators, on: booting)
 
-        let baseline = try await passingBaseline(state: state)
+        let baseline = try await passingBaseline(configured, state: state)
 
         // The mutants that don't compile have a result, written below, so they count in the header and a resume's plan,
         // and aren't in anything that tests them.
@@ -133,7 +134,7 @@ extension PerformMutationTesting {
                 of: session,
                 plan,
                 state: state,
-                setup: MutantRunSetup(configuration: state.muterConfiguration, workers: 0)
+                setup: MutantRunSetup(configuration: await withEveryStopFact(state), workers: 0)
             ),
             retiring: plan.retired,
             copying: reused,
@@ -144,11 +145,15 @@ extension PerformMutationTesting {
         return true
     }
 
-    /// The baseline, with the mutants that fail its build taken out (`baselineLeavingOutMutants`), once it passed. A
-    /// baseline that fails aborts mutation testing.
-    private func passingBaseline(state: AnyMutationTestState) async throws -> BaselineRun {
+    /// The baseline, with the mutants that fail its build taken out (`baselineLeavingOutMutants`), once it passed, run
+    /// with `configured`, the run's configuration with its facts, so that it writes unbuffered exactly when the
+    /// mutants' runs stop at their first failed test. A baseline that fails aborts mutation testing.
+    private func passingBaseline(
+        _ configured: MuterConfiguration,
+        state: AnyMutationTestState
+    ) async throws -> BaselineRun {
         stoppedRun.enter(.baseline)
-        let baseline = try await baselineLeavingOutMutants(state: state)
+        let baseline = try await baselineLeavingOutMutants(state: state, configuration: configured)
 
         // A failing baseline's log, which `baseline` kept, is exactly what the user needs on disk.
         guard baseline.outcome == .passed else {

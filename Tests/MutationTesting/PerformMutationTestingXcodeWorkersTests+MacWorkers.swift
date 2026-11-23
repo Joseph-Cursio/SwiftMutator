@@ -37,8 +37,8 @@ extension PerformMutationTestingXcodeWorkersTests {
         )
         XCTAssertEqual(choices().map(\.sentence), ["👷 Testing 2 mutants at a time on this Mac."])
         XCTAssertEqual(notices(), [.workersChosen, .macWorkersShareUserDefaults])
-        // Nothing measured stopping a run on a Mac at its first failed test.
-        XCTAssertTrue(ioDelegate.configurations.allSatisfy { !$0.stopsAtFirstFailure })
+        // Killing xcodebuild ends the agent's tests, so each worker's runs stop, as one test at a time can.
+        XCTAssertTrue(ioDelegate.configurations.allSatisfy(\.stopsAtFirstFailure))
     }
 
     // As SwiftPM's: half the processors, at most 4, and only the mutants limit them, as they need no simulator.

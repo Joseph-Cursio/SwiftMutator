@@ -69,28 +69,6 @@ extension MutationTestingDelegateTests {
         XCTAssertEqual(testProcess.terminateTreeCallCount, 0)
     }
 
-    // Measured only on a simulator, so a run on a Mac goes to its end, whatever its log shows.
-    func test_anXcodebuildRunOnAMac_isNotStopped() async throws {
-        let testProcess = ScriptedProcessSpy([
-            .write("Test Case '-[AppTests.SumTests testSum]' failed (0.012 seconds).\n", after: 0),
-            .write("** TEST FAILED **\n", after: 0.3),
-        ])
-        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
-        let configuration = MuterConfiguration(
-            executable: "/tmp/xcodebuild",
-            arguments: ["-scheme", "App", "-destination", "platform=macOS", "test"],
-            testSuiteTimeOut: 60,
-            stopAtFirstFailure: .enabled
-        )
-
-        let result = try await runMutantsTests(on: testProcess, using: configuration)
-
-        XCTAssertEqual(result.outcome, .failed, result.testLog)
-        XCTAssertEqual(result.ending, .exited)
-        XCTAssertEqual(testProcess.terminateTreeCallCount, 0)
-        XCTAssertTrue(result.testLog.contains("** TEST FAILED **"), result.testLog)
-    }
-
     // So that a run stopped at its first failed test shows that failure in its log, whatever buffers xcodebuild's own
     // output. A worker's check run too, though it is never stopped, as the baseline is for `swift test`.
     func test_anXcodebuildRunOnASimulator_writesUnbuffered() throws {

@@ -130,25 +130,6 @@ extension ConfigurationParsingTests {
         }
     }
 
-    // A Mac worker tests on the test command's destination, a Mac, where nothing measured stopping a run at its
-    // first failed test, so its runs go to their end, as one worker's on a Mac do.
-    func test_stoppingAtTheFirstFailure_staysOff_onMacWorkers() {
-        let configuration = mac("platform=macOS", workers: 4).withMacWorkerFact(given: .unhostedFixture)
-            .forXcodeWorker(MuterConfiguration.XcodeWorker(
-                testRunFile: "muter-worker1.xctestrun",
-                derivedData: "/project_mutated_worker1.DerivedData.noindex",
-                testDiagnosticsOff: true,
-                parallelTestingOff: true
-            ))
-
-        XCTAssertFalse(configuration.stopsAtFirstFailure)
-        XCTAssertEqual(
-            configuration.stopAtFirstFailureUnsupportedReason,
-            "under xcodebuild it works only on a simulator, where stopping a run was measured to end its tests, and "
-                + "`-destination platform=macOS` names a Mac"
-        )
-    }
-
     /// Asserts whether workers test on a Mac, given `xctestrun` and the test command's `arguments`.
     private func assertMacWorkers(
         _ xctestrun: ProjectTestRun,

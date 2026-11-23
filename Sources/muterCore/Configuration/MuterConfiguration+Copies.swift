@@ -74,8 +74,8 @@ extension MuterConfiguration {
 
     /// This configuration with its runs testing everything but what `propertyTestFilter` selects: `swift test`, and the
     /// test bundles run directly, with `--skip` for each entry, as `withPropertyTestFilter()` has them. nil without a
-    /// filter, or for any other build system: an xcodebuild run on a simulator that stopped at its first failed test
-    /// leaves a list cut short that this doesn't settle.
+    /// filter, or for any other build system: an xcodebuild run that stopped at its first failed test leaves a list cut
+    /// short that this doesn't settle.
     func withPropertyTestsSkipped() -> Self? {
         guard let filter = propertyTestFilter, !filter.isEmpty, propertyRerunsUnsupportedReason == nil,
               buildSystem == .swift

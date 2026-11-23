@@ -67,6 +67,8 @@ final class MutationTestingDelegateSpy: MutationTestingIODelegate, @unchecked Se
     var firstTestRunsWithoutBuildingWritingTo: [String: (outcome: TestSuiteOutcome, log: String)] = [:]
     /// The configuration each run of the test command without its build was given.
     private(set) var configurationsWithoutBuilding: [MuterConfiguration] = []
+    /// The configuration each run of the mutated project's baseline was given.
+    private(set) var baselineConfigurations: [MuterConfiguration] = []
     /// The time limit each run of the test command without its build was given, nil for none.
     private(set) var timeLimitsWithoutBuilding: [TimeInterval?] = []
     /// How the runs of the test command without its build that write to the file of this name end; `.exited` unless
@@ -157,10 +159,11 @@ final class MutationTestingDelegateSpy: MutationTestingIODelegate, @unchecked Se
     }
 
     func benchmarkTests(
-        using _: MuterConfiguration,
+        using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
     ) -> TestRun {
         methodCalls.append(#function)
+        baselineConfigurations.append(configuration)
         testLogs.append(fileName)
         whileRunningBaseline?(0)
         let testLog = baselineTestLogs.isEmpty ? baselineTestLog : baselineTestLogs.removeFirst()

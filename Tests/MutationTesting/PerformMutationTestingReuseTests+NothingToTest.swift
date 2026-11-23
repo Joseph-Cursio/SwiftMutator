@@ -49,6 +49,29 @@ extension PerformMutationTestingReuseTests {
         )
     }
 
+    // With nothing left to test, the header says whether the runs stop at their first failed test as a session that
+    // tests says it: on a Mac, those of tests that run in Xcode's `xctest` agent do; those of a Mac app's hosted tests
+    // go to their end.
+    func test_withNothingToTest_aMacSessionsHeader_saysWhetherItsRunsStop() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-scheme", "App", "-destination", "platform=macOS", "test"]
+        )
+        let hosted = muterCore.XCTestRun.withTestTargets([
+            "AppTests": ["TestHostPath": muterCore.XCTestRun.macAppPath, "IsAppHostedTestBundle": true],
+        ])
+        for xctestRun in [muterCore.XCTestRun.unhostedFixture, hosted] {
+            try reuse(heldEverywhere())
+            state.projectXCTestRun = xctestRun
+
+            _ = try await sut.run(with: state)
+        }
+
+        XCTAssertEqual(ioDelegate.testLogs, [], "no baseline: nothing changed")
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.mutantsToTest), [0, 0])
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.stopsAtFirstFailure), [true, false])
+    }
+
     // Without a log folder, as a state that bypasses the handler has, the baseline's output is discarded, and no log is
     // written in the current directory, the mutated project.
     func test_withNothingToTest_afterAChange_withNoLogFolder_keepsNoBaselineLog() async throws {
