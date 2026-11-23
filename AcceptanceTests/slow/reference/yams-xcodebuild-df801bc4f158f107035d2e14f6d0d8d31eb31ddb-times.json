@@ -1,11 +1,15 @@
 {
  "full": {
-  "runs": 5,
-  "wall_s": 1807.0
+  "runs": 1,
+  "wall_s": 1023.0
+ },
+ "no-stop": {
+  "runs": 1,
+  "wall_s": 1792.0
  },
  "release": {
   "runs": 1,
-  "wall_s": 1588.0
+  "wall_s": 839.0
  },
  "reuse-nochange": {
   "runs": 1,
@@ -29,10 +33,10 @@
  },
  "stop-resume": {
   "runs": 1,
-  "wall_s": 486.0
+  "wall_s": 306.0
  },
  "stop-resume-continued": {
   "runs": 1,
-  "wall_s": 1355.0
+  "wall_s": 732.0
  }
 }
