@@ -102,11 +102,12 @@ enum SwiftPackageSources {
     }
 
     /// The tested package and the local packages in the project that it depends on, at any depth, as `files` describes
-    /// them.
+    /// them; without `followingDependencies`, the tested package alone.
     static func packages(
         inProjectAt root: FilePath,
         testedBy configuration: MuterConfiguration,
-        process: ProcessFactory
+        process: ProcessFactory,
+        followingDependencies: Bool = true
     ) async -> Result<[Package], Failure> {
         let swift = configuration.testCommandExecutable
         guard swift.lastPathComponent == "swift" else {
@@ -149,6 +150,7 @@ enum SwiftPackageSources {
                 in: root,
                 canonicalRoot: canonicalRoot
             ))
+            guard followingDependencies else { break }
             // The package at `root`, too, when the tested one is in a folder of the project and depends on it.
             toDescribe += description.dependencies
                 .compactMap(\.path)

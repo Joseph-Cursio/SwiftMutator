@@ -34,7 +34,7 @@ final class SwiftCoverageTests: MuterTestCase {
                 "-Xswiftc", "-Xllvm", "-Xswiftc", "-instrprof-atomic-counter-update-all",
             ],
             ["/path/to/swift", "test", "--skip", "Slow", "--show-codecov-path"],
-            ["/path/to/swift", "package", "describe", "--type", "json"],
+            ["/path/to/swift", "package", "--package-path", "/project", "describe", "--type", "json"],
             [
                 "/usr/bin/xcrun", "llvm-cov", "export",
                 bundle("AppTests"), "-object", bundle("CoreTests"),
@@ -154,7 +154,7 @@ final class SwiftCoverageTests: MuterTestCase {
                 codecov + "/Swift Testing1234_0.502.profraw", codecov + "/XCTest1234_0.501.profraw",
                 "-o", codecov + "/default.profdata",
             ],
-            ["/path/to/swift", "package", "describe", "--type", "json"],
+            ["/path/to/swift", "package", "--package-path", "/project", "describe", "--type", "json"],
             [
                 "/usr/bin/xcrun", "llvm-cov", "export", bundle("CoreTests"),
                 "-instr-profile", codecov + "/default.profdata",
@@ -209,7 +209,8 @@ final class SwiftCoverageTests: MuterTestCase {
         let description = testTargets.map { names in
             let targets = names.map { #"{"name": "\#($0)", "type": "test"}"# }
                 + [#"{"name": "Core", "type": "library"}"#]
-            return #"{"name": "Project", "targets": [\#(targets.joined(separator: ","))]}"#
+            return #"{"name": "Project", "path": "/project", "dependencies": [], "#
+                + #""targets": [\#(targets.joined(separator: ","))]}"#
         }
         process.commandResult = { command in
             if command.last == "--show-codecov-path" {

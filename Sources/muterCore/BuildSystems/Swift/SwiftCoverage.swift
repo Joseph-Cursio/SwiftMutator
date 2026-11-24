@@ -1,14 +1,16 @@
 import Foundation
 
-/// SwiftPM's coverage of a project, from one `llvm-cov export` over every test bundle the coverage run builds. Swift
-/// Build, the default since Swift 6.4, builds a bundle for each test target, and each bundle maps only the code its
-/// target links, so a report of one bundle leaves out the files only the others reach. The native build system builds
-/// one bundle for the whole package.
+/// SwiftPM's coverage of a project, from one `llvm-cov export` over every test bundle the coverage run builds, and the
+/// package's executables whose code the tests ran, as a test runs a command-line tool with `Process`
+/// (`executablesTheTestsRan`). Swift Build, the default since
+/// Swift 6.4, builds a bundle for each test target, and each bundle maps only the code its target links, so a report
+/// of one bundle leaves out the files only the others reach. The native build system builds one bundle for the whole
+/// package.
 final class SwiftCoverage: BuildSystemCoverage {
     @Dependency(\.process)
     var process: ProcessFactory
     @Dependency(\.fileManager)
-    private var fileManager: FileSystemManager
+    var fileManager: FileSystemManager
 
     /// What the coverage run printed, standard output then standard error, once `run` has run it.
     private(set) var coverageRunOutput: String?
@@ -64,8 +66,9 @@ final class SwiftCoverage: BuildSystemCoverage {
         return await coverage(configuration, failedTests: nil)
     }
 
-    /// The coverage of the build the coverage run used, exported from every test bundle in it. After a run in which
-    /// `failedTests` failed, SwiftPM merged no profile, so the profiles the test processes left are merged first.
+    /// The coverage of the build the coverage run used, exported from every test bundle in it and the tested package's
+    /// executables whose code the tests ran (`executablesTheTestsRan`). After a run in which `failedTests` failed,
+    /// SwiftPM merged no profile, so the profiles the test processes left are merged first.
     private func coverage(
         _ configuration: MuterConfiguration,
         failedTests: FailedTestLine.FailedTests?
@@ -84,16 +87,36 @@ final class SwiftCoverage: BuildSystemCoverage {
         guard fileManager.fileExists(atPath: profile) else {
             return .failure(.noProfileData(atPath: profile))
         }
-        let bundles = await testBundles(in: binPath, testTargets: testTargets(configuration))
+        // The tested package, which names the test targets and the executables, as `--package-path` gives it.
+        let described = await SwiftPackageSources.packages(
+            inProjectAt: fileManager.currentDirectoryPath,
+            testedBy: configuration,
+            process: process,
+            followingDependencies: false
+        )
+        let tested = (try? described.get())?.first
+        let testTargets = if let tested {
+            Set(tested.testTargets.compactMap(\.name))
+        } else {
+            await testTargets(configuration)
+        }
+        let bundles = await testBundles(in: binPath, testTargets: testTargets)
         guard !bundles.isEmpty else {
             return .failure(.noTestBundles(inDirectory: binPath))
         }
 
-        return await llvmCovExport(
-            of: bundles,
-            profile: profile,
-            llvmCov: llvmTool("llvm-cov", nextTo: configuration.testCommandExecutable)
-        )
+        let llvmCov = llvmTool("llvm-cov", nextTo: configuration.testCommandExecutable)
+        var executables: [String] = []
+        if let tested, Self.buildsEveryProduct(configuration) {
+            executables = await executablesTheTestsRan(
+                of: tested,
+                in: binPath,
+                besides: bundles,
+                profile: profile,
+                llvmCov: llvmCov
+            )
+        }
+        return await llvmCovExport(of: bundles + executables, profile: profile, llvmCov: llvmCov)
         .flatMap { export in
             Self.coverage(
                 fromExport: export,
@@ -102,6 +125,13 @@ final class SwiftCoverage: BuildSystemCoverage {
                 testsFailedWithCoverageOn: failedTests
             )
         }
+    }
+
+    /// Whether the coverage run builds every product of the package, the executables too: unless `--test-product` in
+    /// the test command builds that product alone, so that an executable in the build folder may be left from an
+    /// earlier build that neither this run nor the mutants' build makes again.
+    private static func buildsEveryProduct(_ configuration: MuterConfiguration) -> Bool {
+        !configuration.testCommandArguments.contains { $0 == "--test-product" || $0.hasPrefix("--test-product=") }
     }
 
     /// The tests that failed in a coverage run that failed, when the profiles its test processes left can stand in for

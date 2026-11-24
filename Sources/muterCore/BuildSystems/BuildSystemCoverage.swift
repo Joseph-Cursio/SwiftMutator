@@ -36,18 +36,20 @@ extension BuildSystemCoverage {
     /// object with no coverage data, such as an app's stub executable, does no harm while another has some; one that
     /// doesn't exist fails the export. No file is left out: coverage is looked up only for the project's own files.
     /// `llvmCov` is how to run llvm-cov: the executable, and the arguments before llvm-cov's own. `architecture`, if
-    /// given, is the one whose code llvm-cov reads in every object, which it needs for a universal binary.
+    /// given, is the one whose code llvm-cov reads in every object, which it needs for a universal binary. With
+    /// `summaryOnly`, the export holds each file's summary alone, without its functions.
     func llvmCovExport(
         of objects: [String],
         profile: String,
         llvmCov: (executable: String, arguments: [String]),
-        architecture: String? = nil
+        architecture: String? = nil,
+        summaryOnly: Bool = false
     ) async -> Result<Data, CoverageError> {
         let objectArguments = Array(objects.prefix(1)) + objects.dropFirst().flatMap { ["-object", $0] }
         guard let export = await process().runCommand(
             url: llvmCov.executable,
-            arguments: llvmCov.arguments + ["export"] + objectArguments + ["-instr-profile", profile]
-                + (architecture.map { ["-arch", $0] } ?? [])
+            arguments: llvmCov.arguments + ["export"] + (summaryOnly ? ["-summary-only"] : []) + objectArguments
+                + ["-instr-profile", profile] + (architecture.map { ["-arch", $0] } ?? [])
         ) else {
             return .failure(.couldNotRun("llvm-cov"))
         }
