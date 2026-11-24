@@ -2025,10 +2025,14 @@ coverage, those the tests never ran.
   ignores, even if a target compiles it; `--files-to-mutate` can still name it.
 - **What coverage keeps.** With coverage, only the files its data names are kept: those with code in
   a binary the coverage run built, whether the tests ran that code or not. For `swift test` those
-  are the test bundles; for xcodebuild, every product the run built, so an app that UI tests launch
-  counts. That leaves out an example app in no target the tests build, an executable target no test
-  links, and code that runs only in a process the tests start, such as a package's own executable
-  run with `Process`: `--files-to-mutate` with `--skip-coverage` can still name those.
+  are the test bundles, and the tested package's executables that the tests ran as processes, as a
+  test runs a command-line tool with `Process`: one counts when a file of its own executable target
+  ran, and then so do the libraries only it links (unless `--test-product` builds one product
+  alone). One a test target imports is in that test bundle anyway. For xcodebuild, every product
+  the run built, so an app that UI tests launch counts. That leaves out an example app in no target
+  the tests build, and an executable no test runs. A test that runs one with an `environment` of
+  its own, kills it, or leaves it running past the tests' end gets no profile from it, so it counts
+  as not run too: `--files-to-mutate` with `--skip-coverage` can still name those files.
 - **The default excludes.** A path that contains any of these is left out: `/Package.swift`,
   `/Package@swift-`, `/Build/`, `/DerivedData/`, `/Carthage/`, `/Pods/`, `/fastlane/`, `/Spec/`,
   `/Tests/`, `Tests.swift`, `Spec.swift`, `/Mocks/`, `/Stubs/`, `/Fakes/`, `/TestHelpers/`,
