@@ -131,7 +131,7 @@ enum PackageSchemeBuildConditions {
 
     /// Whether xcodebuild, run in `root` with `arguments`, opens the package there: it opens a project or workspace
     /// there before a package, and the one `-project` or `-workspace` names.
-    private static func opensThePackage(
+    static func opensThePackage(
         at root: FilePath,
         with arguments: [String],
         fileManager: FileSystemManager

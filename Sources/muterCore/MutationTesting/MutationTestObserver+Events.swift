@@ -11,9 +11,10 @@ extension MutationTestObserver {
              .projectCoverageDiscoveryFinished, .projectCoverageTestsFailed:
             handleProjectCopyEvent(event)
 
-        case .sourceFileDiscoveryStarted, .packageSourceFilesUnavailable, .coveredFilesNotWalked,
-             .filesToMutateUnmatched, .buildConditionsUnavailable, .sourceFileDiscoveryFinished,
-             .mutationsDiscoveryStarted, .mutationsDiscoveryFinished, .mutantsSelected:
+        case .sourceFileDiscoveryStarted, .sourceFileDiscoveryFinished, .mutationsDiscoveryStarted,
+             .mutationsDiscoveryFinished, .mutantsSelected, .packageSourceFilesUnavailable,
+             .xcodeTargetSourcesUnavailable, .coveredFilesNotWalked, .filesToMutateUnmatched,
+             .buildConditionsUnavailable:
             handleDiscoveryEvent(event)
 
         case .mutantsDropped, .resumePlanned, .mutationTestingStarted, .mutantRunsStarted, .stillTesting,
@@ -117,18 +118,11 @@ extension MutationTestObserver {
         }
     }
 
-    /// What the events of discovery say: the source files, the mutants, and those `--sample` or `--shard` chose.
+    /// What the events of discovery say: the source files, the mutants, and those `--sample` or `--shard` chose, and
+    /// its warnings and notices (`handleDiscoveryNoticeEvent`).
     private func handleDiscoveryEvent(_ event: RunEvent) {
         switch event {
         case .sourceFileDiscoveryStarted: logger.sourceFileDiscoveryStarted()
-
-        case let .packageSourceFilesUnavailable(reason): logger.packageSourceFilesUnavailable(reason: reason)
-
-        case let .filesToMutateUnmatched(entries): logger.filesToMutateUnmatched(entries)
-
-        case let .coveredFilesNotWalked(files): logger.coveredFilesNotWalked(files)
-
-        case let .buildConditionsUnavailable(reason): logger.buildConditionsUnavailable(reason: reason)
 
         case let .sourceFileDiscoveryFinished(sourceFileCandidates):
             logger.sourceFileDiscoveryFinished(sourceFileCandidates: sourceFileCandidates, verbose: runOptions.verbose)
@@ -148,7 +142,7 @@ extension MutationTestObserver {
             )
 
         default:
-            break
+            handleDiscoveryNoticeEvent(event)
         }
     }
 

@@ -43,15 +43,18 @@ struct DiscoverSourceFiles: MutationStep {
         events.send(.sourceFileDiscoveryStarted)
 
         var listed = state.candidatePaths
-        var walked = false
+        if let paths = listed, let walk = state.candidateWalk {
+            listed = paths + coveredSwiftFiles(in: walk, notIn: paths, in: state)
+        }
         if listed == nil, state.filesToMutate.isEmpty {
             let candidates = try await listedCandidates(in: state)
-            (listed, walked) = (candidates.paths, candidates.walked)
-        }
-        if walked {
-            let notWalked = coveredSwiftFiles(notIn: listed ?? [], in: state)
-            if !notWalked.isEmpty {
-                events.send(.coveredFilesNotWalked(notWalked))
+            listed = candidates.paths
+            if let walk = candidates.walk {
+                let notWalked = coveredSwiftFiles(notIn: walk, in: state)
+                if !notWalked.isEmpty {
+                    events.send(.coveredFilesNotWalked(notWalked))
+                }
+                listed = candidates.paths + coveredSwiftFiles(in: walk, notIn: candidates.paths, in: state)
             }
         }
         let sourceFileCandidates: [FilePath]
@@ -143,28 +146,50 @@ struct DiscoverSourceFiles: MutationStep {
     /// The paths in the mutated project, relative to it, that discovery picks from. For a SwiftPM project, tested by
     /// `swift test` or by xcodebuild opening the package, the Swift files that the targets its tests reach compile, in
     /// it and in the local packages in it that it depends on, as `swift package describe` gives them
-    /// (`SwiftPackageSources.files`). Otherwise, or if that fails, every path in the project that isn't hidden or
-    /// ignored.
-    func candidatePaths(in state: AnyMutationTestState) async throws -> [FilePath] {
-        try await listedCandidates(in: state).paths
-    }
-
-    /// `candidatePaths`, and whether they come from the walk of the project rather than from describe.
-    private func listedCandidates(in state: AnyMutationTestState) async throws -> (paths: [FilePath], walked: Bool) {
+    /// (`SwiftPackageSources.files`). For an Xcode project or workspace that xcodebuild tests, the paths in the
+    /// project that aren't hidden or ignored, less the Swift files no target under test compiles
+    /// (`XcodeTargetSources`); `run` adds back those the coverage names. Otherwise, or if either listing fails, every
+    /// path in the project that isn't hidden or ignored. With them, the walk of the project, when they come from it
+    /// rather than from describe, so that a file the narrowing left out can be named or kept by coverage.
+    func listedCandidates(
+        in state: AnyMutationTestState
+    ) async throws -> (paths: [FilePath], walk: [FilePath]?) {
         let rootPath = state.mutatedProjectDirectoryURL.path
-        if let describedBy = await packageDescriber(inProjectAt: rootPath, testedBy: state.muterConfiguration) {
+        let configuration = state.muterConfiguration
+        if let describedBy = await packageDescriber(inProjectAt: rootPath, testedBy: configuration) {
             switch await packageSourceFiles(inProjectAt: rootPath, testedBy: describedBy) {
             case let .success(files):
-                return (files, false)
+                return (files, nil)
 
             case let .failure(failure):
                 // A describe that stopping the run killed reads as failed, and no warning is due.
                 try Task.checkCancellation()
                 events.send(.packageSourceFilesUnavailable(reason: failure.reason))
+                let walk = await pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
+                return (walk, walk)
             }
         }
 
-        return (await pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL), true)
+        let walk = await pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
+        // A package xcodebuild opens has no project file, and one whose `swift` couldn't be found is walked as before.
+        guard configuration.buildSystem == .xcodebuild,
+              configuration.testCommandExecutable.lastPathComponent == "xcodebuild",
+              !PackageSchemeBuildConditions.opensThePackage(
+                  at: rootPath,
+                  with: configuration.testCommandArguments,
+                  fileManager: fileManager
+              )
+        else {
+            return (walk, walk)
+        }
+        switch XcodeTargetSources.listing(inProjectAt: rootPath, testedBy: configuration, fileManager: fileManager) {
+        case let .success(listing):
+            return (walk.filter { !$0.hasSuffix(".swift") || listing.contains(rootPath + "/" + $0) }, walk)
+
+        case let .failure(failure):
+            events.send(.xcodeTargetSourcesUnavailable(reason: failure.reason))
+            return (walk, walk)
+        }
     }
 
     /// The test command to describe the package with, for the forwarded options and the package it names: the

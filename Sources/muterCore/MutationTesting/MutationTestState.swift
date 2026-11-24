@@ -49,6 +49,9 @@ protocol AnyMutationTestState: AnyObject {
     /// The paths in the mutated project, relative to it, that discovery picks from, once listed before coverage is
     /// gathered, as a `--since` run lists them; nil until then, when discovery lists them itself.
     var candidatePaths: [FilePath]? { get }
+    /// The walk of the project those were narrowed from, as for an Xcode project's targets' files, so that discovery
+    /// can keep a file the coverage names that the narrowing left out; nil when they weren't narrowed.
+    var candidateWalk: [FilePath]? { get }
     /// The test plan the run tests; nil until it is loaded, and in a run that tests none.
     var testPlan: LoadedTestPlan? { get }
     /// The one mutant `--mutant` chose, which is then the only one in `mutationMapping`; nil without `--mutant`, and
@@ -110,6 +113,7 @@ final class MutationTestState: AnyMutationTestState {
     var sampleSelection: SampleSelection?
     var keysLeftOutOfTheSample: Set<MutantKey> = []
     var candidatePaths: [FilePath]?
+    var candidateWalk: [FilePath]?
     var testPlan: LoadedTestPlan?
     var selectedMutant: MutantKey?
     var preparedSources: [FilePath: String] = [:]
@@ -154,6 +158,7 @@ final class MutationTestState: AnyMutationTestState {
         case sampleSelected(SampleSelection)
         case sampleLeftOut(Set<MutantKey>)
         case candidatePathsListed([FilePath])
+        case candidateWalkListed([FilePath])
         case testPlanLoaded(LoadedTestPlan)
         case mutantSelected(MutantKey)
         case operatorsChosen(MutationOperatorList)
@@ -186,8 +191,8 @@ final class MutationTestState: AnyMutationTestState {
              .changesSelected, .shardSelected, .sampleSelected, .sampleLeftOut:
             applySelectionChange(change)
 
-        case .candidatePathsListed, .testPlanLoaded, .mutantSelected, .operatorsChosen, .preparedSourcesKept,
-             .mutantsLeftOutOfTheBuild, .baselineFileLoaded:
+        case .candidatePathsListed, .candidateWalkListed, .testPlanLoaded, .mutantSelected, .operatorsChosen,
+             .preparedSourcesKept, .mutantsLeftOutOfTheBuild, .baselineFileLoaded:
             applyPlanChange(change)
 
         case .mutantsNotSelected, .uncoveredSourceFilesDiscovered, .mutantsNotCovered:
@@ -294,6 +299,9 @@ final class MutationTestState: AnyMutationTestState {
         switch change {
         case let .candidatePathsListed(paths):
             candidatePaths = paths
+
+        case let .candidateWalkListed(paths):
+            candidateWalk = paths
 
         case let .testPlanLoaded(plan):
             testPlan = plan

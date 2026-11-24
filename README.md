@@ -2017,11 +2017,21 @@ coverage, those the tests never ran.
   every target counts. Test,
   plugin and snippet targets' files aren't included, nor files that a link to a folder leads
   outside the project to. The same goes for a package that xcodebuild opens, with no project or
-  workspace beside it, described by that Xcode's `swift`. For an Xcode project or workspace
-  ([#346](https://github.com/Joseph-Cursio/SwiftMutator/issues/346)), a wrapper script, or when
-  describe can't list the files, as when `--package-path` names a package outside the project,
-  they are the project's Swift files, less those in hidden folders or hidden themselves and, in a
-  git repository, those git ignores. That leaves out a source a build step generates and git
+  workspace beside it, described by that Xcode's `swift`. For an Xcode project or workspace, the
+  project's Swift files, less those in hidden folders or hidden themselves and, in a git
+  repository, those git ignores, that a target compiles, as its project files say: a target's
+  Sources phase, the folders synced with its groups less the files their exceptions take out, and
+  a local package's folder whole, its tests included, with the local packages it depends on.
+  Otherwise not a file only a test target compiles, which is a test file, nor one no target
+  compiles, as an example's or a script's. That reads the workspace or project
+  the test command opens, and the projects it references; when it can't tell, as for a target an
+  external tool builds or a project file it can't read, a warning says so and every one of those
+  files counts. A run with coverage keeps any file the coverage names too, and with `--since`,
+  a change only to a file the targets leave out ends the run before coverage only when coverage
+  is skipped. For a wrapper script,
+  or when describe can't list the files, as when `--package-path` names a package outside the
+  project, they are the project's Swift files, less those in hidden folders or hidden themselves
+  and, in a git repository, those git ignores. That leaves out a source a build step generates and git
   ignores, even if a target compiles it, and a notice names those the coverage run built (the
   first five, then how many more); `--files-to-mutate` can still name it.
 - **A build step that writes a mutated file.** A Run Script phase that generates code, such as

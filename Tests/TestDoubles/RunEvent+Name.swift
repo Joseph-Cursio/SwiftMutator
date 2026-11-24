@@ -23,6 +23,7 @@ extension RunEvent {
         case sourceFileDiscoveryStarted
         case packageSourceFilesUnavailable
         case coveredFilesNotWalked
+        case xcodeTargetSourcesUnavailable
         case buildConditionsUnavailable
         case filesToMutateUnmatched
         case sourceFileDiscoveryFinished
@@ -108,6 +109,7 @@ extension RunEvent {
         case .sourceFileDiscoveryStarted: .sourceFileDiscoveryStarted
         case .packageSourceFilesUnavailable: .packageSourceFilesUnavailable
         case .coveredFilesNotWalked: .coveredFilesNotWalked
+        case .xcodeTargetSourcesUnavailable: .xcodeTargetSourcesUnavailable
         case .buildConditionsUnavailable: .buildConditionsUnavailable
         case .filesToMutateUnmatched: .filesToMutateUnmatched
         case .sourceFileDiscoveryFinished: .sourceFileDiscoveryFinished
@@ -201,6 +203,7 @@ extension RunEvent {
         case let .projectCoverageTestsFailed(failed): failed
         case let .packageSourceFilesUnavailable(reason): reason
         case let .coveredFilesNotWalked(files): files
+        case let .xcodeTargetSourcesUnavailable(reason): reason
         case let .buildConditionsUnavailable(reason): reason
         case let .filesToMutateUnmatched(entries): entries
         case let .sourceFileDiscoveryFinished(sourceFileCandidates): sourceFileCandidates

@@ -1,10 +1,12 @@
 import Foundation
 
 /// A project file's objects, and where its files and groups are.
-private struct ProjectFile {
+struct ProjectFile {
     let objects: [String: [String: Any]]
     private let mainGroup: String
-    private let sourceRoot: FilePath
+    /// The folder the project's paths are relative to: the one that holds the `.xcodeproj`, unless the project moves
+    /// it.
+    let sourceRoot: FilePath
     /// Each object's groups: one, in a project file Xcode wrote.
     private let parents: [String: Set<String>]
 

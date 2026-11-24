@@ -60,6 +60,22 @@ extension DiscoverSourceFiles {
         .sorted()
     }
 
+    /// The Swift files of `walk` that the coverage data names but `listed` leaves out, as `XcodeTargetSources` would
+    /// if it missed a file a target compiles: a run with coverage keeps every file its data names that the walk keeps.
+    func coveredSwiftFiles(
+        in walk: [FilePath],
+        notIn listed: [FilePath],
+        in state: AnyMutationTestState
+    ) -> [FilePath] {
+        guard let covered = state.projectCoverage.filesInCoverage, walk.count != listed.count else { return [] }
+        let root = state.mutatedProjectDirectoryURL.path
+        let isCovered = anyOf(covered, root: root)
+        let kept = Set(listed)
+        return walk.filter { path in
+            !kept.contains(path) && swiftFiles(path: path) && isCovered(RepoRelativePath.resolve(path, under: root))
+        }
+    }
+
     /// The Swift files to mutate among `candidatePaths`, and those coverage leaves out as a whole, whose mutants are
     /// counted as not covered.
     func discoverSourceFiles(
