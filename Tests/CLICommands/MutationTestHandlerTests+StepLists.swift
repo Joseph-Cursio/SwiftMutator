@@ -6,7 +6,7 @@ extension MutationTestHandlerTests {
     func test_allSteps() {
         sut = MutationTestHandler(options: .make())
 
-        XCTAssertEqual(sut.steps.count, 18)
+        XCTAssertEqual(sut.steps.count, 19)
 
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
@@ -28,13 +28,15 @@ extension MutationTestHandlerTests {
         XCTAssertTypeEqual(sut.steps[safe: 14], ApplySchemata.self)
         XCTAssertTypeEqual(sut.steps[safe: 15], CheckMutantSwitches.self)
         XCTAssertTypeEqual(sut.steps[safe: 16], BuildForTesting.self)
-        XCTAssertTypeEqual(sut.steps[safe: 17], PerformMutationTesting.self)
+        // Once a build step that writes the project's sources has run.
+        XCTAssertTypeEqual(sut.steps[safe: 17], CheckMutantSwitchesAfterTheBuild.self)
+        XCTAssertTypeEqual(sut.steps[safe: 18], PerformMutationTesting.self)
     }
 
     func test_steps_whenResuming() {
         sut = MutationTestHandler(options: .make(resumeURL: URL(fileURLWithPath: "/logs/results.jsonl")))
 
-        XCTAssertEqual(sut.steps.count, 19)
+        XCTAssertEqual(sut.steps.count, 20)
 
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
@@ -47,7 +49,7 @@ extension MutationTestHandlerTests {
         XCTAssertTypeEqual(sut.steps[safe: 8], FingerprintProjectTree.self)
         XCTAssertTypeEqual(sut.steps[safe: 9], TurnOffSwiftLintPhases.self)
         XCTAssertTypeEqual(sut.steps[safe: 14], PruneLogFolders.self)
-        XCTAssertTypeEqual(sut.steps[safe: 18], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 19], PerformMutationTesting.self)
     }
 
     // A reuse loads the earlier run's results file where a resume does, so it's refused as early.
@@ -80,7 +82,7 @@ extension MutationTestHandlerTests {
             )
         )
 
-        XCTAssertEqual(sut.steps.count, 13)
+        XCTAssertEqual(sut.steps.count, 14)
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
         XCTAssertTypeEqual(sut.steps[safe: 2], LoadMuterTestPlan.self)
@@ -96,8 +98,9 @@ extension MutationTestHandlerTests {
         // Once the plan's code and copy can no longer refuse the run.
         XCTAssertTypeEqual(sut.steps[safe: 9], PruneLogFolders.self)
         XCTAssertTypeEqual(sut.steps[safe: 10], BuildForTesting.self)
-        XCTAssertTypeEqual(sut.steps[safe: 11], ProjectMappings.self)
-        XCTAssertTypeEqual(sut.steps[safe: 12], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], CheckMutantSwitchesAfterTheBuild.self)
+        XCTAssertTypeEqual(sut.steps[safe: 12], ProjectMappings.self)
+        XCTAssertTypeEqual(sut.steps[safe: 13], PerformMutationTesting.self)
     }
 
     func test_steps_whenRunWithoutMutating_resumes() throws {
@@ -108,7 +111,7 @@ extension MutationTestHandlerTests {
             )
         )
 
-        XCTAssertEqual(sut.steps.count, 14)
+        XCTAssertEqual(sut.steps.count, 15)
         XCTAssertTypeEqual(sut.steps[safe: 2], LoadMuterTestPlan.self)
         XCTAssertTypeEqual(sut.steps[safe: 3], LoadBaselineFile.self)
         XCTAssertTypeEqual(sut.steps[safe: 4], CheckTestPlanSources.self)
@@ -120,7 +123,7 @@ extension MutationTestHandlerTests {
         XCTAssertTypeEqual(sut.steps[safe: 9], FingerprintProjectTree.self)
         // A changed copy refuses the resume, before any folder is removed.
         XCTAssertTypeEqual(sut.steps[safe: 10], PruneLogFolders.self)
-        XCTAssertTypeEqual(sut.steps[safe: 13], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 14], PerformMutationTesting.self)
     }
 
     // The copy gets only that mutant's switch, and the rest of the run is a whole run's, but for pruning log folders:
@@ -147,7 +150,7 @@ extension MutationTestHandlerTests {
             )
         )
 
-        XCTAssertEqual(sut.steps.count, 13)
+        XCTAssertEqual(sut.steps.count, 14)
         XCTAssertTypeEqual(sut.steps[safe: 2], LoadMuterTestPlan.self)
         XCTAssertTypeEqual(sut.steps[safe: 3], LoadBaselineFile.self)
         XCTAssertTypeEqual(sut.steps[safe: 4], SelectMutant.self)
@@ -155,7 +158,7 @@ extension MutationTestHandlerTests {
         XCTAssertTypeEqual(sut.steps[safe: 6], LockMutatedProject.self)
         // No pruning: a run of one mutant never removes other runs' log folders.
         XCTAssertTypeEqual(sut.steps[safe: 7], CheckTestPlanCode.self)
-        XCTAssertTypeEqual(sut.steps[safe: 12], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 13], PerformMutationTesting.self)
     }
 
     func test_steps_withoutMutant_haveNoSelectMutant() {

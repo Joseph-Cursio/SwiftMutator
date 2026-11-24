@@ -11,7 +11,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
         super.operatorsToDiscoverWith.filter { $0 != .replaceBooleanValue }
     }
 
-    private let state = MutationTestState()
+    let state = MutationTestState()
     private let sut = CheckMutantSwitches()
 
     func test_whenEveryMutantHasItsSwitch_thenItPasses() throws {
@@ -145,7 +145,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
 
     // MARK: - Helpers
 
-    private struct MutatedFile {
+    struct MutatedFile {
         let mapping: SchemataMutationMapping
         let original: String
         let rewritten: String
@@ -153,7 +153,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
 
     /// A file of the mutated project holding several mutants, before and after this SwiftMutator inserts their
     /// switches.
-    private func mutatedFile(named name: String) throws -> MutatedFile {
+    func mutatedFile(named name: String) throws -> MutatedFile {
         let source = SourceCodeInfo(
             path: "/path/to/muted/Sources/\(name).swift",
             code: Parser.parse(source: """
@@ -176,7 +176,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
     }
 
     /// The code the next file read holds, in the order the mappings are read.
-    private func queueCode(_ code: String) {
+    func queueCode(_ code: String) {
         fileManager.fileContentsToReturn = Data(code.utf8)
     }
 }

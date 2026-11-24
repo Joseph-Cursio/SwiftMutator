@@ -47,6 +47,9 @@ enum RunEvent {
     /// Why the Swift files a SwiftPM package's targets compile couldn't be listed, so discovery looks in the whole
     /// project.
     case packageSourceFilesUnavailable(reason: String)
+    /// The Swift files, relative to the project, that the coverage data names but the walk of the project leaves out:
+    /// git ignores them, they are hidden, or only the coverage run's build made them in the copy.
+    case coveredFilesNotWalked([FilePath])
     /// Why SwiftMutator can't tell which `#if` branches the build compiles.
     case buildConditionsUnavailable(reason: String)
     /// The `--files-to-mutate` entries that leave no file to mutate.

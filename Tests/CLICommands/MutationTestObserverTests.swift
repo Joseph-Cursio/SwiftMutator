@@ -84,6 +84,18 @@ final class MutationTestObserverTests: MuterTestCase {
         ])
     }
 
+    // Named one per line, the first few of them.
+    func test_coveredFilesTheWalkLeftOut_reachTheLogger() throws {
+        try sut.start()
+
+        runEvents.send(.coveredFilesNotWalked((1 ... 7).map { "Generated/File\($0).swift" }))
+
+        let line = try XCTUnwrap(printer.linesPassed.first)
+        XCTAssertTrue(line.hasPrefix("ℹ️ 7 Swift files the coverage run built aren't mutated, as git ignores"), line)
+        XCTAssertTrue(line.contains("\n  Generated/File1.swift\n"), line)
+        XCTAssertTrue(line.hasSuffix("\n  Generated/File5.swift\n  and 2 more"), line)
+    }
+
     func test_whyThePackagesSourceFilesCouldntBeListed_reachesTheLogger() throws {
         try sut.start()
 

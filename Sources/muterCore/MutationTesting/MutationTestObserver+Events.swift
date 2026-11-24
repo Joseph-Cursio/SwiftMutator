@@ -11,9 +11,9 @@ extension MutationTestObserver {
              .projectCoverageDiscoveryFinished, .projectCoverageTestsFailed:
             handleProjectCopyEvent(event)
 
-        case .sourceFileDiscoveryStarted, .packageSourceFilesUnavailable, .filesToMutateUnmatched,
-             .buildConditionsUnavailable, .sourceFileDiscoveryFinished, .mutationsDiscoveryStarted,
-             .mutationsDiscoveryFinished, .mutantsSelected:
+        case .sourceFileDiscoveryStarted, .packageSourceFilesUnavailable, .coveredFilesNotWalked,
+             .filesToMutateUnmatched, .buildConditionsUnavailable, .sourceFileDiscoveryFinished,
+             .mutationsDiscoveryStarted, .mutationsDiscoveryFinished, .mutantsSelected:
             handleDiscoveryEvent(event)
 
         case .mutantsDropped, .resumePlanned, .mutationTestingStarted, .mutantRunsStarted, .stillTesting,
@@ -125,6 +125,8 @@ extension MutationTestObserver {
         case let .packageSourceFilesUnavailable(reason): logger.packageSourceFilesUnavailable(reason: reason)
 
         case let .filesToMutateUnmatched(entries): logger.filesToMutateUnmatched(entries)
+
+        case let .coveredFilesNotWalked(files): logger.coveredFilesNotWalked(files)
 
         case let .buildConditionsUnavailable(reason): logger.buildConditionsUnavailable(reason: reason)
 

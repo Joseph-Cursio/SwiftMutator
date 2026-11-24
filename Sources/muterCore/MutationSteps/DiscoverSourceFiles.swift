@@ -43,8 +43,16 @@ struct DiscoverSourceFiles: MutationStep {
         events.send(.sourceFileDiscoveryStarted)
 
         var listed = state.candidatePaths
+        var walked = false
         if listed == nil, state.filesToMutate.isEmpty {
-            listed = try await candidatePaths(in: state)
+            let candidates = try await listedCandidates(in: state)
+            (listed, walked) = (candidates.paths, candidates.walked)
+        }
+        if walked {
+            let notWalked = coveredSwiftFiles(notIn: listed ?? [], in: state)
+            if !notWalked.isEmpty {
+                events.send(.coveredFilesNotWalked(notWalked))
+            }
         }
         let sourceFileCandidates: [FilePath]
         let uncovered: [FilePath]
@@ -138,11 +146,16 @@ struct DiscoverSourceFiles: MutationStep {
     /// (`SwiftPackageSources.files`). Otherwise, or if that fails, every path in the project that isn't hidden or
     /// ignored.
     func candidatePaths(in state: AnyMutationTestState) async throws -> [FilePath] {
+        try await listedCandidates(in: state).paths
+    }
+
+    /// `candidatePaths`, and whether they come from the walk of the project rather than from describe.
+    private func listedCandidates(in state: AnyMutationTestState) async throws -> (paths: [FilePath], walked: Bool) {
         let rootPath = state.mutatedProjectDirectoryURL.path
         if let describedBy = await packageDescriber(inProjectAt: rootPath, testedBy: state.muterConfiguration) {
             switch await packageSourceFiles(inProjectAt: rootPath, testedBy: describedBy) {
             case let .success(files):
-                return files
+                return (files, false)
 
             case let .failure(failure):
                 // A describe that stopping the run killed reads as failed, and no warning is due.
@@ -151,7 +164,7 @@ struct DiscoverSourceFiles: MutationStep {
             }
         }
 
-        return await pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
+        return (await pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL), true)
     }
 
     /// The test command to describe the package with, for the forwarded options and the package it names: the
