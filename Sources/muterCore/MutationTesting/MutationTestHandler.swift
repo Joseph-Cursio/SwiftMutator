@@ -159,6 +159,8 @@ private extension [MutationStep] {
             ApplySchemata(),
             CheckMutantSwitches(),
             BuildForTesting(),
+            // Once the build has run any step that writes the project's sources.
+            CheckMutantSwitchesAfterTheBuild(),
             ProjectMappings(),
             PerformMutationTesting(),
         ]
@@ -190,6 +192,8 @@ private extension [MutationStep] {
             // Once nothing can refuse the run: the plan's code and its copy are checked, and a resume's copy compared.
             PruneLogFolders(),
             BuildForTesting(),
+            // Once the build has run any step that writes the project's sources.
+            CheckMutantSwitchesAfterTheBuild(),
             ProjectMappings(),
             PerformMutationTesting(),
         ]

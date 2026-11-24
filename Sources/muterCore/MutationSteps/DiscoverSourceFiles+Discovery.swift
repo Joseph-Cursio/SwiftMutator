@@ -37,6 +37,29 @@ extension DiscoverSourceFiles {
         return paths.filter { notIgnored.contains($0) || renamedInCase.contains($0.lowercased()) }
     }
 
+    /// The Swift files, relative to the project, that the coverage data names but the walk of the project leaves out,
+    /// `listed` being what it kept: git ignores them, they are hidden, or only the build made them, as a source a build
+    /// step generates often is. Not those the excludes leave out, nor the packages' checkouts in a `SourcePackages`
+    /// folder in the project, as `-clonedSourcePackagesDirPath` can put them, nor any when the run has no coverage
+    /// data. A file the walk lists by another spelling, as of its case, is one it kept.
+    func coveredSwiftFiles(notIn listed: [FilePath], in state: AnyMutationTestState) -> [FilePath] {
+        guard let covered = state.projectCoverage.filesInCoverage else { return [] }
+        let root = state.mutatedProjectDirectoryURL
+        let walked = Set(listed)
+        let walkedOnDisk = Set(listed.filter(swiftFiles(path:)).map { path in
+            RepoRelativePath.resolve(path, under: root.path).canonicalPath
+        })
+        let isExcluded = SourceFileExcludes.matcher(state.muterConfiguration.excludeFileList)
+        let paths = Set(covered.map { RepoRelativePath.of($0, under: root) })
+        return paths.filter { path in
+            let onDisk = RepoRelativePath.resolve(path, under: root.path)
+            return !path.hasPrefix("/") && swiftFiles(path: path) && !walked.contains(path) && !isExcluded(path)
+                && !path.split(separator: "/").contains("SourcePackages")
+                && fileManager.fileExists(atPath: onDisk) && !walkedOnDisk.contains(onDisk.canonicalPath)
+        }
+        .sorted()
+    }
+
     /// The Swift files to mutate among `candidatePaths`, and those coverage leaves out as a whole, whose mutants are
     /// counted as not covered.
     func discoverSourceFiles(

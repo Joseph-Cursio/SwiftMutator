@@ -2022,7 +2022,16 @@ coverage, those the tests never ran.
   describe can't list the files, as when `--package-path` names a package outside the project,
   they are the project's Swift files, less those in hidden folders or hidden themselves and, in a
   git repository, those git ignores. That leaves out a source a build step generates and git
-  ignores, even if a target compiles it; `--files-to-mutate` can still name it.
+  ignores, even if a target compiles it, and a notice names those the coverage run built (the
+  first five, then how many more); `--files-to-mutate` can still name it.
+- **A build step that writes a mutated file.** A Run Script phase that generates code, such as
+  SwiftGen's or Sourcery's, or copies a template over a file, can write it again after
+  SwiftMutator mutated it, taking its mutants' switches with it: their tests would run the
+  original code and survive. After xcodebuild's build for testing, SwiftMutator reads every
+  mutated file back, and stops if one lost a switch, naming the file. Leave it out with `exclude`,
+  or have the phase skip SwiftMutator's builds: xcodebuild passes a build setting in `arguments`,
+  such as `SWIFTMUTATOR=YES`, to Run Script phases as an environment variable. A test plan is
+  then made again, as `run-without-mutating` reads no `exclude`.
 - **What coverage keeps.** With coverage, only the files its data names are kept: those with code in
   a binary the coverage run built, whether the tests ran that code or not. For `swift test` those
   are the test bundles, and the tested package's executables that the tests ran as processes, as a

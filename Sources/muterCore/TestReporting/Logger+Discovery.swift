@@ -202,6 +202,28 @@ extension Logger {
         )
     }
 
+    /// How many of the covered files the walk leaves out the notice names, before how many more there are.
+    static let coveredFilesNotWalkedNamed = 5
+
+    /// The Swift files the coverage run built that discovery doesn't mutate, as the walk of the project leaves them
+    /// out: git ignores them, they are hidden, or only the build made them. What such a file often is, and how to
+    /// mutate one. Not with `--quiet`.
+    func coveredFilesNotWalked(_ files: [FilePath]) {
+        let one = files.count == 1
+        let named = files.prefix(Self.coveredFilesNotWalkedNamed).map { "  \($0)" }
+        let more = files.count > named.count ? ["  and \(files.count - named.count) more"] : []
+        progress(
+            """
+            ℹ️ \(one ? "1 Swift file" : "\(files.count) Swift files") the coverage run built \
+            \(one ? "isn't" : "aren't") mutated, as git ignores \(one ? "it" : "them"), \
+            \(one ? "it is" : "they are") hidden, or only the build made \(one ? "it" : "them"): a source a build \
+            step generates often is, and that step would overwrite its mutants. \("--files-to-mutate".bold) can name \
+            one no build step writes.
+            """
+                + "\n" + (named + more).joined(separator: "\n")
+        )
+    }
+
     /// How many Swift files there are to analyze, and with `verbose`, each one's name: hundreds of lines on a large
     /// project.
     func sourceFileDiscoveryFinished(sourceFileCandidates: [String], verbose: Bool = false) {
