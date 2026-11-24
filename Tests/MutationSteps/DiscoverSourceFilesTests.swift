@@ -153,9 +153,13 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         var paths: [String] = []
     }
 
-    func target(_ type: String, path: String, sources: [String]) -> String {
-        let sourceList = sources.map { "\"\($0)\"" }.joined(separator: ", ")
-        return #"{"name": "Target", "type": "\#(type)", "path": "\#(path)", "sources": [\#(sourceList)]}"#
+    /// A target as describe gives it, named after its folder, which depends on the targets of its package named in
+    /// `dependsOn`.
+    func target(_ type: String, path: String, sources: [String], dependsOn: [String] = []) -> String {
+        let quoted = { (strings: [String]) in "[" + strings.map { "\"\($0)\"" }.joined(separator: ", ") + "]" }
+        let dependencies = dependsOn.isEmpty ? "" : #", "target_dependencies": \#(quoted(dependsOn))"#
+        return #"{"name": "\#(path.lastPathComponent)", "type": "\#(type)", "path": "\#(path)", "#
+            + #""sources": \#(quoted(sources))\#(dependencies)}"#
     }
 
     func makeProjectWithCoveredAndUncoveredFiles(in directory: String) throws {

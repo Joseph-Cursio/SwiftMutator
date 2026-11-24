@@ -10,8 +10,13 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         let targets = [
             target("executable", path: "Sources/Tool", sources: ["main.swift"]),
             target("macro", path: "Sources/Macros", sources: ["Macros.swift"]),
-            target("test", path: "Tests/LibTests", sources: ["LibTests.swift"]),
-            target("library", path: "Sources/Lib", sources: ["Lib.swift", "Models/Model.swift", "shim.c"]),
+            target("test", path: "Tests/LibTests", sources: ["LibTests.swift"], dependsOn: ["Lib"]),
+            target(
+                "library",
+                path: "Sources/Lib",
+                sources: ["Lib.swift", "Models/Model.swift", "shim.c"],
+                dependsOn: ["Macros"]
+            ),
             target("plugin", path: "Plugins/Generate", sources: ["plugin.swift"]),
             target("snippet", path: "Snippets", sources: ["Snippet.swift"]),
             #"{"name": "Binary", "type": "binary"}"#,
@@ -117,11 +122,17 @@ final class SwiftPackageSourcesTests: MuterTestCase {
             [
                 "/project": [target("library", path: "Sources/Core", sources: ["Core.swift"])],
                 "/project/Integration": [
-                    target("library", path: "Sources/Glue", sources: ["Glue.swift"]),
-                    target("test", path: "Tests/IntegrationTests", sources: ["IntegrationTests.swift"]),
+                    target("library", path: "Sources/Glue", sources: ["Glue.swift"], products: ["Core"]),
+                    target(
+                        "test",
+                        path: "Tests/IntegrationTests",
+                        sources: ["IntegrationTests.swift"],
+                        dependsOn: ["Glue"]
+                    ),
                 ],
             ],
-            dependencies: ["/project/Integration": ["/project"]]
+            dependencies: ["/project/Integration": ["/project"]],
+            products: ["/project": ["Core": ["Core"]]]
         )
 
         let result = await files(in: "/project")
@@ -236,66 +247,6 @@ final class SwiftPackageSourcesTests: MuterTestCase {
                 "what `swift package describe` printed for /project couldn't be read"
             )
         }
-    }
-
-    func files(in root: FilePath) async -> Result<[FilePath], SwiftPackageSources.Failure> {
-        await SwiftPackageSources.files(
-            inProjectAt: root,
-            testedBy: MuterConfiguration(executable: swift, arguments: arguments)
-        ) { [process] in process }
-    }
-
-    /// Answers `swift package describe` of each package path with a description of its `targets`, whose local
-    /// packages are its `dependencies` (nil for a package from a repository), and fails for any other.
-    func describing(_ targets: [String: [String]], dependencies: [String: [String?]] = [:]) {
-        process.commandResult = { command in
-            guard let path = command.firstIndex(of: "--package-path").map({ command[$0 + 1] }),
-                  let packageTargets = targets[path]
-            else {
-                return self.result(status: 1)
-            }
-            return self.result(
-                output: self.description(path: path, targets: packageTargets, dependencies: dependencies[path] ?? [])
-            )
-        }
-    }
-
-    /// A description as `swift package describe --type json` gives it.
-    func description(path: String, targets: [String], dependencies: [String?] = []) -> String {
-        let dependencyEntries = dependencies.map { path in
-            path.map { #"{"identity": "local", "path": "\#($0)", "type": "fileSystem"}"# }
-                ?? #"{"identity": "remote", "type": "sourceControl", "url": "https://example.com/remote.git"}"#
-        }
-        return """
-        {"name": "Project", "path": "\(path)", "dependencies": [\(dependencyEntries.joined(separator: ", "))],
-         "targets": [\(targets.joined(separator: ", "))]}
-        """
-    }
-
-    func target(_ type: String, path: String, sources: [String]) -> String {
-        let sourceList = sources.map { "\"\($0)\"" }.joined(separator: ", ")
-        return #"{"name": "Target", "type": "\#(type)", "path": "\#(path)", "sources": [\#(sourceList)]}"#
-    }
-
-    func makePackage(in directory: String, manifest: String, files: [String]) throws {
-        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
-        try manifest.write(toFile: directory + "/Package.swift", atomically: true, encoding: .utf8)
-        try makeFiles(files, in: directory)
-    }
-
-    func makeFiles(_ files: [String], in directory: String) throws {
-        for file in files {
-            let path = directory + "/" + file
-            try FileManager.default.createDirectory(
-                atPath: path.deletingLastPathComponent,
-                withIntermediateDirectories: true
-            )
-            try "let value = 1\n".write(toFile: path, atomically: true, encoding: .utf8)
-        }
-    }
-
-    func result(status: Int32 = 0, output: String = "", errors: String = "") -> CommandResult {
-        CommandResult(status: status, endedBySignal: false, output: output, errors: errors)
     }
 }
 

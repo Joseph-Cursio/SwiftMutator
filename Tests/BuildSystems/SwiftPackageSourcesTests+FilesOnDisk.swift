@@ -45,7 +45,7 @@ extension SwiftPackageSourcesTests {
     }
 
     // SwiftPM's own description of a package on disk, whose local package's path it gives with links resolved, and the
-    // project's through a link, as a project in `/tmp` is.
+    // project's through a link, as a project in `/tmp` is, and the dependencies and products the tests reach through.
     func test_aRealPackage() async throws {
         let swiftPath = "/usr/bin/swift"
         try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: swiftPath), "no \(swiftPath)")
@@ -61,19 +61,40 @@ extension SwiftPackageSourcesTests {
                 dependencies: [.package(path: "Packages/Core")],
                 targets: [
                     .target(name: "Lib", dependencies: [.product(name: "Core", package: "Core")]),
-                    .executableTarget(name: "Tool"),
+                    .executableTarget(name: "Tool", dependencies: ["ToolKit"]),
+                    .target(name: "ToolKit"),
+                    .target(name: "Unused"),
                     .plugin(name: "Generate", capability: .buildTool()),
                     .testTarget(name: "LibTests", dependencies: ["Lib"]),
                 ]
             )
             """,
             files: [
-                "Sources/Lib/Lib.swift", "Sources/Tool/main.swift", "Plugins/Generate/plugin.swift",
-                "Tests/LibTests/LibTests.swift", "ExampleCode/Example.swift",
+                "Sources/Lib/Lib.swift", "Sources/Tool/main.swift", "Sources/ToolKit/ToolKit.swift",
+                "Sources/Unused/Unused.swift", "Plugins/Generate/plugin.swift", "Tests/LibTests/LibTests.swift",
+                "ExampleCode/Example.swift",
             ]
         )
+        try makeCorePackage(in: directory + "/Packages/Core")
+
+        let files = await SwiftPackageSources.files(
+            inProjectAt: link,
+            testedBy: MuterConfiguration(executable: swiftPath, arguments: ["test"])
+        ) { MuterProcessFactory.makeProcess() }
+
+        // Unused and CoreExtras are in no target the package's tests reach, nor is ExampleCode.
+        XCTAssertEqual(files, .success([
+            "Packages/Core/Sources/Core/Core.swift",
+            "Sources/Lib/Lib.swift",
+            "Sources/Tool/main.swift",
+            "Sources/ToolKit/ToolKit.swift",
+        ]))
+    }
+
+    /// A package with a library product, whose own tests reach a target the product doesn't hold.
+    private func makeCorePackage(in directory: String) throws {
         try makePackage(
-            in: directory + "/Packages/Core",
+            in: directory,
             manifest: """
             // swift-tools-version:5.9
             import PackageDescription
@@ -81,21 +102,14 @@ extension SwiftPackageSourcesTests {
             let package = Package(
                 name: "Core",
                 products: [.library(name: "Core", targets: ["Core"])],
-                targets: [.target(name: "Core"), .testTarget(name: "CoreTests", dependencies: ["Core"])]
+                targets: [
+                    .target(name: "Core"),
+                    .target(name: "CoreExtras"),
+                    .testTarget(name: "CoreTests", dependencies: ["Core", "CoreExtras"]),
+                ]
             )
             """,
-            files: ["Sources/Core/Core.swift", "Tests/CoreTests/CoreTests.swift"]
+            files: ["Sources/Core/Core.swift", "Sources/CoreExtras/Extras.swift", "Tests/CoreTests/CoreTests.swift"]
         )
-
-        let files = await SwiftPackageSources.files(
-            inProjectAt: link,
-            testedBy: MuterConfiguration(executable: swiftPath, arguments: ["test"])
-        ) { MuterProcessFactory.makeProcess() }
-
-        XCTAssertEqual(files, .success([
-            "Packages/Core/Sources/Core/Core.swift",
-            "Sources/Lib/Lib.swift",
-            "Sources/Tool/main.swift",
-        ]))
     }
 }

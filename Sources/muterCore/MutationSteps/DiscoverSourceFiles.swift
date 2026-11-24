@@ -132,13 +132,15 @@ struct DiscoverSourceFiles: MutationStep {
         }
     }
 
-    /// The paths in the mutated project, relative to it, that discovery picks from. For a SwiftPM project, the Swift
-    /// files its targets compile, and those of the local packages in it that it depends on, as `swift package describe`
-    /// gives them. Otherwise, or if that fails, every path in the project that isn't hidden or ignored.
+    /// The paths in the mutated project, relative to it, that discovery picks from. For a SwiftPM project, tested by
+    /// `swift test` or by xcodebuild opening the package, the Swift files that the targets its tests reach compile, in
+    /// it and in the local packages in it that it depends on, as `swift package describe` gives them
+    /// (`SwiftPackageSources.files`). Otherwise, or if that fails, every path in the project that isn't hidden or
+    /// ignored.
     func candidatePaths(in state: AnyMutationTestState) async throws -> [FilePath] {
         let rootPath = state.mutatedProjectDirectoryURL.path
-        if state.muterConfiguration.buildSystem == .swift {
-            switch await packageSourceFiles(inProjectAt: rootPath, testedBy: state.muterConfiguration) {
+        if let describedBy = await packageDescriber(inProjectAt: rootPath, testedBy: state.muterConfiguration) {
+            switch await packageSourceFiles(inProjectAt: rootPath, testedBy: describedBy) {
             case let .success(files):
                 return files
 
@@ -150,5 +152,30 @@ struct DiscoverSourceFiles: MutationStep {
         }
 
         return await pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
+    }
+
+    /// The test command to describe the package with, for the forwarded options and the package it names: the
+    /// configuration's own for SwiftPM; for xcodebuild opening a package, `swift test` with the same Xcode's `swift`
+    /// (`PackageSchemeBuildConditions.swiftOfThePackage`); nil for any other, or when that `swift` can't be found.
+    private func packageDescriber(
+        inProjectAt rootPath: FilePath,
+        testedBy configuration: MuterConfiguration
+    ) async -> MuterConfiguration? {
+        switch configuration.buildSystem {
+        case .swift:
+            return configuration
+
+        case .xcodebuild:
+            let swift = await PackageSchemeBuildConditions.swiftOfThePackage(
+                inProjectAt: rootPath,
+                testedBy: configuration,
+                process: process,
+                fileManager: fileManager
+            )
+            return swift.map { MuterConfiguration(executable: $0, arguments: ["test"]) }
+
+        case .unknown:
+            return nil
+        }
     }
 }

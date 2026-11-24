@@ -18,7 +18,7 @@ extension DiscoverSourceFilesTests {
         )
         describing(project, as: [
             target("library", path: "Sources/Lib", sources: ["Lib.swift"]),
-            target("test", path: "Tests/LibTests", sources: ["LibTests.swift"]),
+            target("test", path: "Tests/LibTests", sources: ["LibTests.swift"], dependsOn: ["Lib"]),
         ])
         let describedIn = workingDirectoriesOfDescribe()
         let workingDirectory = FileManager.default.currentDirectoryPath
@@ -163,5 +163,60 @@ extension DiscoverSourceFilesTests {
         let result = try await sut.run(with: state)
 
         XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/Sources/Lib/Lib.swift"])])
+    }
+
+    // xcodebuild opening a package builds the same targets `swift test` does, so the same Xcode's `swift` describes
+    // them: an example's files, and an unused target's, are left out as they are for SwiftPM.
+    func test_aPackageTestedThroughXcodebuild_onlyTheFilesOfTheTargetsItsTestsReach() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(
+            ["Package.swift", "Sources/Lib/Lib.swift", "Sources/Unused/Unused.swift", "ExampleCode/Example.swift"],
+            in: project
+        )
+        let swift = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift"
+        describing(project, as: [
+            target("library", path: "Sources/Lib", sources: ["Lib.swift"]),
+            target("library", path: "Sources/Unused", sources: ["Unused.swift"]),
+            target("test", path: "Tests/LibTests", sources: ["LibTests.swift"], dependsOn: ["Lib"]),
+        ])
+        let describe = process.commandResult
+        process.commandResult = { command in
+            command == ["/usr/bin/xcrun", "--find", "swift"]
+                ? CommandResult(status: 0, endedBySignal: false, output: swift + "\n", errors: "")
+                : describe(command)
+        }
+
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-scheme", "Lib", "-destination", "platform=macOS", "test"]
+        )
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/Sources/Lib/Lib.swift"])])
+        XCTAssertEqual(process.commandsRun, [
+            ["/usr/bin/xcrun", "--find", "swift"],
+            [swift, "package", "--package-path", project, "describe", "--type", "json"],
+        ])
+    }
+
+    // xcodebuild opens a project beside the package before it, and that project's targets aren't the package's.
+    func test_aPackageBesideAProject_testedThroughXcodebuild_isWalked() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(["Package.swift", "App.xcodeproj/project.pbxproj", "Sources/Lib/Lib.swift"], in: project)
+
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-scheme", "App", "test"]
+        )
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/Sources/Lib/Lib.swift"])])
+        XCTAssertEqual(process.commandsRun, [])
     }
 }
