@@ -96,6 +96,25 @@ enum LocalPackageDependencies {
         }
     }
 
+    /// The local packages' folders the package manifests at the top of `folder` name with `.package(path:)`,
+    /// standardized.
+    static func localPackageFolders(namedBy folder: URL) -> [URL] {
+        packageManifests(in: folder).flatMap(packageFolders(namedIn:)).map(\.url)
+    }
+
+    /// A package manifest at the top of `folder` that depends on a local package by a path that isn't a literal one,
+    /// as `.package(path: root + "/Core")`, which `localPackageFolders(namedBy:)` can't follow; nil if none does.
+    static func manifestWithAComputedPackagePath(in folder: URL) -> URL? {
+        packageManifests(in: folder).first { manifest in
+            guard let text = try? String(contentsOf: manifest, encoding: .utf8) else { return false }
+            let code = replacing(comment, in: text)
+            return captures(of: anyPackagePath, in: code).count > captures(of: packagePath, in: code).count
+        }
+    }
+
+    /// A `.package(…)` call that passes a `path:`, whatever its value.
+    private static let anyPackagePath = #"(\.package\s*\([^()]*?\bpath\s*:)"#
+
     /// The package manifests at the top of `folder`.
     private static func packageManifests(in folder: URL) -> [URL] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []

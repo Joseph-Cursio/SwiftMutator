@@ -202,6 +202,17 @@ extension Logger {
         )
     }
 
+    /// Why the Swift files an Xcode project's targets compile couldn't be listed, and what discovery does instead.
+    func xcodeTargetSourcesUnavailable(reason: String) {
+        print(
+            """
+            ⚠️ SwiftMutator couldn't tell which files the project's targets compile: \(reason).
+            It looks at every Swift file in the project that isn't hidden or ignored instead, so a file no target \
+            builds may get mutants no test can kill. \("exclude".bold) can leave such files out.
+            """
+        )
+    }
+
     /// How many of the covered files the walk leaves out the notice names, before how many more there are.
     static let coveredFilesNotWalkedNamed = 5
 
