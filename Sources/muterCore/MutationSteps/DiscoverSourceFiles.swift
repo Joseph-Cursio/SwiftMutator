@@ -149,13 +149,8 @@ struct DiscoverSourceFiles: MutationStep {
     /// (`SwiftPackageSources.files`). For an Xcode project or workspace that xcodebuild tests, the paths in the
     /// project that aren't hidden or ignored, less the Swift files no target under test compiles
     /// (`XcodeTargetSources`); `run` adds back those the coverage names. Otherwise, or if either listing fails, every
-    /// path in the project that isn't hidden or ignored.
-    func candidatePaths(in state: AnyMutationTestState) async throws -> [FilePath] {
-        try await listedCandidates(in: state).paths
-    }
-
-    /// `candidatePaths`, and the walk of the project, when they come from it rather than from describe: all of it,
-    /// or for an Xcode project or workspace, the files its targets compile (`XcodeTargetSources`).
+    /// path in the project that isn't hidden or ignored. With them, the walk of the project, when they come from it
+    /// rather than from describe, so that a file the narrowing left out can be named or kept by coverage.
     func listedCandidates(
         in state: AnyMutationTestState
     ) async throws -> (paths: [FilePath], walk: [FilePath]?) {
