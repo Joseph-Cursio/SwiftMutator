@@ -6,7 +6,7 @@ struct NothingToMutate: Error, Equatable, CustomStringConvertible {
         case noSwiftFileChanged
         /// Every changed Swift file is excluded, by the defaults or the configuration's `exclude`.
         case everyFileExcluded(count: Int)
-        /// No target compiles any of the changed files that weren't excluded.
+        /// No target the tests reach compiles any of the changed files that weren't excluded.
         case noTargetCompiles(count: Int)
         /// None of the changed files that weren't excluded is one discovery would mutate: no target compiles it, or
         /// it has no coverage, or too little.
@@ -34,7 +34,8 @@ struct NothingToMutate: Error, Equatable, CustomStringConvertible {
             why = "\(files(count)) changed \(since), and the excludes leave out \(count == 1 ? "it" : "every one")"
 
         case let .noTargetCompiles(count):
-            why = "\(files(count)) changed \(since), and no target compiles \(count == 1 ? "it" : "any of them")"
+            why = "\(files(count)) changed \(since), and no target the tests reach compiles "
+                + (count == 1 ? "it" : "any of them")
 
         case let .noFileDiscovered(count):
             why = "\(files(count)) changed \(since), and discovery leaves out \(count == 1 ? "it" : "every one"): "

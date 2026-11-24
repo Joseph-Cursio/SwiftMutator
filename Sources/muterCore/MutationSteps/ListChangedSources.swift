@@ -1,8 +1,8 @@
 import Foundation
 
 /// `--since`: lists the paths discovery picks from, once the project is copied and before coverage is gathered, so a
-/// change to code no target compiles, as an example app's or a plugin's, ends the run before the whole test suite runs
-/// for coverage. Discovery then picks from the same list.
+/// change to code no target the tests reach compiles, as an example app's, an unused target's or a plugin's, ends the
+/// run before the whole test suite runs for coverage. Discovery then picks from the same list.
 struct ListChangedSources: MutationStep {
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         guard let selection = state.changeSelection else { return [] }

@@ -67,6 +67,25 @@ enum PackageSchemeBuildConditions {
         )
     }
 
+    /// The `swift` of the Xcode that the test command in `configuration` runs, when it is xcodebuild and opens the
+    /// Swift package in the project at `root`, which it is run in, so that `swift package describe` can say which files
+    /// the package's targets compile; nil when it opens a project or workspace, or SwiftMutator can't tell which Xcode
+    /// it is or find its `swift`.
+    static func swiftOfThePackage(
+        inProjectAt root: FilePath,
+        testedBy configuration: MuterConfiguration,
+        process: ProcessFactory,
+        fileManager: FileSystemManager
+    ) async -> String? {
+        guard configuration.testCommandExecutable.lastPathComponent == "xcodebuild",
+              opensThePackage(at: root, with: configuration.testCommandArguments, fileManager: fileManager),
+              let xcode = xcode(of: configuration.testCommandExecutable)
+        else {
+            return nil
+        }
+        return await xcrun(["--find", "swift"], in: xcode, process: process)
+    }
+
     /// Which Xcode an xcodebuild is, for `xcrun` to find the same Xcode's tools.
     enum Xcode: Equatable {
         /// The one `DEVELOPER_DIR` or `xcode-select` picks, which `/usr/bin/xcodebuild` runs, as `xcrun` does.

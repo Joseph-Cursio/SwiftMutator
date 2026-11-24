@@ -2010,12 +2010,19 @@ coverage, those the tests never ran.
 - **Which files it starts from.** When `executable` is `swift`, the Swift files the tested package
   compiles, as `swift package describe` lists them: the package `--package-path` in `arguments`
   names, or else the one in the project's folder, with those of the local packages in the project
-  it depends on. Its test, plugin and snippet targets' files aren't included, nor files that a
-  link to a folder leads outside the project to. For xcodebuild, a wrapper script, or when describe
-  can't list the files, as when `--package-path` names a package outside the project, they are the
-  project's Swift files, less those in hidden folders or hidden themselves and, in a git
-  repository, those git ignores. That leaves out a source a build step generates and git ignores,
-  even if a target compiles it; `--files-to-mutate` can still name it.
+  it depends on. Only the targets its tests can reach count: those its test targets depend on, and
+  its executable targets, which a test can run as a process, with what they depend on in turn, at
+  any depth. So an example or an unused target is left out, with or without coverage;
+  `--files-to-mutate` with `--skip-coverage` can still name its files. Without a test target,
+  every target counts. Test,
+  plugin and snippet targets' files aren't included, nor files that a link to a folder leads
+  outside the project to. The same goes for a package that xcodebuild opens, with no project or
+  workspace beside it, described by that Xcode's `swift`. For an Xcode project or workspace
+  ([#346](https://github.com/Joseph-Cursio/SwiftMutator/issues/346)), a wrapper script, or when
+  describe can't list the files, as when `--package-path` names a package outside the project,
+  they are the project's Swift files, less those in hidden folders or hidden themselves and, in a
+  git repository, those git ignores. That leaves out a source a build step generates and git
+  ignores, even if a target compiles it; `--files-to-mutate` can still name it.
 - **What coverage keeps.** With coverage, only the files its data names are kept: those with code in
   a binary the coverage run built, whether the tests ran that code or not. For `swift test` those
   are the test bundles; for xcodebuild, every product the run built, so an app that UI tests launch

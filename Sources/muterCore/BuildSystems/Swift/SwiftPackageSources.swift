@@ -1,7 +1,8 @@
 import Foundation
 
-/// The Swift files a SwiftPM package's targets compile, from `swift package describe`. Discovery mutates only these: a
-/// file that no target builds, such as an example app's, gets mutants no test can kill, which count as survivors.
+/// The Swift files a SwiftPM package's targets compile, from `swift package describe`, in the targets its tests reach.
+/// Discovery mutates only these: a file that no such target builds, such as an example app's or an unused target's,
+/// gets mutants no test can kill, which count as survivors.
 enum SwiftPackageSources {
     /// Why the files couldn't be listed.
     enum Failure: Error, Equatable {
@@ -60,31 +61,43 @@ enum SwiftPackageSources {
     struct Package: Equatable {
         /// The path `swift package` was given for it: `root`, or a folder in it.
         let path: FilePath
+        /// Its targets of types under test.
         let targets: [PackageTarget]
+        /// Its test targets.
+        var testTargets: [PackageTarget] = []
+        /// The targets of each of its products, by the product's name.
+        var products: [String: [String]] = [:]
     }
 
-    /// A target of a type under test, in a `Package`.
+    /// A target in a `Package`.
     struct PackageTarget: Equatable {
         /// nil only if describe didn't name it; a target's name is what ties it to its manifest's settings.
         let name: String?
         /// The Swift files it compiles, relative to the project at `root`.
         let files: [FilePath]
+        /// Its type, such as `library`, `executable` or `test`.
+        var type = "library"
+        /// The targets of its own package that it depends on, by name, whatever their conditions.
+        var targetDependencies: [String] = []
+        /// The products of other packages that it depends on, by name, whatever their conditions.
+        var productDependencies: [String] = []
     }
 
     /// The Swift files, relative to the project at `root`, that the tested package compiles, and those of the local
-    /// packages in the project that it depends on, at any depth: every target's but those of `typesNotUnderTest`. The
-    /// tested package is the one that the test command in `configuration` names with `--package-path`, relative to
-    /// `root`, where the command runs, or else the one at `root`. A local package outside the project isn't copied with
-    /// it, so its files aren't listed. Nor are the files that a link to a folder leads to outside the project: mutating
-    /// them would change the files there. A file that links to folders give two paths is listed once, by its path
-    /// without them. A link to a file is listed by its own path, as the mutated file replaces the link in the copy.
+    /// packages in the project that it depends on, at any depth, in the targets its tests can reach
+    /// (`reachedByTheTests(_:)`): every target's but those of `typesNotUnderTest`. The tested package is the one that
+    /// the test command in `configuration` names with `--package-path`, relative to `root`, where the command runs, or
+    /// else the one at `root`. A local package outside the project isn't copied with it, so its files aren't listed.
+    /// Nor are the files that a link to a folder leads to outside the project: mutating them would change the files
+    /// there. A file that links to folders give two paths is listed once, by its path without them. A link to a file is
+    /// listed by its own path, as the mutated file replaces the link in the copy.
     static func files(
         inProjectAt root: FilePath,
         testedBy configuration: MuterConfiguration,
         process: ProcessFactory
     ) async -> Result<[FilePath], Failure> {
         await packages(inProjectAt: root, testedBy: configuration, process: process).map { packages in
-            Set(packages.flatMap(\.targets).flatMap(\.files)).sorted()
+            Set(reachedByTheTests(packages).flatMap(\.files)).sorted()
         }
     }
 
@@ -129,19 +142,13 @@ enum SwiftPackageSources {
                 return .failure(failure)
             }
 
-            let targets = description.targets
-                .filter { !typesNotUnderTest.contains($0.type) }
-                .map { target in
-                    let files = (target.sources ?? []).filter { $0.hasSuffix(".swift") }.compactMap { source in
-                        projectPath(
-                            ofSource: joined(package, target.path ?? "", source),
-                            in: root,
-                            canonicalRoot: canonicalRoot
-                        )
-                    }
-                    return PackageTarget(name: target.name, files: files)
-                }
-            packages.append(Package(path: path, targets: targets))
+            packages.append(Self.package(
+                at: path,
+                inFolder: package,
+                describedAs: description,
+                in: root,
+                canonicalRoot: canonicalRoot
+            ))
             // The package at `root`, too, when the tested one is in a folder of the project and depends on it.
             toDescribe += description.dependencies
                 .compactMap(\.path)
@@ -151,12 +158,49 @@ enum SwiftPackageSources {
         return .success(packages)
     }
 
-    /// The fields of `swift package describe --type json` that say which files a package compiles.
+    /// The package at `path`, the folder `folder` of the project at `root`, from its `description`.
+    private static func package(
+        at path: FilePath,
+        inFolder folder: FilePath,
+        describedAs description: Description,
+        in root: FilePath,
+        canonicalRoot: FilePath
+    ) -> Package {
+        let targets = description.targets.map { target in
+            let files = (target.sources ?? []).filter { $0.hasSuffix(".swift") }.compactMap { source in
+                projectPath(ofSource: joined(folder, target.path ?? "", source), in: root, canonicalRoot: canonicalRoot)
+            }
+            return PackageTarget(
+                name: target.name,
+                files: files,
+                type: target.type,
+                targetDependencies: target.targetDependencies ?? [],
+                productDependencies: target.productDependencies ?? []
+            )
+        }
+        return Package(
+            path: path,
+            targets: targets.filter { !typesNotUnderTest.contains($0.type) },
+            testTargets: targets.filter { $0.type == "test" },
+            products: Dictionary((description.products ?? []).map { ($0.name, $0.targets) }, uniquingKeysWith: +)
+        )
+    }
+
+    /// The fields of `swift package describe --type json` that say which files a package compiles, and which targets
+    /// its tests reach.
     private struct Description: Decodable {
         /// The package's absolute path, with its links resolved.
         let path: String
         let dependencies: [DescriptionDependency]
         let targets: [DescriptionTarget]
+        /// Its products, but its tests. Always there in what SwiftPM prints.
+        let products: [DescriptionProduct]?
+    }
+
+    /// A product in a `Description`.
+    private struct DescriptionProduct: Decodable {
+        let name: String
+        let targets: [String]
     }
 
     /// A package `swift package describe` says a `Description`'s package depends on.
@@ -174,6 +218,10 @@ enum SwiftPackageSources {
         let path: String?
         /// Relative to `path`.
         let sources: [String]?
+        /// `target_dependencies`, left out when it has none.
+        let targetDependencies: [String]?
+        /// `product_dependencies`, left out when it has none.
+        let productDependencies: [String]?
     }
 
     private static func describe(
@@ -193,7 +241,9 @@ enum SwiftPackageSources {
             let error = SwiftCoverage.firstError(in: described.errors) ?? SwiftCoverage.firstLine(of: described.errors)
             return .failure(.describeFailed(packagePath: packagePath, error: error))
         }
-        guard let description = try? JSONDecoder().decode(Description.self, from: Data(described.output.utf8)) else {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        guard let description = try? decoder.decode(Description.self, from: Data(described.output.utf8)) else {
             return .failure(.unreadableDescription(packagePath: packagePath))
         }
         // Without a manifest there, SwiftPM describes the first package in the folders above.
