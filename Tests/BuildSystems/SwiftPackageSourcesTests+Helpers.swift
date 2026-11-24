@@ -1,5 +1,5 @@
 @testable import muterCore
-import XCTest
+import Foundation
 
 /// Describe's answers, and the packages on disk, that the tests are given.
 extension SwiftPackageSourcesTests {
