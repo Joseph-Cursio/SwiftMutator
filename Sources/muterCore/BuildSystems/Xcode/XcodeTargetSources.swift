@@ -2,8 +2,10 @@ import Foundation
 
 /// Which Swift files an Xcode project's targets compile, from its project files, so that discovery leaves out a file
 /// no target compiles, as an example's or a script's, whose mutants no test could kill, with coverage or without.
-/// Every target counts but a test target and an aggregate one: a file only a test target compiles is a test file, as
-/// coverage takes it (`ProjectSourceFiles`). A local Swift package's folder counts whole: its own manifest says what
+/// The targets the scheme's test action builds count (`XcodeTestReach`), or every target when SwiftMutator can't tell
+/// which those are, but a test target and an aggregate one: a file only a test target compiles is a test file, as
+/// coverage takes it (`ProjectSourceFiles`). A file of a non-test target that a test target the scheme builds compiles
+/// itself counts too. A local Swift package's folder counts whole: its own manifest says what
 /// it compiles. It reads the workspace or project the test command opens, with `-workspace` or `-project` or else as
 /// xcodebuild finds one, and the projects those reference.
 enum XcodeTargetSources {
@@ -15,6 +17,14 @@ enum XcodeTargetSources {
         /// with a group, and local packages' folders, whole, their tests included, as a run with coverage leaves
         /// them out. With its links resolved.
         var folders: [FilePath: Set<FilePath>] = [:]
+
+        /// Adds what `other` lists: a file in a folder counts unless both take it out.
+        mutating func merge(_ other: Self) {
+            files.formUnion(other.files)
+            for (folder, excluded) in other.folders {
+                folders[folder] = folders[folder].map { $0.intersection(excluded) } ?? excluded
+            }
+        }
 
         /// Whether a target compiles the file at `path`, absolute.
         func contains(_ path: FilePath) -> Bool {
@@ -46,24 +56,20 @@ enum XcodeTargetSources {
         testedBy configuration: MuterConfiguration,
         fileManager: FileSystemManager
     ) -> Result<Listing, Failure> {
-        let projects: [FilePath]
-        var listing = Listing()
         let arguments = configuration.testCommandArguments
+        let opened: Opened
         switch openedProjects(inProjectAt: root, arguments: arguments, fileManager: fileManager) {
-        case let .success(opened):
-            projects = opened.projects
-            for package in opened.packages {
-                listing.folders[package.canonicalPath] = []
-            }
-
-        case let .failure(failure):
-            return .failure(failure)
+        case let .success(found): opened = found
+        case let .failure(failure): return .failure(failure)
         }
-
-        var read: Set<FilePath> = []
-        var toRead = projects
+        var read = Read()
+        for package in opened.packages {
+            read.packages.folders[package.canonicalPath] = []
+        }
+        var toRead = opened.projects
         while let project = toRead.popLast() {
-            guard read.insert(project.canonicalPath).inserted else { continue }
+            let resolved = project.canonicalPath
+            guard read.projects[resolved] == nil else { continue }
             let path = project + "/project.pbxproj"
             let buildFile = (try? String(contentsOfFile: path, encoding: .utf8)).map { text in
                 XcodeBuildConditions.BuildFile(name: "project.pbxproj", text: text, path: path)
@@ -71,11 +77,20 @@ enum XcodeTargetSources {
             guard let file = buildFile.flatMap(ProjectFile.init) else {
                 return .failure(Failure(reason: "\(relative(project, to: root)) has no project file it can read"))
             }
-            switch add(file, of: project, to: &listing, root: root) {
+            read.projects[resolved] = file
+            switch add(file, of: project, to: &read, root: root) {
             case let .success(referenced): toRead += referenced
             case let .failure(failure): return .failure(failure)
             }
         }
+
+        let reached = XcodeTestReach.reached(
+            in: read.projects,
+            container: opened.container,
+            arguments: arguments,
+            fileManager: fileManager
+        )
+        var listing = read.listing(of: reached)
         if let failure = addLocalPackagesTheyDependOn(to: &listing, fileManager: fileManager, root: root) {
             return .failure(failure)
         }
@@ -129,68 +144,12 @@ enum XcodeTargetSources {
         }
     }
 
-    /// The projects, and local packages, the test command opens: those a workspace names, or the one project.
-    private static func openedProjects(
-        inProjectAt root: FilePath,
-        arguments: [String],
-        fileManager: FileSystemManager
-    ) -> Result<(projects: [FilePath], packages: [FilePath]), Failure> {
-        let given = XcodebuildArguments(arguments).arguments.last { argument in
-            argument.kind == .option && ["-workspace", "-project"].contains(argument.name) && argument.written.count > 1
-        }
-        let container: (isWorkspace: Bool, path: FilePath)
-        if let given {
-            let path = given.written[1]
-            container = (given.name == "-workspace", path.hasPrefix("/") ? path : root + "/" + path)
-        } else {
-            // As xcodebuild picks: the one project at the top of the folder, or else the one workspace.
-            let topLevel = (try? fileManager.contentsOfDirectory(atPath: root)) ?? []
-            let projects = topLevel.filter { $0.hasSuffix(".xcodeproj") }
-            let workspaces = topLevel.filter { $0.hasSuffix(".xcworkspace") }
-            if projects.count == 1 {
-                container = (false, root + "/" + projects[0])
-            } else if projects.isEmpty, workspaces.count == 1 {
-                container = (true, root + "/" + workspaces[0])
-            } else {
-                return .failure(Failure(reason: "it can't tell which project or workspace the test command opens"))
-            }
-        }
-        guard container.isWorkspace else {
-            return .success(([container.path], []))
-        }
-        // A project's own workspace opens that project, and a package's in `.swiftpm/xcode`, that package.
-        let parent = container.path.deletingLastPathComponent
-        if parent.hasSuffix(".xcodeproj") {
-            return .success(([parent], []))
-        }
-        if container.path.hasSuffix("/.swiftpm/xcode/package.xcworkspace") {
-            return .success(([], [parent.deletingLastPathComponent.deletingLastPathComponent]))
-        }
-
-        let contents = container.path + "/contents.xcworkspacedata"
-        let workspace = (try? String(contentsOfFile: contents, encoding: .utf8)).map { text in
-            XcodeBuildConditions.BuildFile(name: "contents.xcworkspacedata", text: text, path: contents)
-        }
-        guard let locations = workspace.flatMap(XcodeBuildConditions.locations(inWorkspace:)) else {
-            return .failure(Failure(reason: "it can't read \(relative(container.path, to: root))"))
-        }
-        if let nested = locations.first(where: { $0.hasSuffix(".xcworkspace") }) {
-            return .failure(Failure(reason: "the workspace names another workspace, \(relative(nested, to: root))"))
-        }
-        let projects = locations.filter { $0.hasSuffix(".xcodeproj") }
-        let packages = locations.filter { fileManager.fileExists(atPath: $0 + "/Package.swift") }
-        guard !projects.isEmpty || !packages.isEmpty else {
-            return .failure(Failure(reason: "\(relative(container.path, to: root)) names no project or package"))
-        }
-        return .success((projects, packages))
-    }
-
-    /// Adds what `file`'s targets compile, the project file of the project at `project`, to `listing`, and gives the
+    /// Adds what `file`'s targets compile, the project file of the project at `project`, to `read`, and gives the
     /// projects it references, whose targets it can build too.
     private static func add(
         _ file: ProjectFile,
         of project: FilePath,
-        to listing: inout Listing,
+        to read: inout Read,
         root: FilePath
     ) -> Result<[FilePath], Failure> {
         let named = relative(project, to: root)
@@ -203,14 +162,16 @@ enum XcodeTargetSources {
 
             case "XCLocalSwiftPackageReference", "PBXFileReference":
                 switch reference(id, of: file, named: named) {
-                case let .success(.project(location)?): referenced.append(location)
-                case let .success(.package(location)?): listing.folders[location.canonicalPath] = []
-                case .success(nil): continue
-                case let .failure(failure): return .failure(failure)
+                case let .success(found):
+                    let key = XcodeTargetKey(project: project.canonicalPath, id: id)
+                    referenced += found.flatMap { read.record($0, as: key) }.map { [$0] } ?? []
+
+                case let .failure(failure):
+                    return .failure(failure)
                 }
 
             case "PBXNativeTarget", "PBXFileSystemSynchronizedRootGroup":
-                if let failure = add(id, of: file, named: named, to: &listing) {
+                if let failure = add(id, of: file, at: project.canonicalPath, named: named, to: &read) {
                     return .failure(failure)
                 }
 
@@ -221,22 +182,49 @@ enum XcodeTargetSources {
         return .success(referenced)
     }
 
-    /// What an object of a project file references that has targets of its own: a local package, or another project.
-    private enum Reference {
-        case project(FilePath)
-        case package(FilePath)
-    }
-
-    /// Adds what the target or synced folder `id` of `file` gives `listing`: a target's own files, unless it's a test
-    /// target (`add(target:of:named:to:)`), and the files a folder's exceptions add to targets that don't own it
-    /// (`addExceptionsAdding(from:of:named:to:)`).
-    private static func add(_ id: String, of file: ProjectFile, named: String, to listing: inout Listing) -> Failure? {
+    /// Adds what the target or synced folder `id` of `file`, the project file of the project at `project`, gives
+    /// `read`: a target's own files (`add(target:of:named:to:)`), or a test target's Sources phases' files, which
+    /// SwiftMutator needn't place, and the files a folder's exceptions add to targets that don't own it, with those
+    /// targets
+    /// (`exceptionsAdding(from:of:named:)`).
+    private static func add(
+        _ id: String,
+        of file: ProjectFile,
+        at project: FilePath,
+        named: String,
+        to read: inout Read
+    ) -> Failure? {
         let object = file.objects[id] ?? [:]
         guard object["isa"] as? String == "PBXNativeTarget" else {
-            return addExceptionsAdding(from: id, of: file, named: named, to: &listing)
+            switch exceptionsAdding(from: id, of: file, named: named) {
+            case let .success(added):
+                for (target, listing) in added {
+                    guard let target else {
+                        read.packages.merge(listing)
+                        continue
+                    }
+                    let key = XcodeTargetKey(project: project, id: target)
+                    if XcodeTestReach.isATestTarget(file.objects[target] ?? [:]) {
+                        read.testTargets[key, default: Listing()].merge(listing)
+                    } else {
+                        read.targets[key, default: Listing()].merge(listing)
+                    }
+                }
+                return nil
+
+            case let .failure(failure):
+                return failure
+            }
         }
-        guard !testProductTypes.contains(object["productType"] as? String ?? "") else { return nil }
-        return add(target: id, of: file, named: named, to: &listing)
+        var listing = Listing()
+        let failure = add(target: id, of: file, named: named, to: &listing)
+        let key = XcodeTargetKey(project: project, id: id)
+        if XcodeTestReach.isATestTarget(object) {
+            read.testTargets[key, default: Listing()].merge(failure == nil ? listing : Listing())
+            return nil
+        }
+        read.targets[key, default: Listing()].merge(listing)
+        return failure
     }
 
     /// What the object `id` of `file`, the project file of the project `named`, references: a local package, by a
@@ -248,7 +236,7 @@ enum XcodeTargetSources {
                 return .failure(Failure(reason: "\(named) has a local package it can't place"))
             }
             let folder = path.hasPrefix("/") ? path : file.sourceRoot + "/" + path
-            return .success(.package(XcodeBuildConditions.lexicallyNormalized(folder)))
+            return .success(.packageReference(XcodeBuildConditions.lexicallyNormalized(folder)))
         }
         let type = object["lastKnownFileType"] as? String ?? object["explicitFileType"] as? String
         guard type == "wrapper.pb-project" || type == "wrapper" || type == "folder" else { return .success(nil) }
@@ -259,7 +247,7 @@ enum XcodeTargetSources {
             return .success(.project(location))
         }
         let isAPackage = FileManager.default.fileExists(atPath: location + "/Package.swift")
-        return .success(isAPackage ? .package(location) : nil)
+        return .success(isAPackage ? .packageFolder(location) : nil)
     }
 
     /// Adds the Swift files the target `id` of `file` compiles to `listing`: those its Sources phases name, and those
@@ -294,7 +282,7 @@ enum XcodeTargetSources {
     }
 
     /// `path` relative to `root`, for a reason to name it by.
-    private static func relative(_ path: FilePath, to root: FilePath) -> FilePath {
+    static func relative(_ path: FilePath, to root: FilePath) -> FilePath {
         RepoRelativePath.of(path, under: URL(fileURLWithPath: root))
     }
 }

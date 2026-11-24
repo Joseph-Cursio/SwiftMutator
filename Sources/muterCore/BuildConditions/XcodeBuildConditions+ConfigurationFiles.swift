@@ -3,6 +3,8 @@ import Foundation
 /// A project file's objects, and where its files and groups are.
 struct ProjectFile {
     let objects: [String: [String: Any]]
+    /// The project object's ID.
+    let rootObjectID: String
     private let mainGroup: String
     /// The folder the project's paths are relative to: the one that holds the `.xcodeproj`, unless the project moves
     /// it.
@@ -15,7 +17,8 @@ struct ProjectFile {
               let plist = try? PropertyListSerialization.propertyList(from: Data(file.text.utf8), format: nil),
               let project = plist as? [String: Any],
               let projectObjects = project["objects"] as? [String: [String: Any]],
-              let projectObject = (project["rootObject"] as? String).flatMap({ projectObjects[$0] }),
+              let rootID = project["rootObject"] as? String,
+              let projectObject = projectObjects[rootID],
               let mainGroupID = projectObject["mainGroup"] as? String
         else {
             return nil
@@ -25,6 +28,7 @@ struct ProjectFile {
         guard !projectDirectory.contains("$") else { return nil }
 
         self.objects = projectObjects
+        self.rootObjectID = rootID
         self.mainGroup = mainGroupID
         sourceRoot = projectDirectory.hasPrefix("/")
             ? projectDirectory
