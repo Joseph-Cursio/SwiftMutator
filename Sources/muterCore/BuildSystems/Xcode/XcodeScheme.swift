@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
 
 /// The fields of an `.xctestplan` file that name the targets it tests.
 private struct XcodeTestPlanFile: Decodable {
