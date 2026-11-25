@@ -2019,11 +2019,15 @@ coverage, those the tests never ran.
   outside the project to. The same goes for a package that xcodebuild opens, with no project or
   workspace beside it, described by that Xcode's `swift`. For an Xcode project or workspace, the
   project's Swift files, less those in hidden folders or hidden themselves and, in a git
-  repository, those git ignores, that a target compiles, as its project files say: a target's
-  Sources phase, the folders synced with its groups less the files their exceptions take out, and
-  a local package's folder whole, its tests included, with the local packages it depends on.
-  Otherwise not a file only a test target compiles, which is a test file, nor one no target
-  compiles, as an example's or a script's. That reads the workspace or project
+  repository, those git ignores, that a target the scheme's test action builds compiles, as its
+  project files say: a target's Sources phase, the folders synced with its groups less the files
+  their exceptions take out, and a local package's folder whole, its tests included, with the
+  local packages it depends on. The targets it builds are those the scheme `-scheme` names builds
+  for testing, tests, or tests in its test plans, and those they depend on, link, embed or are
+  hosted by, at any depth, and the local packages those use; when the scheme can't say, as with
+  no shared or user scheme file, or a test plan Xcode makes itself, every target counts. Not a
+  file only a test target compiles, which is a test file, unless a target under test compiles it
+  too, nor one no such target compiles, as an example's, an unused tool's or a script's. That reads the workspace or project
   the test command opens, and the projects it references; when it can't tell, as for a target an
   external tool builds or a project file it can't read, a warning says so and every one of those
   files counts. A run with coverage keeps any file the coverage names too, and with `--since`,

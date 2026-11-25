@@ -27,16 +27,16 @@ extension XcodeTargetSources {
         return nil
     }
 
-    /// Adds to `listing` the files that the exceptions of the synced folder `group` of `file` add to targets under
-    /// test that don't own it, as an app extension's files often are, in a folder no target owns. An exception for a
-    /// target that owns the folder takes files out of it instead (`add(target:of:named:to:)`). An entry that is a
-    /// folder adds every file in it, and a kind of exception SwiftMutator doesn't know, every file in the folder.
-    static func addExceptionsAdding(
+    /// The files that the exceptions of the synced folder `group` of `file` add to targets under test that don't own
+    /// it, by those targets' IDs, as an app extension's files often are, in a folder no target owns; nil for a kind of
+    /// exception SwiftMutator doesn't know, with no target, whose folder counts whole. An exception for a target that
+    /// owns the folder takes files out of it instead (`add(target:of:named:to:)`). An entry that is a folder adds every
+    /// file in it.
+    static func exceptionsAdding(
         from group: String,
         of file: ProjectFile,
-        named project: String,
-        to listing: inout Listing
-    ) -> Failure? {
+        named project: String
+    ) -> Result<[String?: Listing], Failure> {
         let owners = Set(file.objects.compactMap { id, object in
             (object["fileSystemSynchronizedGroups"] as? [String])?.contains(group) == true ? id : nil
         })
@@ -47,26 +47,27 @@ extension XcodeTargetSources {
                 }
                 return !owners.contains(exception["target"] as? String ?? "")
                     && target["isa"] as? String == "PBXNativeTarget"
-                    && !testProductTypes.contains(target["productType"] as? String ?? "")
             }
-        guard !adding.isEmpty else { return nil }
+        guard !adding.isEmpty else { return .success([:]) }
         guard let folder = file.location(of: group) else {
-            return Failure(reason: "it can't place a folder synced with a group of \(project)")
+            return .failure(Failure(reason: "it can't place a folder synced with a group of \(project)"))
         }
+        var added: [String?: Listing] = [:]
         for exception in adding {
+            let target = exception["target"] as? String
             guard exception["isa"] as? String == "PBXFileSystemSynchronizedBuildFileExceptionSet" else {
-                listing.folders[folder.canonicalPath] = []
+                added[target, default: Listing()].folders[folder.canonicalPath] = []
                 continue
             }
             for path in exception["membershipExceptions"] as? [String] ?? [] {
-                let added = (folder + "/" + path).canonicalPath
+                let entry = (folder + "/" + path).canonicalPath
                 if path.hasSuffix(".swift") {
-                    listing.files.insert(added)
-                } else if FileManager.default.fileExists(atPath: added + "/") {
-                    listing.folders[added] = []
+                    added[target, default: Listing()].files.insert(entry)
+                } else if FileManager.default.fileExists(atPath: entry + "/") {
+                    added[target, default: Listing()].folders[entry] = []
                 }
             }
         }
-        return nil
+        return .success(added)
     }
 }
