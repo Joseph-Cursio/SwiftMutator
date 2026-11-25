@@ -1,6 +1,6 @@
 # Ablation testing
 
-**Planned, not built.** SwiftMutator can't run ablations yet. [prd-ablation-testing.md](prd-ablation-testing.md) proposes how it would.
+**Planned, not built.** SwiftMutator can't run ablations yet. [prd-ablation-testing.md](prd-ablation-testing.md) proposes how it would, and [#340](https://github.com/Joseph-Cursio/SwiftMutator/issues/340) tracks the work.
 
 Ablation testing takes a fix with several parts, removes one part at a time, and runs the tests against each version. If removing a part makes a test fail, that part is both needed and tested. If removing it changes nothing, either the part isn't needed or no test checks it, and the run alone can't tell you which.
 
