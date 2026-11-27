@@ -5,13 +5,15 @@
 Automated [mutation testing](https://en.wikipedia.org/wiki/Mutation_testing) for Swift.
 
 SwiftMutator is based on [Muter](https://github.com/muter-mutation-testing/muter) by the Muter
-contributors, and keeps its history; Muter's README there describes Muter as it was, and this one
-describes SwiftMutator. Muter introduces small changes (*mutants*) into your
-code, such as `==` becoming `!=` or a call being removed, and runs your tests against each one.
-A mutant your tests don't catch shows a behavior your tests don't check. The mutation score is
-the share of mutants caught: those a failed test or a crash killed, as a percent of every mutant
-that built, truncated to a whole percent, so 50 of 75 is 66%. A mutant that times out with no
-failure or crash in its log isn't caught, as [timeouts](#timeouts-are-run-again) explains.
+contributors, and keeps its history; Muter's README there describes Muter, and this one describes
+SwiftMutator. Muter is active again, with release 17 in November 2026: [Why a fork of
+Muter](#why-a-fork-of-muter) compares the two as of 27 November 2026. SwiftMutator introduces small
+changes (*mutants*) into your code, such as `==` becoming `!=` or a call being removed, and runs
+your tests against each one. A mutant your tests don't catch shows a behavior your tests don't
+check. The mutation score is the share of mutants caught: those a failed test or a crash killed, as
+a percent of every mutant that built, truncated to a whole percent, so 50 of 75 is 66%. A mutant
+that times out with no failure or crash in its log isn't caught, as
+[timeouts](#timeouts-are-run-again) explains.
 
 [Docs/mutation_operators.md](Docs/mutation_operators.md) describes each operator, and
 [Docs/mutation_score_vs_test_code_coverage.md](Docs/mutation_score_vs_test_code_coverage.md) how
@@ -87,9 +89,88 @@ fewer that way. On the small package, swift-mutation-testing was faster.
 
 ## Why a fork of Muter
 
-Muter's last release is 16 (September 2023). On current toolchains its `main` branch reports a
-0% score for SwiftPM projects ([muter#307](https://github.com/muter-mutation-testing/muter/issues/307)),
-and fixes wait months for review. SwiftMutator starts from Muter's `main` and adds:
+If you're choosing a mutation tester for Swift, look at Muter too. It's active again: [Muter
+17](https://github.com/muter-mutation-testing/muter/releases/tag/17), on 25 November 2026, is its
+first release since 16 (September 2023), and it no longer scores SwiftPM projects 0%: the fix for
+[muter#307](https://github.com/muter-mutation-testing/muter/issues/307),
+[muter#319](https://github.com/muter-mutation-testing/muter/pull/319), is in it. Muter's `master`
+has gained more since. If code moves between the two, mind the disable comments, the first note
+below.
+
+SwiftMutator forked from Muter's `master` on 21 July 2026, at
+[muter#306](https://github.com/muter-mutation-testing/muter/pull/306). Muter's last release was then
+16, its `master` scored SwiftPM projects 0% on current toolchains
+([muter#307](https://github.com/muter-mutation-testing/muter/issues/307)), and fixes waited months
+for review. Some of Muter 17 came from this project:
+[muter#312](https://github.com/muter-mutation-testing/muter/pull/312),
+[#313](https://github.com/muter-mutation-testing/muter/pull/313),
+[#314](https://github.com/muter-mutation-testing/muter/pull/314),
+[#315](https://github.com/muter-mutation-testing/muter/pull/315) and
+[#318](https://github.com/muter-mutation-testing/muter/pull/318). That work and
+[muter#303](https://github.com/muter-mutation-testing/muter/pull/303),
+[#319](https://github.com/muter-mutation-testing/muter/pull/319) and
+[#323](https://github.com/muter-mutation-testing/muter/pull/323) give Muter 17 every fix in
+[muter#309](https://github.com/muter-mutation-testing/muter/pull/309), which **Mutants that actually
+apply** cites, but one: removing the module caches copied with a build folder. Muter leaves `.build`
+out of its copy instead ([muter#304](https://github.com/muter-mutation-testing/muter/pull/304)),
+which covers the usual case.
+
+These notes compare Muter 17 at `9e46bd62` and Muter's `master` at `0ee97490`, on 27 November 2026,
+with the items SwiftMutator adds, which are listed after the notes:
+
+- **Disable comments don't carry over, in either direction.** SwiftMutator reads only a comment's
+  first word. So Muter's `master` forms `// muter:disable next-line` and
+  `// muter:disable SwapTernary` count here as a plain `// muter:disable`: they leave out every
+  operator's mutants after them, up to a `muter:enable` or the end of the file. And
+  `// muter:enable SwapTernary` turns every operator back on. Muter, 17 and `master` alike, reads
+  SwiftMutator's `// muter:disable-next-line` and `// muter:disable-declaration` as a plain disable
+  too, which lasts to the next `muter:enable`. In code that both tools run on, use only
+  `// muter:disable` … `// muter:enable` pairs.
+- **Muter 17 has four of the items, one in full.** It has **Logging through the injected printer**,
+  nearly all of **Mutants that actually apply**, as above, and part of **Parallel workers** and **A
+  default timeout**. Its workers are for SwiftPM only, off unless `mutationTestWorkers` is set, with
+  no `--workers`. Its default time limit is 3 times the baseline run, build included, at least 10 s,
+  and timeouts aren't run again.
+- **Muter's `master`, since 17, has part of five more.** It negates each comparison
+  ([muter#337](https://github.com/muter-mutation-testing/muter/pull/337)), part of **Comparisons**.
+  It swaps `true` and `false`
+  ([muter#333](https://github.com/muter-mutation-testing/muter/pull/333)), part of **Arithmetic and
+  boolean literals**. It writes a Stryker report
+  ([muter#345](https://github.com/muter-mutation-testing/muter/pull/345)), part of **Several reports
+  from one run**. And it reads a file's disable comments once, by line, with a next-line form
+  ([muter#341](https://github.com/muter-mutation-testing/muter/pull/341)), part of both **Disable
+  tags act once, by where they are** and **Directives match the word**. The other items have no
+  counterpart in Muter yet. Outside them, Muter's `master` also leaves out mutants in `#if` branches
+  the test build doesn't compile
+  ([muter#347](https://github.com/muter-mutation-testing/muter/pull/347)). It decides only `os`,
+  `targetEnvironment(simulator)` and `canImport` of system modules, where SwiftMutator also reads
+  the build's custom conditions and the Swift and compiler versions (see [Code an `#if` leaves
+  out](#code-an-if-leaves-out)).
+- **Muter has things SwiftMutator doesn't.** Muter 17 has a prebuilt universal binary with the
+  release and a Homebrew formula; SwiftMutator has neither yet (see [Install](#install)). Muter's
+  `master` adds an operator that swaps `...` and `..<`
+  ([muter#335](https://github.com/muter-mutation-testing/muter/pull/335)), disable comments that
+  name operators ([muter#341](https://github.com/muter-mutation-testing/muter/pull/341)), mutants
+  under `muter:disable` listed as ignored in the reports
+  ([muter#342](https://github.com/muter-mutation-testing/muter/pull/342)), failed tests counted per
+  operator ([muter#338](https://github.com/muter-mutation-testing/muter/pull/338)), `init` for a
+  Swift package that builds only for iOS
+  ([muter#332](https://github.com/muter-mutation-testing/muter/pull/332)), and much less memory per
+  mutant ([muter#344](https://github.com/muter-mutation-testing/muter/pull/344)).
+- **Muter's `master` scores differently, on purpose.** Muter 17 scores as SwiftMutator does: a
+  timeout with no failure or crash in its log isn't caught
+  ([muter#324](https://github.com/muter-mutation-testing/muter/pull/324)), and the score is
+  truncated. With several workers, SwiftMutator also runs such a timeout again at lower load. Since
+  17, Muter's `master` counts every timeout as killed and rounds the score
+  ([muter#340](https://github.com/muter-mutation-testing/muter/pull/340)). Its comparison mutant has
+  changed too: Muter 17 reverses the operator, `<` to `>`, and `master` negates it, `<` to `>=`
+  ([muter#337](https://github.com/muter-mutation-testing/muter/pull/337)). SwiftMutator makes the
+  set of mutants that **Comparisons** and [Docs/mutation_operators.md](Docs/mutation_operators.md)
+  describe. So the same project can score differently under Muter's next release.
+
+Muter's `muter.conf.yml` keys, in 17 and in `master`, all work in SwiftMutator.
+
+SwiftMutator started from Muter's `master` at that fork and adds:
 
 - **Mutants that actually apply:** schemata keyed by stable source position, nested blocks kept,
   ternary swaps that don't corrupt code, and simulator, PATH and module-cache fixes (from
